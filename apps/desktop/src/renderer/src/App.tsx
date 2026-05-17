@@ -1,15 +1,33 @@
 import {
-  Award,
   ClipboardList,
   Flag,
   LayoutDashboard,
   Monitor,
-  Play,
   Plus,
   Trophy,
   Users
 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+
+import type {
+  AddRacerInput,
+  AddStageInput,
+  CreateFinalsStageInput,
+  CreateProjectInput,
+  ProjectSessionSnapshot,
+  RecordHeatResultsInput,
+  RemovalResolutionStrategy,
+  UpdateProjectInput,
+  UpdateRacerInput,
+  UpdateStageInput
+} from '@packracer/race-engine'
+
+import { DisplayMode } from './sections/DisplayMode'
+import { EventSetup } from './sections/EventSetup'
+import { RaceControl } from './sections/RaceControl'
+import { Registration } from './sections/Registration'
+import { Standings } from './sections/Standings'
+import type { AppActions } from './sections/types'
 
 type SectionId = 'event' | 'registration' | 'race-control' | 'standings' | 'display'
 
@@ -20,40 +38,136 @@ type NavigationItem = {
   icon: typeof ClipboardList
 }
 
-const navigationItems: NavigationItem[] = [
-  { id: 'event', label: 'Event Setup', meta: 'Draft', icon: ClipboardList },
-  { id: 'registration', label: 'Registration', meta: '0 racers', icon: Users },
-  { id: 'race-control', label: 'Race Control', meta: 'Idle', icon: Flag },
-  { id: 'standings', label: 'Standings', meta: 'Pending', icon: Trophy },
-  { id: 'display', label: 'Display', meta: 'Closed', icon: Monitor }
-]
+function getPackRacerApi(): Window['packRacer'] {
+  if (!window.packRacer) {
+    throw new Error('The PackRacer desktop bridge did not load. Restart the Electron app from npm run dev.')
+  }
 
-const workflowStats = [
-  { label: 'Competitors', value: '0', detail: 'No entries' },
-  { label: 'Stages', value: '0', detail: 'Not configured' },
-  { label: 'Heats', value: '0', detail: 'Not scheduled' },
-  { label: 'Lanes', value: '4', detail: 'Default track' }
-]
-
-const upcomingWork = [
-  'Create event file storage',
-  'Model competitors and divisions',
-  'Build timed heat scheduling',
-  'Add manual result entry'
-]
+  return window.packRacer
+}
 
 export function App() {
   const [activeSection, setActiveSection] = useState<SectionId>('event')
   const [appVersion, setAppVersion] = useState('0.1.0')
+  const [session, setSession] = useState<ProjectSessionSnapshot | null>(null)
+  const [selectedStageId, setSelectedStageId] = useState('')
+  const [errorMessage, setErrorMessage] = useState('')
 
   useEffect(() => {
+    if (!window.packRacer) {
+      setErrorMessage('The PackRacer desktop bridge did not load. Restart the Electron app from npm run dev.')
+      return
+    }
+
     void window.packRacer.getVersion().then(setAppVersion)
+    void window.packRacer.getCurrentProject().then((currentSession) => {
+      if (currentSession) {
+        setSession(currentSession)
+        setSelectedStageId(currentSession.project.currentStageId ?? currentSession.project.stages[0]?.id ?? '')
+      }
+    })
   }, [])
+
+  const project = session?.project ?? null
+
+  useEffect(() => {
+    if (!project) {
+      setSelectedStageId('')
+      return
+    }
+
+    if (!selectedStageId || !project.stages.some((stage) => stage.id === selectedStageId)) {
+      setSelectedStageId(project.currentStageId ?? project.stages[0]?.id ?? '')
+    }
+  }, [project, selectedStageId])
+
+  const applySession = useCallback((nextSession: ProjectSessionSnapshot | null) => {
+    if (!nextSession) {
+      return
+    }
+
+    setSession(nextSession)
+    setSelectedStageId(nextSession.project.currentStageId ?? nextSession.project.stages[0]?.id ?? '')
+  }, [])
+
+  const runAction = useCallback(
+    async (action: () => Promise<ProjectSessionSnapshot | null>): Promise<void> => {
+      try {
+        setErrorMessage('')
+        applySession(await action())
+      } catch (error) {
+        setErrorMessage(error instanceof Error ? error.message : 'The race operation could not be completed.')
+      }
+    },
+    [applySession]
+  )
+
+  const actions: AppActions = useMemo(
+    () => ({
+      createProject: (input: CreateProjectInput) => runAction(() => getPackRacerApi().createProject(input)),
+      openProject: () => runAction(() => getPackRacerApi().openProject()),
+      updateProject: (input: UpdateProjectInput) => runAction(() => getPackRacerApi().updateProject(input)),
+      addRacer: (input: AddRacerInput) => runAction(() => getPackRacerApi().addRacer(input)),
+      updateRacer: (racerId: string, input: UpdateRacerInput) =>
+        runAction(() => getPackRacerApi().updateRacer(racerId, input)),
+      scratchRacer: (racerId: string) => runAction(() => getPackRacerApi().scratchRacer(racerId)),
+      resolveRacerRemoval: (strategy: RemovalResolutionStrategy) =>
+        runAction(() => getPackRacerApi().resolveRacerRemoval(strategy)),
+      addStage: (input: AddStageInput) => runAction(() => getPackRacerApi().addStage(input)),
+      updateStage: (stageId: string, input: UpdateStageInput) =>
+        runAction(() => getPackRacerApi().updateStage(stageId, input)),
+      generateHeats: (stageId: string) => runAction(() => getPackRacerApi().generateHeats(stageId)),
+      createFinalsStage: (input: CreateFinalsStageInput) => runAction(() => getPackRacerApi().createFinalsStage(input)),
+      recordHeatResults: (input: RecordHeatResultsInput) => runAction(() => getPackRacerApi().recordHeatResults(input)),
+      setCurrentHeat: (heatId: string) => runAction(() => getPackRacerApi().setCurrentHeat(heatId)),
+      advanceHeat: () => runAction(() => getPackRacerApi().advanceHeat())
+    }),
+    [runAction]
+  )
+
+  const navigationItems: NavigationItem[] = useMemo(() => {
+    const activeRacers = project?.racers.filter((racer) => racer.status === 'active').length ?? 0
+    const heatCount = project?.stages.reduce((total, stage) => total + stage.heats.length, 0) ?? 0
+    const currentHeat = project?.stages.flatMap((stage) => stage.heats).find((heat) => heat.id === project.currentHeatId)
+
+    return [
+      { id: 'event', label: 'Event Setup', meta: project?.status ?? 'No project', icon: ClipboardList },
+      { id: 'registration', label: 'Registration', meta: `${activeRacers} active`, icon: Users },
+      { id: 'race-control', label: 'Race Control', meta: currentHeat ? `Heat ${currentHeat.heatNumber}` : 'Idle', icon: Flag },
+      { id: 'standings', label: 'Standings', meta: heatCount > 0 ? 'Live' : 'Pending', icon: Trophy },
+      { id: 'display', label: 'Display', meta: project ? 'Ready' : 'Closed', icon: Monitor }
+    ]
+  }, [project])
+
+  const workflowStats = useMemo(() => {
+    const activeRacers = project?.racers.filter((racer) => racer.status === 'active').length ?? 0
+    const totalRacers = project?.racers.length ?? 0
+    const heatCount = project?.stages.reduce((total, stage) => total + stage.heats.length, 0) ?? 0
+    const completeHeats = project?.stages.reduce(
+      (total, stage) => total + stage.heats.filter((heat) => heat.status === 'complete').length,
+      0
+    ) ?? 0
+
+    return [
+      { label: 'Competitors', value: `${activeRacers}`, detail: `${totalRacers} registered` },
+      { label: 'Stages', value: `${project?.stages.length ?? 0}`, detail: project?.tournamentType ?? 'Not configured' },
+      { label: 'Heats', value: `${completeHeats}/${heatCount}`, detail: heatCount > 0 ? 'Recorded / scheduled' : 'Not scheduled' },
+      { label: 'Lanes', value: `${project?.laneCount ?? 4}`, detail: project?.trackName ?? 'Default track' }
+    ]
+  }, [project])
 
   const activeNavigationItem = useMemo(
     () => navigationItems.find((item) => item.id === activeSection) ?? navigationItems[0],
     [activeSection]
   )
+
+  const sectionProps = {
+    session,
+    project,
+    actions,
+    selectedStageId,
+    setSelectedStageId
+  }
 
   return (
     <main className="app-shell">
@@ -102,16 +216,25 @@ export function App() {
             <h2 id="workspace-title">{activeNavigationItem.label}</h2>
           </div>
           <div className="topbar-actions">
-            <button className="secondary-action" type="button">
+            <button className="secondary-action" onClick={actions.openProject} type="button">
               <LayoutDashboard aria-hidden="true" size={18} />
-              <span>Operator View</span>
+              <span>Open Project</span>
             </button>
-            <button className="primary-action" type="button">
+            <button className="primary-action" onClick={() => setActiveSection('event')} type="button">
               <Plus aria-hidden="true" size={18} />
               <span>New Event</span>
             </button>
           </div>
         </header>
+
+        {errorMessage ? <div className="notice-banner" role="alert">{errorMessage}</div> : null}
+
+        {project?.activeRemovalImpact ? (
+          <div className="notice-banner warning" role="status">
+            {project.activeRemovalImpact.racerName} was scratched. {project.activeRemovalImpact.affectedHeatIds.length}{' '}
+            pending heat(s) need an operator decision.
+          </div>
+        ) : null}
 
         <div className="status-strip" aria-label="Event readiness">
           {workflowStats.map((stat) => (
@@ -123,44 +246,11 @@ export function App() {
           ))}
         </div>
 
-        <section className="control-surface">
-          <div className="race-panel current-state">
-            <div className="panel-heading">
-              <div>
-                <p className="eyebrow">Current Heat</p>
-                <h3>No active heat</h3>
-              </div>
-              <button className="icon-action" aria-label="Start race control" type="button">
-                <Play aria-hidden="true" size={22} fill="currentColor" />
-              </button>
-            </div>
-
-            <div className="lane-grid" aria-label="Lane assignments">
-              {[1, 2, 3, 4].map((lane) => (
-                <div className="lane-row" key={lane}>
-                  <span>Lane {lane}</span>
-                  <strong>Open</strong>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="race-panel next-actions">
-            <div className="panel-heading">
-              <div>
-                <p className="eyebrow">Next Build Slice</p>
-                <h3>Race engine foundation</h3>
-              </div>
-              <Award aria-hidden="true" size={24} />
-            </div>
-
-            <ul className="work-list">
-              {upcomingWork.map((workItem) => (
-                <li key={workItem}>{workItem}</li>
-              ))}
-            </ul>
-          </div>
-        </section>
+        {activeSection === 'event' ? <EventSetup {...sectionProps} /> : null}
+        {activeSection === 'registration' ? <Registration {...sectionProps} /> : null}
+        {activeSection === 'race-control' ? <RaceControl {...sectionProps} /> : null}
+        {activeSection === 'standings' ? <Standings {...sectionProps} /> : null}
+        {activeSection === 'display' ? <DisplayMode {...sectionProps} /> : null}
       </section>
     </main>
   )

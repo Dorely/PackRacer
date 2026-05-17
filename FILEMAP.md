@@ -45,6 +45,7 @@
 | File | Description |
 |------|-------------|
 | `apps/desktop/src/main/index.ts` | Electron app lifecycle, main window creation, and main-process IPC handlers. |
+| `apps/desktop/src/main/event-store.ts` | SQLite `.packrace` project creation, opening, autosave state persistence, and audit log storage. |
 
 ## Desktop Preload
 
@@ -57,7 +58,31 @@
 | File | Description |
 |------|-------------|
 | `apps/desktop/src/renderer/index.html` | Renderer HTML entry point. |
-| `apps/desktop/src/renderer/src/App.tsx` | Initial PackRacer operator shell UI. |
+| `apps/desktop/src/renderer/src/App.tsx` | PackRacer operator shell, navigation, session state, and race-day action wiring. |
 | `apps/desktop/src/renderer/src/env.d.ts` | Renderer global and Vite type declarations. |
+| `apps/desktop/src/renderer/src/formatters.ts` | Renderer formatting helpers for race statuses, times, racers, stages, and heats. |
 | `apps/desktop/src/renderer/src/main.tsx` | React renderer bootstrap. |
 | `apps/desktop/src/renderer/src/styles.css` | Desktop app shell styling. |
+
+## Desktop Renderer Sections
+
+| File | Description |
+|------|-------------|
+| `apps/desktop/src/renderer/src/sections/DisplayMode.tsx` | In-app display board for current heat lane assignments and leader standings. |
+| `apps/desktop/src/renderer/src/sections/EventSetup.tsx` | Project creation/settings and race stage setup workflow. |
+| `apps/desktop/src/renderer/src/sections/RaceControl.tsx` | Heat selection, result entry, status marking, and heat cycling workflow. |
+| `apps/desktop/src/renderer/src/sections/Registration.tsx` | Racer registration, check-in/inspection toggles, scratching, and removal resolution controls. |
+| `apps/desktop/src/renderer/src/sections/Standings.tsx` | Live standings table and finals-stage advancement workflow. |
+| `apps/desktop/src/renderer/src/sections/types.ts` | Shared renderer section prop and action types. |
+
+## Race Engine Package
+
+| File | Description |
+|------|-------------|
+| `packages/race-engine/package.json` | Workspace package metadata for the pure race-domain engine. |
+| `packages/race-engine/src/helpers.ts` | Shared ID, time, sorting, lane-count, and eligibility helpers. |
+| `packages/race-engine/src/index.ts` | Public exports for the race engine package. |
+| `packages/race-engine/src/project.ts` | Project, racer, and stage mutation functions. |
+| `packages/race-engine/src/scheduling.ts` | Heat generation, result recording, heat advancement, finals creation, and racer-removal reconciliation. |
+| `packages/race-engine/src/scoring.ts` | Standings calculations for timed, points, round-robin, and elimination formats. |
+| `packages/race-engine/src/types.ts` | Shared race project, stage, heat, result, standing, and IPC payload types. |

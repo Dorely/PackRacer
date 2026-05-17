@@ -10,11 +10,14 @@
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "noEmit": true,
+    "paths": {
+      "@packracer/race-engine": ["../../packages/race-engine/src/index.ts"]
+    },
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "strict": true,
     "target": "ES2020",
     "types": ["vite/client"]
   },
-  "include": ["src/renderer/src/**/*.ts", "src/renderer/src/**/*.tsx"]
+  "include": ["src/renderer/src/**/*.ts", "src/renderer/src/**/*.tsx", "../../packages/race-engine/src/**/*.ts"]
 }
