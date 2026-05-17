@@ -6,16 +6,20 @@ import { calculateStandings } from '@packracer/race-engine'
 import { formatTime, racerLabel } from '../formatters'
 import type { SectionProps } from './types'
 
-export function DisplayMode({ project, selectedStageId }: SectionProps) {
-  const selectedStage = project?.stages.find((stage) => stage.id === selectedStageId) ?? project?.stages[0]
-  const currentHeat = selectedStage?.heats.find((heat) => heat.id === project?.currentHeatId) ?? selectedStage?.heats[0]
+export function DisplayMode({ event, currentRace, selectedStageId }: SectionProps) {
+  const selectedStage = currentRace?.stages.find((stage) => stage.id === selectedStageId) ?? currentRace?.stages[0]
+  const currentHeat = selectedStage?.heats.find((heat) => heat.id === currentRace?.currentHeatId) ?? selectedStage?.heats[0]
   const standings = useMemo(
-    () => (project && selectedStage ? calculateStandings(project, selectedStage.id).slice(0, 8) : []),
-    [project, selectedStage]
+    () => (event && currentRace && selectedStage ? calculateStandings(event, currentRace.id, selectedStage.id).slice(0, 8) : []),
+    [event, currentRace, selectedStage]
   )
 
-  if (!project) {
-    return <p className="empty-state full-width-message">Open a project to use display mode.</p>
+  if (!event) {
+    return <p className="empty-state full-width-message">Create an event to use display mode.</p>
+  }
+
+  if (!currentRace) {
+    return <p className="empty-state full-width-message">Add a race to use display mode.</p>
   }
 
   return (
@@ -23,7 +27,8 @@ export function DisplayMode({ project, selectedStageId }: SectionProps) {
       <div className="display-heading">
         <div>
           <p className="eyebrow">Display Mode</p>
-          <h3>{project.name}</h3>
+          <h3>{event.name}</h3>
+          <span>{currentRace.name}</span>
         </div>
         <Monitor aria-hidden="true" size={30} />
       </div>
@@ -36,7 +41,7 @@ export function DisplayMode({ project, selectedStageId }: SectionProps) {
             {currentHeat?.laneAssignments.map((assignment) => (
               <div className="lane-row" key={assignment.lane}>
                 <span>Lane {assignment.lane}</span>
-                <strong>{racerLabel(project.racers, assignment.racerId)}</strong>
+                <strong>{racerLabel(event.racers, assignment.racerId)}</strong>
               </div>
             )) ?? null}
           </div>

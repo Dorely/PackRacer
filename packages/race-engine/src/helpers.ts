@@ -1,4 +1,4 @@
-import type { Racer, RaceProject, Stage } from './types'
+import type { Race, Racer, RaceEvent, Stage } from './types'
 
 export function createId(prefix: string): string {
   if (globalThis.crypto && 'randomUUID' in globalThis.crypto) {
@@ -12,8 +12,8 @@ export function nowIso(): string {
   return new Date().toISOString()
 }
 
-export function copyProject(project: RaceProject): RaceProject {
-  return JSON.parse(JSON.stringify(project)) as RaceProject
+export function copyEvent(event: RaceEvent): RaceEvent {
+  return JSON.parse(JSON.stringify(event)) as RaceEvent
 }
 
 export function sortRacers(racers: Racer[]): Racer[] {
@@ -29,11 +29,11 @@ export function sortRacers(racers: Racer[]): Racer[] {
   })
 }
 
-export function getEligibleRacers(project: RaceProject, stage: Stage): Racer[] {
+export function getEligibleRacers(event: RaceEvent, stage: Stage): Racer[] {
   const eligibleIds = stage.eligibleRacerIds ? new Set(stage.eligibleRacerIds) : null
 
   return sortRacers(
-    project.racers.filter((racer) => {
+    event.racers.filter((racer) => {
       if (racer.status !== 'active') {
         return false
       }
@@ -41,6 +41,14 @@ export function getEligibleRacers(project: RaceProject, stage: Stage): Racer[] {
       return eligibleIds ? eligibleIds.has(racer.id) : true
     })
   )
+}
+
+export function getSelectedRace(event: RaceEvent, raceId?: string): Race | undefined {
+  return event.races.find((race) => race.id === (raceId ?? event.currentRaceId)) ?? event.races[0]
+}
+
+export function summarizeRaceName(race: Race | undefined): string {
+  return race?.name || 'No race'
 }
 
 export function normalizeLaneCount(laneCount: number): number {

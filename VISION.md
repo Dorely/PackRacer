@@ -498,10 +498,10 @@ SQLite is the recommended V1 database.
 
 Advantages:
 
-* local file-based storage
+* local application-owned storage
 * no installation requirements
 * highly reliable
-* portable event files
+* simple local backup/restore
 * easy backup/restore
 
 Possible access layers:
@@ -511,16 +511,7 @@ Possible access layers:
 * better-sqlite3
 * Knex
 
-Event files may internally be:
-
-* raw SQLite databases
-* or packaged archive formats
-
-Recommended extension:
-
-```txt
-.packrace
-```
+The desktop app should own the local SQLite database. Events are records inside that database, not user-created project files.
 
 ---
 

@@ -1,5 +1,5 @@
 export * from './types'
 export * from './helpers'
-export * from './project'
+export * from './event'
 export * from './scheduling'
 export * from './scoring'

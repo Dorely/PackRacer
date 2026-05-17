@@ -26,11 +26,11 @@ function initialDraft(heat: Heat | undefined): Record<number, ResultDraft> {
   return draft
 }
 
-export function RaceControl({ project, actions, selectedStageId, setSelectedStageId }: SectionProps) {
-  const selectedStage = project?.stages.find((stage) => stage.id === selectedStageId) ?? project?.stages[0]
+export function RaceControl({ event, currentRace, actions, selectedRaceId, setSelectedRaceId, selectedStageId, setSelectedStageId }: SectionProps) {
+  const selectedStage = currentRace?.stages.find((stage) => stage.id === selectedStageId) ?? currentRace?.stages[0]
   const allHeats = selectedStage?.heats ?? []
   const currentHeat =
-    allHeats.find((heat) => heat.id === project?.currentHeatId) ?? allHeats.find((heat) => heat.status === 'pending') ?? allHeats[0]
+    allHeats.find((heat) => heat.id === currentRace?.currentHeatId) ?? allHeats.find((heat) => heat.status === 'pending') ?? allHeats[0]
   const [resultDrafts, setResultDrafts] = useState<Record<number, ResultDraft>>(() => initialDraft(currentHeat))
 
   useEffect(() => {
@@ -49,10 +49,10 @@ export function RaceControl({ project, actions, selectedStageId, setSelectedStag
     }))
   }
 
-  const submitResults = (event: FormEvent) => {
-    event.preventDefault()
+  const submitResults = (formEvent: FormEvent) => {
+    formEvent.preventDefault()
 
-    if (!currentHeat) {
+    if (!currentRace || !currentHeat) {
       return
     }
 
@@ -72,14 +72,18 @@ export function RaceControl({ project, actions, selectedStageId, setSelectedStag
         }
       })
 
-    void actions.recordHeatResults({ heatId: currentHeat.id, results })
+    void actions.recordHeatResults(currentRace.id, { heatId: currentHeat.id, results })
   }
 
-  if (!project) {
-    return <p className="empty-state full-width-message">Create or open a project before race control.</p>
+  if (!event) {
+    return <p className="empty-state full-width-message">Create an event before race control.</p>
   }
 
-  if (project.stages.length === 0) {
+  if (!currentRace) {
+    return <p className="empty-state full-width-message">Add a race in Event Setup before race control.</p>
+  }
+
+  if (currentRace.stages.length === 0) {
     return <p className="empty-state full-width-message">Add a stage in Event Setup before generating heats.</p>
   }
 
@@ -91,23 +95,42 @@ export function RaceControl({ project, actions, selectedStageId, setSelectedStag
             <p className="eyebrow">Current Heat</p>
             <h3>{currentHeat ? heatLabel(currentHeat) : 'No heat selected'}</h3>
           </div>
-          <button className="icon-action" onClick={actions.advanceHeat} aria-label="Jump to next pending heat" type="button">
+          <button
+            className="icon-action"
+            onClick={() => void actions.advanceHeat(currentRace.id)}
+            aria-label="Jump to next pending heat"
+            type="button"
+          >
             <ChevronRight aria-hidden="true" size={24} />
           </button>
         </div>
 
         <div className="toolbar-row">
           <label>
+            <span>Race</span>
+            <select value={selectedRaceId} onChange={(inputEvent) => setSelectedRaceId(inputEvent.target.value)}>
+              {event.races.map((race) => (
+                <option key={race.id} value={race.id}>
+                  {race.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
             <span>Stage</span>
-            <select value={selectedStage?.id ?? ''} onChange={(event) => setSelectedStageId(event.target.value)}>
-              {project.stages.map((stage) => (
+            <select value={selectedStage?.id ?? ''} onChange={(inputEvent) => setSelectedStageId(inputEvent.target.value)}>
+              {currentRace.stages.map((stage) => (
                 <option key={stage.id} value={stage.id}>
                   {stage.name}
                 </option>
               ))}
             </select>
           </label>
-          <button className="secondary-action" onClick={() => selectedStage && void actions.generateHeats(selectedStage.id)} type="button">
+          <button
+            className="secondary-action"
+            onClick={() => selectedStage && void actions.generateHeats(currentRace.id, selectedStage.id)}
+            type="button"
+          >
             <RotateCcw aria-hidden="true" size={18} />
             <span>Generate</span>
           </button>
@@ -119,7 +142,7 @@ export function RaceControl({ project, actions, selectedStageId, setSelectedStag
               {currentHeat.laneAssignments.map((assignment) => (
                 <div className="lane-row result-row" key={assignment.lane} data-muted={!assignment.racerId}>
                   <span>Lane {assignment.lane}</span>
-                  <strong>{racerLabel(project.racers, assignment.racerId)}</strong>
+                  <strong>{racerLabel(event.racers, assignment.racerId)}</strong>
                   {assignment.racerId ? (
                     <>
                       <input
@@ -127,7 +150,7 @@ export function RaceControl({ project, actions, selectedStageId, setSelectedStag
                         inputMode="decimal"
                         placeholder="0.000s"
                         value={resultDrafts[assignment.lane]?.timeSeconds ?? ''}
-                        onChange={(event) => updateDraft(assignment.lane, { timeSeconds: event.target.value })}
+                        onChange={(inputEvent) => updateDraft(assignment.lane, { timeSeconds: inputEvent.target.value })}
                       />
                       <input
                         aria-label={`Lane ${assignment.lane} finish position`}
@@ -136,12 +159,12 @@ export function RaceControl({ project, actions, selectedStageId, setSelectedStag
                         placeholder="Place"
                         type="number"
                         value={resultDrafts[assignment.lane]?.finishPosition ?? ''}
-                        onChange={(event) => updateDraft(assignment.lane, { finishPosition: event.target.value })}
+                        onChange={(inputEvent) => updateDraft(assignment.lane, { finishPosition: inputEvent.target.value })}
                       />
                       <select
                         aria-label={`Lane ${assignment.lane} status`}
                         value={resultDrafts[assignment.lane]?.status ?? 'ok'}
-                        onChange={(event) => updateDraft(assignment.lane, { status: event.target.value as LaneResultStatus })}
+                        onChange={(inputEvent) => updateDraft(assignment.lane, { status: inputEvent.target.value as LaneResultStatus })}
                       >
                         <option value="ok">OK</option>
                         <option value="dns">DNS</option>
@@ -179,7 +202,7 @@ export function RaceControl({ project, actions, selectedStageId, setSelectedStag
               className="heat-list-item"
               data-active={heat.id === currentHeat?.id}
               key={heat.id}
-              onClick={() => void actions.setCurrentHeat(heat.id)}
+              onClick={() => void actions.setCurrentHeat(currentRace.id, heat.id)}
               type="button"
             >
               <strong>Heat {heat.heatNumber}</strong>

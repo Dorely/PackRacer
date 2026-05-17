@@ -3,12 +3,15 @@
 import type {
   AddRacerInput,
   AddStageInput,
+  CreateEventInput,
   CreateFinalsStageInput,
-  CreateProjectInput,
-  ProjectSessionSnapshot,
+  CreateRaceInput,
+  EventSessionSnapshot,
+  EventSummary,
   RecordHeatResultsInput,
   RemovalResolutionStrategy,
-  UpdateProjectInput,
+  UpdateEventInput,
+  UpdateRaceInput,
   UpdateRacerInput,
   UpdateStageInput
 } from '@packracer/race-engine'
@@ -17,21 +20,24 @@ declare global {
   interface Window {
     packRacer: {
       getVersion: () => Promise<string>
-      createProject: (input: CreateProjectInput) => Promise<ProjectSessionSnapshot | null>
-      openProject: () => Promise<ProjectSessionSnapshot | null>
-      getCurrentProject: () => Promise<ProjectSessionSnapshot | null>
-      updateProject: (input: UpdateProjectInput) => Promise<ProjectSessionSnapshot>
-      addRacer: (input: AddRacerInput) => Promise<ProjectSessionSnapshot>
-      updateRacer: (racerId: string, input: UpdateRacerInput) => Promise<ProjectSessionSnapshot>
-      scratchRacer: (racerId: string) => Promise<ProjectSessionSnapshot>
-      resolveRacerRemoval: (strategy: RemovalResolutionStrategy) => Promise<ProjectSessionSnapshot>
-      addStage: (input: AddStageInput) => Promise<ProjectSessionSnapshot>
-      updateStage: (stageId: string, input: UpdateStageInput) => Promise<ProjectSessionSnapshot>
-      generateHeats: (stageId: string) => Promise<ProjectSessionSnapshot>
-      createFinalsStage: (input: CreateFinalsStageInput) => Promise<ProjectSessionSnapshot>
-      recordHeatResults: (input: RecordHeatResultsInput) => Promise<ProjectSessionSnapshot>
-      setCurrentHeat: (heatId: string) => Promise<ProjectSessionSnapshot>
-      advanceHeat: () => Promise<ProjectSessionSnapshot>
+      createEvent: (input: CreateEventInput) => Promise<EventSessionSnapshot>
+      getCurrentEvent: () => Promise<EventSessionSnapshot | null>
+      listEvents: () => Promise<EventSummary[]>
+      selectEvent: (eventId: string) => Promise<EventSessionSnapshot>
+      updateEvent: (input: UpdateEventInput) => Promise<EventSessionSnapshot>
+      createRace: (input: CreateRaceInput) => Promise<EventSessionSnapshot>
+      updateRace: (raceId: string, input: UpdateRaceInput) => Promise<EventSessionSnapshot>
+      addRacer: (input: AddRacerInput) => Promise<EventSessionSnapshot>
+      updateRacer: (racerId: string, input: UpdateRacerInput) => Promise<EventSessionSnapshot>
+      scratchRacer: (racerId: string) => Promise<EventSessionSnapshot>
+      resolveRacerRemoval: (strategy: RemovalResolutionStrategy) => Promise<EventSessionSnapshot>
+      addStage: (raceId: string, input: AddStageInput) => Promise<EventSessionSnapshot>
+      updateStage: (raceId: string, stageId: string, input: UpdateStageInput) => Promise<EventSessionSnapshot>
+      generateHeats: (raceId: string, stageId: string) => Promise<EventSessionSnapshot>
+      createFinalsStage: (raceId: string, input: CreateFinalsStageInput) => Promise<EventSessionSnapshot>
+      recordHeatResults: (raceId: string, input: RecordHeatResultsInput) => Promise<EventSessionSnapshot>
+      setCurrentHeat: (raceId: string, heatId: string) => Promise<EventSessionSnapshot>
+      advanceHeat: (raceId: string) => Promise<EventSessionSnapshot>
     }
   }
 }

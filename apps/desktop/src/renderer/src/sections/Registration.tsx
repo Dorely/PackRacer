@@ -4,17 +4,17 @@ import { ShieldCheck, UserMinus, UserPlus } from 'lucide-react'
 import { formatStatus } from '../formatters'
 import type { SectionProps } from './types'
 
-export function Registration({ project, actions }: SectionProps) {
+export function Registration({ event, actions }: SectionProps) {
   const [racerNumber, setRacerNumber] = useState('')
   const [name, setName] = useState('')
   const [division, setDivision] = useState('Open')
   const [vehicleName, setVehicleName] = useState('')
 
   const divisions = useMemo(() => {
-    const knownDivisions = new Set(project?.racers.map((racer) => racer.division) ?? ['Open'])
+    const knownDivisions = new Set(event?.racers.map((racer) => racer.division) ?? ['Open'])
     knownDivisions.add('Open')
     return [...knownDivisions]
-  }, [project])
+  }, [event])
 
   const submitRacer = (event: FormEvent) => {
     event.preventDefault()
@@ -24,8 +24,8 @@ export function Registration({ project, actions }: SectionProps) {
     setVehicleName('')
   }
 
-  if (!project) {
-    return <p className="empty-state full-width-message">Create or open a project to begin registration.</p>
+  if (!event) {
+    return <p className="empty-state full-width-message">Create an event to begin registration.</p>
   }
 
   return (
@@ -73,16 +73,16 @@ export function Registration({ project, actions }: SectionProps) {
         <div className="panel-heading">
           <div>
             <p className="eyebrow">Roster</p>
-            <h3>{project.racers.length} registered</h3>
+            <h3>{event.racers.length} registered</h3>
           </div>
           <ShieldCheck aria-hidden="true" size={24} />
         </div>
 
-        {project.activeRemovalImpact ? (
+        {event.activeRemovalImpact ? (
           <div className="decision-panel">
             <strong>Resolve scratched racer schedule</strong>
             <span>
-              {project.activeRemovalImpact.racerName} affected {project.activeRemovalImpact.affectedHeatIds.length} pending heat(s).
+              {event.activeRemovalImpact.racerName} affected {event.activeRemovalImpact.affectedHeatIds.length} pending heat(s).
             </span>
             <div className="button-row">
               <button className="secondary-action" onClick={() => void actions.resolveRacerRemoval('keep-empty-lanes')} type="button">
@@ -111,7 +111,7 @@ export function Registration({ project, actions }: SectionProps) {
               </tr>
             </thead>
             <tbody>
-              {project.racers.map((racer) => (
+              {event.racers.map((racer) => (
                 <tr key={racer.id} data-muted={racer.status !== 'active'}>
                   <td>{racer.racerNumber}</td>
                   <td>

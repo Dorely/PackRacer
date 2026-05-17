@@ -1,10 +1,12 @@
-export const PROJECT_SCHEMA_VERSION = 1
+export const EVENT_SCHEMA_VERSION = 2
 
 export type RaceFormat = 'timed-heats' | 'points-heats' | 'round-robin' | 'single-elimination'
 
 export type TournamentType = RaceFormat | 'multi-stage'
 
-export type ProjectStatus = 'draft' | 'ready' | 'running' | 'complete'
+export type EventStatus = 'draft' | 'ready' | 'running' | 'complete'
+
+export type RaceStatus = 'draft' | 'ready' | 'running' | 'complete'
 
 export type RacerStatus = 'active' | 'scratched' | 'no-show'
 
@@ -31,20 +33,31 @@ export type AdvancementRule = {
   targetFormat: RaceFormat
 }
 
-export type RaceProject = {
+export type RaceEvent = {
   id: string
   schemaVersion: number
   name: string
   eventDate: string
   trackName: string
   laneCount: number
-  tournamentType: TournamentType
-  status: ProjectStatus
+  status: EventStatus
   racers: Racer[]
+  races: Race[]
+  currentRaceId?: string
+  activeRemovalImpact?: RemovalImpact
+  createdAt: string
+  updatedAt: string
+}
+
+export type Race = {
+  id: string
+  name: string
+  tournamentType: TournamentType
+  status: RaceStatus
+  laneCount: number
   stages: Stage[]
   currentStageId?: string
   currentHeatId?: string
-  activeRemovalImpact?: RemovalImpact
   createdAt: string
   updatedAt: string
 }
@@ -130,6 +143,7 @@ export type Standing = {
 export type RemovalImpact = {
   racerId: string
   racerName: string
+  affectedRaceIds: string[]
   affectedStageIds: string[]
   affectedHeatIds: string[]
   completedHeatIds: string[]
@@ -142,19 +156,37 @@ export type AuditEntry = {
   createdAt: string
   action: string
   details: string
+  eventId?: string
+  raceId?: string
 }
 
-export type CreateProjectInput = {
+export type EventSummary = {
+  id: string
+  name: string
+  eventDate: string
+  status: EventStatus
+  racerCount: number
+  raceCount: number
+  updatedAt: string
+}
+
+export type CreateEventInput = {
   name: string
   eventDate?: string
   trackName?: string
   laneCount: number
-  tournamentType: TournamentType
+  initialRace?: CreateRaceInput
 }
 
-export type UpdateProjectInput = Partial<
-  Pick<RaceProject, 'name' | 'eventDate' | 'trackName' | 'laneCount' | 'tournamentType' | 'status'>
->
+export type UpdateEventInput = Partial<Pick<RaceEvent, 'name' | 'eventDate' | 'trackName' | 'laneCount' | 'status'>>
+
+export type CreateRaceInput = {
+  name: string
+  tournamentType: TournamentType
+  laneCount?: number
+}
+
+export type UpdateRaceInput = Partial<Pick<Race, 'name' | 'tournamentType' | 'laneCount' | 'status'>>
 
 export type AddRacerInput = {
   racerNumber: string
@@ -209,9 +241,9 @@ export type CreateFinalsStageInput = {
   scoringMode?: ScoringMode
 }
 
-export type ProjectSessionSnapshot = {
-  filePath: string
-  project: RaceProject
+export type EventSessionSnapshot = {
+  event: RaceEvent
+  events: EventSummary[]
   standings: Standing[]
   auditLog: AuditEntry[]
 }

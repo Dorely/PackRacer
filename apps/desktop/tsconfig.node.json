@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
     "allowSyntheticDefaultImports": true,
+    "allowImportingTsExtensions": true,
     "composite": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,

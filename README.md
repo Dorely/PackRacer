@@ -7,9 +7,9 @@ The current repo contains the first development scaffold: an npm workspace with 
 ## Current Status
 
 - Desktop app shell: present in `apps/desktop`.
-- Race-day MVP workflow: implemented for local project creation, racer registration, stage setup, heat generation, result entry, standings, finals advancement, and racer scratching.
+- Race-day MVP workflow: implemented for local event creation, multi-race setup, racer registration, heat generation, result entry, standings, finals advancement, and racer scratching.
 - Race engine: present in `packages/race-engine` as pure TypeScript domain logic.
-- Persistence: SQLite `.packrace` files are created and opened by the Electron main process, with autosaved project state and an audit log.
+- Persistence: one local SQLite app database is owned by the Electron main process, with autosaved event state and an audit log.
 - Local API and websocket services: planned, not implemented yet.
 
 ## Prerequisites
@@ -40,15 +40,15 @@ npm run preview    # Preview the built Electron app
 
 The current app can run a first-pass race day from one laptop:
 
-1. Create or open a `.packrace` project from Event Setup.
-2. Configure the event name, date, track, lane count, tournament type, and stages.
+1. Create an event in the local app database from Event Setup.
+2. Configure the event name, date, track, lane count, and one or more races within the event.
 3. Register racers manually with number, name, division, and optional vehicle name.
-4. Generate heats for timed heats, points heats, round robin, or single elimination stages.
-5. Use Race Control to enter both time and finish order, mark DNS/DNF/DQ, and advance to the next heat.
-6. View live standings and create a finals stage from top-ranked racers.
-7. Scratch a racer from Registration and choose whether to keep empty lanes, regenerate pending heats, or leave affected heats flagged.
+4. Add race stages and generate heats for timed heats, points heats, round robin, or single elimination stages.
+5. Use Race Control to enter both time and finish order, mark DNS/DNF/DQ, and advance to the next heat within the selected race.
+6. View live standings for the selected race and create a finals stage from top-ranked racers.
+7. Scratch a racer from Registration and choose whether to keep empty lanes, regenerate pending heats, or leave affected heats flagged across races.
 
-Every mutation is written immediately to the active `.packrace` SQLite file by the main process.
+Every mutation is written immediately to the local SQLite database under Electron's user data folder.
 
 ## VS Code Debugging
 
@@ -65,8 +65,8 @@ PackRacer follows the architecture direction in `VISION.md`:
 - Electron preload bridge for safe renderer access to desktop capabilities.
 - Future isolated packages for race engine, scheduling, scoring, standings, shared types, and exports.
 - Future local Node services for API, websocket updates, discovery, import/export, and hardware integration.
-- Future SQLite `.packrace` event files using Drizzle ORM unless implementation constraints suggest otherwise.
-- Current `.packrace` files use SQLite with a serialized project-state table and audit log; future schema work can normalize this into Drizzle-managed relational tables.
+- Local SQLite app database for events, races, rosters, schedules, results, and audit history.
+- Current storage uses serialized event state plus an audit log; future schema work can normalize this into Drizzle-managed relational tables.
 
 ## Development Notes
 

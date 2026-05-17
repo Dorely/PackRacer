@@ -1,201 +1,287 @@
-import Database from 'better-sqlite3'
-import { type BrowserWindow, dialog, type OpenDialogOptions, type SaveDialogOptions } from 'electron'
-import { mkdirSync } from 'node:fs'
-import { dirname, extname, join } from 'node:path'
+import { app } from 'electron'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
+import { dirname, join } from 'node:path'
+import initSqlJs, { type BindParams, type Database as SqlDatabase, type SqlValue } from 'sql.js'
 
 import {
   calculateStandings,
   createId,
-  createRaceProject,
+  createRaceEvent,
   type AuditEntry,
-  type CreateProjectInput,
-  type ProjectSessionSnapshot,
-  type RaceProject
+  type CreateEventInput,
+  type EventSessionSnapshot,
+  type EventSummary,
+  type RaceEvent,
+  type Standing
 } from '@packracer/race-engine'
 
-let activeDatabase: Database.Database | null = null
-let activeFilePath = ''
-let activeProject: RaceProject | null = null
+const require = createRequire(import.meta.url)
 
-function normalizeProjectPath(filePath: string): string {
-  return extname(filePath).toLowerCase() === '.packrace' ? filePath : `${filePath}.packrace`
+let activeDatabase: SqlDatabase | null = null
+let databasePromise: Promise<SqlDatabase> | null = null
+let activeEvent: RaceEvent | null = null
+
+function databasePath(): string {
+  return join(app.getPath('userData'), 'packracer.sqlite')
 }
 
-function sanitizeFileName(name: string): string {
-  return (name.trim() || 'PackRacer Event').replace(/[<>:"/\\|?*]+/g, '-').replace(/\s+/g, ' ')
+async function openDatabase(): Promise<SqlDatabase> {
+  if (activeDatabase) {
+    return activeDatabase
+  }
+
+  databasePromise ??= initializeDatabase()
+  activeDatabase = await databasePromise
+  return activeDatabase
 }
 
-function openDatabase(filePath: string): Database.Database {
+async function initializeDatabase(): Promise<SqlDatabase> {
+  const filePath = databasePath()
   mkdirSync(dirname(filePath), { recursive: true })
-  const database = new Database(filePath)
-  database.pragma('journal_mode = DELETE')
-  database.pragma('synchronous = FULL')
+  const SQL = await initSqlJs({ locateFile: (fileName) => require.resolve(`sql.js/dist/${fileName}`) })
+  const database = existsSync(filePath) ? new SQL.Database(readFileSync(filePath)) : new SQL.Database()
+
   database.exec(`
     CREATE TABLE IF NOT EXISTS metadata (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );
 
-    CREATE TABLE IF NOT EXISTS project_state (
-      id TEXT PRIMARY KEY CHECK (id = 'current'),
+    CREATE TABLE IF NOT EXISTS event_state (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      event_date TEXT NOT NULL,
+      status TEXT NOT NULL,
       data TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS audit_log (
       id TEXT PRIMARY KEY,
+      event_id TEXT,
+      race_id TEXT,
       created_at TEXT NOT NULL,
       action TEXT NOT NULL,
       details TEXT NOT NULL
     );
   `)
-  database
-    .prepare('INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)')
-    .run('storeVersion', '1')
+  database.run('INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)', ['storeVersion', '2'])
+  persistDatabase(database)
   return database
 }
 
-function closeActiveDatabase(): void {
-  activeDatabase?.close()
-  activeDatabase = null
-  activeFilePath = ''
-  activeProject = null
+function persistDatabase(database: SqlDatabase): void {
+  writeFileSync(databasePath(), Buffer.from(database.export()))
 }
 
-function auditRows(): AuditEntry[] {
-  if (!activeDatabase) {
-    return []
+function queryAll<T>(database: SqlDatabase, sql: string, params: BindParams = []): T[] {
+  const statement = database.prepare(sql)
+
+  try {
+    statement.bind(params)
+    const rows: T[] = []
+
+    while (statement.step()) {
+      rows.push(statement.getAsObject() as T)
+    }
+
+    return rows
+  } finally {
+    statement.free()
   }
-
-  return activeDatabase
-    .prepare('SELECT id, created_at as createdAt, action, details FROM audit_log ORDER BY created_at DESC LIMIT 100')
-    .all() as AuditEntry[]
 }
 
-function snapshot(): ProjectSessionSnapshot {
-  if (!activeProject || !activeDatabase || !activeFilePath) {
-    throw new Error('No PackRacer project is open.')
+function queryOne<T>(database: SqlDatabase, sql: string, params: BindParams = []): T | undefined {
+  return queryAll<T>(database, sql, params)[0]
+}
+
+function activeEventId(database: SqlDatabase): string | null {
+  const row = queryOne<{ value: string }>(database, 'SELECT value FROM metadata WHERE key = ?', ['activeEventId'])
+
+  return row?.value ?? null
+}
+
+function setActiveEventId(database: SqlDatabase, eventId: string): void {
+  database.run('INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)', ['activeEventId', eventId])
+}
+
+function eventSummaries(database: SqlDatabase): EventSummary[] {
+  return queryAll<{
+    id: string
+    name: string
+    eventDate: string
+    status: RaceEvent['status']
+    data: string
+    updatedAt: string
+  }>(
+    database,
+    `SELECT id, name, event_date as eventDate, status, data, updated_at as updatedAt
+     FROM event_state
+     ORDER BY updated_at DESC`
+  ).map((row) => {
+    const event = JSON.parse(row.data) as RaceEvent
+
+    return {
+      id: row.id,
+      name: row.name,
+      eventDate: row.eventDate,
+      status: row.status,
+      racerCount: event.racers.length,
+      raceCount: event.races.length,
+      updatedAt: row.updatedAt
+    }
+  })
+}
+
+function auditRows(eventId: string, database: SqlDatabase): AuditEntry[] {
+  return queryAll<AuditEntry>(
+    database,
+    `SELECT id, event_id as eventId, race_id as raceId, created_at as createdAt, action, details
+     FROM audit_log
+     WHERE event_id = ?
+     ORDER BY created_at DESC
+     LIMIT 100`,
+    [eventId]
+  )
+}
+
+function loadEvent(eventId: string, database: SqlDatabase): RaceEvent | null {
+  const row = queryOne<{ data: string }>(database, 'SELECT data FROM event_state WHERE id = ?', [eventId])
+  return row ? (JSON.parse(row.data) as RaceEvent) : null
+}
+
+function selectedStandings(event: RaceEvent): Standing[] {
+  const raceId = event.currentRaceId ?? event.races[0]?.id
+  const race = event.races.find((candidate) => candidate.id === raceId) ?? event.races[0]
+
+  return race ? calculateStandings(event, race.id, race.currentStageId) : []
+}
+
+function snapshot(database: SqlDatabase): EventSessionSnapshot {
+  if (!activeEvent) {
+    throw new Error('No event is active.')
   }
 
   return {
-    filePath: activeFilePath,
-    project: activeProject,
-    standings: calculateStandings(activeProject),
-    auditLog: auditRows()
+    event: activeEvent,
+    events: eventSummaries(database),
+    standings: selectedStandings(activeEvent),
+    auditLog: auditRows(activeEvent.id, database)
   }
 }
 
-function writeActiveProject(action: string, details: unknown): ProjectSessionSnapshot {
-  if (!activeProject || !activeDatabase) {
-    throw new Error('No PackRacer project is open.')
+async function writeActiveEvent(action: string, details: unknown, raceId?: string): Promise<EventSessionSnapshot> {
+  const database = await openDatabase()
+
+  if (!activeEvent) {
+    throw new Error('No event is active.')
   }
 
   const createdAt = new Date().toISOString()
   const detailsText = typeof details === 'string' ? details : JSON.stringify(details)
-  const transaction = activeDatabase.transaction(() => {
-    activeDatabase
-      ?.prepare(
-        `INSERT INTO project_state (id, data, updated_at)
-         VALUES ('current', ?, ?)
-         ON CONFLICT(id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at`
-      )
-      .run(JSON.stringify(activeProject), createdAt)
-    activeDatabase
-      ?.prepare('INSERT INTO audit_log (id, created_at, action, details) VALUES (?, ?, ?, ?)')
-      .run(createId('audit'), createdAt, action, detailsText)
-  })
+  const event = activeEvent
 
-  transaction()
-  return snapshot()
+  database.run('BEGIN TRANSACTION')
+
+  try {
+    database.run(
+      `INSERT INTO event_state (id, name, event_date, status, data, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         name = excluded.name,
+         event_date = excluded.event_date,
+         status = excluded.status,
+         data = excluded.data,
+         updated_at = excluded.updated_at`,
+      [event.id, event.name, event.eventDate, event.status, JSON.stringify(event), createdAt]
+    )
+    database.run('INSERT INTO audit_log (id, event_id, race_id, created_at, action, details) VALUES (?, ?, ?, ?, ?, ?)', [
+      createId('audit'),
+      event.id,
+      raceId ?? null,
+      createdAt,
+      action,
+      detailsText
+    ] as SqlValue[])
+    setActiveEventId(database, event.id)
+    database.run('COMMIT')
+    persistDatabase(database)
+  } catch (error) {
+    database.run('ROLLBACK')
+    throw error
+  }
+
+  return snapshot(database)
 }
 
-async function showSaveDialog(owner: BrowserWindow | undefined, input: CreateProjectInput): Promise<string | null> {
-  const options: SaveDialogOptions = {
-    title: 'Create PackRacer Project',
-    defaultPath: join(process.cwd(), `${sanitizeFileName(input.name)}.packrace`),
-    filters: [{ name: 'PackRacer Project', extensions: ['packrace'] }]
-  }
-  const result = owner ? await dialog.showSaveDialog(owner, options) : await dialog.showSaveDialog(options)
+export async function createEventSession(input: CreateEventInput): Promise<EventSessionSnapshot> {
+  activeEvent = createRaceEvent(input)
+  return writeActiveEvent('event:create', { name: activeEvent.name, laneCount: activeEvent.laneCount })
+}
 
-  if (result.canceled || !result.filePath) {
+export async function selectEventSession(eventId: string): Promise<EventSessionSnapshot> {
+  const database = await openDatabase()
+  const event = loadEvent(eventId, database)
+
+  if (!event) {
+    throw new Error('Event was not found.')
+  }
+
+  activeEvent = event
+  setActiveEventId(database, event.id)
+  persistDatabase(database)
+  return snapshot(database)
+}
+
+export async function getCurrentEventSession(): Promise<EventSessionSnapshot | null> {
+  const database = await openDatabase()
+
+  if (activeEvent) {
+    return snapshot(database)
+  }
+
+  const preferredEventId = activeEventId(database)
+  const latestEventId = eventSummaries(database)[0]?.id
+  const eventId = preferredEventId ?? latestEventId
+
+  if (!eventId) {
     return null
   }
 
-  return normalizeProjectPath(result.filePath)
-}
+  const event = loadEvent(eventId, database)
 
-async function showOpenDialog(owner: BrowserWindow | undefined): Promise<string | null> {
-  const options: OpenDialogOptions = {
-    title: 'Open PackRacer Project',
-    properties: ['openFile'],
-    filters: [{ name: 'PackRacer Project', extensions: ['packrace'] }]
-  }
-  const result = owner ? await dialog.showOpenDialog(owner, options) : await dialog.showOpenDialog(options)
-
-  if (result.canceled || result.filePaths.length === 0) {
+  if (!event) {
     return null
   }
 
-  return result.filePaths[0]
+  activeEvent = event
+  setActiveEventId(database, event.id)
+  persistDatabase(database)
+  return snapshot(database)
 }
 
-export async function createProjectSession(
-  input: CreateProjectInput,
-  owner?: BrowserWindow
-): Promise<ProjectSessionSnapshot | null> {
-  const filePath = await showSaveDialog(owner, input)
-
-  if (!filePath) {
-    return null
-  }
-
-  closeActiveDatabase()
-  activeFilePath = filePath
-  activeDatabase = openDatabase(filePath)
-  activeProject = createRaceProject(input)
-  return writeActiveProject('project:create', { name: activeProject.name, laneCount: activeProject.laneCount })
+export async function listEventSessions(): Promise<EventSummary[]> {
+  return eventSummaries(await openDatabase())
 }
 
-export async function openProjectSession(owner?: BrowserWindow): Promise<ProjectSessionSnapshot | null> {
-  const filePath = await showOpenDialog(owner)
-
-  if (!filePath) {
-    return null
-  }
-
-  closeActiveDatabase()
-  activeFilePath = filePath
-  activeDatabase = openDatabase(filePath)
-  const row = activeDatabase.prepare('SELECT data FROM project_state WHERE id = ?').get('current') as
-    | { data: string }
-    | undefined
-
-  if (!row) {
-    closeActiveDatabase()
-    throw new Error('The selected file does not contain a PackRacer project.')
-  }
-
-  activeProject = JSON.parse(row.data) as RaceProject
-  return snapshot()
-}
-
-export function getCurrentProjectSession(): ProjectSessionSnapshot | null {
-  return activeProject ? snapshot() : null
-}
-
-export function mutateProject(
+export async function mutateEvent(
   action: string,
-  mutator: (project: RaceProject) => RaceProject,
-  details: unknown = {}
-): ProjectSessionSnapshot {
-  if (!activeProject) {
-    throw new Error('No PackRacer project is open.')
+  mutator: (event: RaceEvent) => RaceEvent,
+  details: unknown = {},
+  raceId?: string
+): Promise<EventSessionSnapshot> {
+  if (!activeEvent) {
+    throw new Error('Create or select an event first.')
   }
 
-  activeProject = mutator(activeProject)
-  return writeActiveProject(action, details)
+  activeEvent = mutator(activeEvent)
+  return writeActiveEvent(action, details, raceId)
 }
 
-export function closeProjectSession(): void {
-  closeActiveDatabase()
+export function closeEventStore(): void {
+  activeDatabase?.close()
+  activeDatabase = null
+  databasePromise = null
+  activeEvent = null
 }

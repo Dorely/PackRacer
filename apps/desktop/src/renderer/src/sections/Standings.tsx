@@ -8,24 +8,24 @@ import type { SectionProps } from './types'
 
 const finalsFormats: RaceFormat[] = ['timed-heats', 'points-heats', 'round-robin', 'single-elimination']
 
-export function Standings({ project, actions, selectedStageId, setSelectedStageId }: SectionProps) {
-  const selectedStage = project?.stages.find((stage) => stage.id === selectedStageId) ?? project?.stages[0]
+export function Standings({ event, currentRace, actions, selectedRaceId, setSelectedRaceId, selectedStageId, setSelectedStageId }: SectionProps) {
+  const selectedStage = currentRace?.stages.find((stage) => stage.id === selectedStageId) ?? currentRace?.stages[0]
   const [topCount, setTopCount] = useState(4)
   const [finalsFormat, setFinalsFormat] = useState<RaceFormat>('single-elimination')
 
   const standings = useMemo(
-    () => (project && selectedStage ? calculateStandings(project, selectedStage.id) : []),
-    [project, selectedStage]
+    () => (event && currentRace && selectedStage ? calculateStandings(event, currentRace.id, selectedStage.id) : []),
+    [event, currentRace, selectedStage]
   )
 
-  const submitFinals = (event: FormEvent) => {
-    event.preventDefault()
+  const submitFinals = (formEvent: FormEvent) => {
+    formEvent.preventDefault()
 
-    if (!selectedStage) {
+    if (!currentRace || !selectedStage) {
       return
     }
 
-    void actions.createFinalsStage({
+    void actions.createFinalsStage(currentRace.id, {
       sourceStageId: selectedStage.id,
       name: `${selectedStage.name} Finals`,
       format: finalsFormat,
@@ -34,8 +34,12 @@ export function Standings({ project, actions, selectedStageId, setSelectedStageI
     })
   }
 
-  if (!project) {
-    return <p className="empty-state full-width-message">Create or open a project to view standings.</p>
+  if (!event) {
+    return <p className="empty-state full-width-message">Create an event to view standings.</p>
+  }
+
+  if (!currentRace) {
+    return <p className="empty-state full-width-message">Add a race to view standings.</p>
   }
 
   return (
@@ -44,16 +48,26 @@ export function Standings({ project, actions, selectedStageId, setSelectedStageI
         <div className="panel-heading">
           <div>
             <p className="eyebrow">Standings</p>
-            <h3>{selectedStage ? selectedStage.name : 'No stage'}</h3>
+            <h3>{selectedStage ? selectedStage.name : currentRace.name}</h3>
           </div>
           <Trophy aria-hidden="true" size={24} />
         </div>
 
         <div className="toolbar-row">
           <label>
+            <span>Race</span>
+            <select value={selectedRaceId} onChange={(inputEvent) => setSelectedRaceId(inputEvent.target.value)}>
+              {event.races.map((race) => (
+                <option key={race.id} value={race.id}>
+                  {race.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
             <span>Stage</span>
-            <select value={selectedStage?.id ?? ''} onChange={(event) => setSelectedStageId(event.target.value)}>
-              {project.stages.map((stage) => (
+            <select value={selectedStage?.id ?? ''} onChange={(inputEvent) => setSelectedStageId(inputEvent.target.value)}>
+              {currentRace.stages.map((stage) => (
                 <option key={stage.id} value={stage.id}>
                   {stage.name}
                 </option>
@@ -107,11 +121,11 @@ export function Standings({ project, actions, selectedStageId, setSelectedStageI
         <div className="form-grid">
           <label>
             <span>Advance top</span>
-            <input min={1} type="number" value={topCount} onChange={(event) => setTopCount(Number(event.target.value))} />
+            <input min={1} type="number" value={topCount} onChange={(inputEvent) => setTopCount(Number(inputEvent.target.value))} />
           </label>
           <label>
             <span>Finals format</span>
-            <select value={finalsFormat} onChange={(event) => setFinalsFormat(event.target.value as RaceFormat)}>
+            <select value={finalsFormat} onChange={(inputEvent) => setFinalsFormat(inputEvent.target.value as RaceFormat)}>
               {finalsFormats.map((format) => (
                 <option key={format} value={format}>
                   {formatStatus(format)}

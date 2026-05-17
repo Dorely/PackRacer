@@ -391,6 +391,17 @@ label {
   background: #f8fbf9;
 }
 
+.selectable-card {
+  width: 100%;
+  cursor: pointer;
+  text-align: left;
+}
+
+.selectable-card[data-active="true"] {
+  border-color: #2d6f7a;
+  background: #e8f3f1;
+}
+
 .list-card div,
 .decision-panel {
   align-items: flex-start;

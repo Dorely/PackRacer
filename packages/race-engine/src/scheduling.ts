@@ -1,17 +1,28 @@
+import { addStageToRace } from './event'
 import { calculateStandings } from './scoring'
 import {
   type CreateFinalsStageInput,
   type Heat,
   type LaneAssignment,
   type LaneResult,
-  type RaceProject,
+  type Race,
+  type RaceEvent,
   type Racer,
   type RecordHeatResultsInput,
   type RemovalResolutionStrategy,
   type Stage
 } from './types'
-import { copyProject, createId, getEligibleRacers, nextPowerOfTwo, normalizeLaneCount, nowIso } from './helpers'
-import { addStage } from './project'
+import { copyEvent, createId, getEligibleRacers, nextPowerOfTwo, normalizeLaneCount, nowIso } from './helpers'
+
+function findRace(event: RaceEvent, raceId: string): Race {
+  const race = event.races.find((candidate) => candidate.id === raceId)
+
+  if (!race) {
+    throw new Error('Race was not found.')
+  }
+
+  return race
+}
 
 function makeHeat(stage: Stage, heatNumber: number, roundNumber: number, assignments: LaneAssignment[]): Heat {
   const createdAt = nowIso()
@@ -162,18 +173,19 @@ function renumberHeats(heats: Heat[]): Heat[] {
   return heats.map((heat, index) => ({ ...heat, heatNumber: index + 1 }))
 }
 
-function nextPendingHeat(project: RaceProject): Heat | undefined {
-  const stage = project.stages.find((candidate) => candidate.id === project.currentStageId) ?? project.stages[0]
+function nextPendingHeat(race: Race): Heat | undefined {
+  const stage = race.stages.find((candidate) => candidate.id === race.currentStageId) ?? race.stages[0]
 
   return stage?.heats.find((heat) => heat.status === 'pending')
 }
 
-function advanceEliminationRounds(project: RaceProject, stageId: string): RaceProject {
-  const nextProject = copyProject(project)
-  const stage = nextProject.stages.find((candidate) => candidate.id === stageId)
+function advanceEliminationRounds(event: RaceEvent, raceId: string, stageId: string): RaceEvent {
+  const nextEvent = copyEvent(event)
+  const race = findRace(nextEvent, raceId)
+  const stage = race.stages.find((candidate) => candidate.id === stageId)
 
   if (!stage || stage.format !== 'single-elimination') {
-    return nextProject
+    return nextEvent
   }
 
   let generatedRound = true
@@ -191,6 +203,7 @@ function advanceEliminationRounds(project: RaceProject, stageId: string): RacePr
 
     if (winners.length <= 1) {
       stage.status = 'complete'
+      race.status = 'complete'
       break
     }
 
@@ -227,19 +240,21 @@ function advanceEliminationRounds(project: RaceProject, stageId: string): RacePr
 
   stage.heats = renumberHeats(stage.heats)
   stage.updatedAt = nowIso()
-  nextProject.updatedAt = stage.updatedAt
-  return nextProject
+  race.updatedAt = stage.updatedAt
+  nextEvent.updatedAt = stage.updatedAt
+  return nextEvent
 }
 
-export function generateStageHeats(project: RaceProject, stageId: string): RaceProject {
-  let nextProject = copyProject(project)
-  const stage = nextProject.stages.find((candidate) => candidate.id === stageId)
+export function generateStageHeats(event: RaceEvent, raceId: string, stageId: string): RaceEvent {
+  let nextEvent = copyEvent(event)
+  const race = findRace(nextEvent, raceId)
+  const stage = race.stages.find((candidate) => candidate.id === stageId)
 
   if (!stage) {
     throw new Error('Stage was not found.')
   }
 
-  const racers = getEligibleRacers(nextProject, stage)
+  const racers = getEligibleRacers(nextEvent, stage)
 
   if (racers.length === 0) {
     throw new Error('Add at least one active racer before generating heats.')
@@ -262,21 +277,25 @@ export function generateStageHeats(project: RaceProject, stageId: string): RaceP
   stage.heats = renumberHeats([...preservedHeats, ...generatedHeats])
   stage.status = 'scheduled'
   stage.updatedAt = nowIso()
-  nextProject.currentStageId = stage.id
-  nextProject.currentHeatId = stage.heats.find((heat) => heat.status === 'pending')?.id
-  nextProject.status = 'ready'
-  nextProject.updatedAt = stage.updatedAt
+  race.currentStageId = stage.id
+  race.currentHeatId = stage.heats.find((heat) => heat.status === 'pending')?.id
+  race.status = 'ready'
+  race.updatedAt = stage.updatedAt
+  nextEvent.currentRaceId = race.id
+  nextEvent.status = 'ready'
+  nextEvent.updatedAt = stage.updatedAt
 
   if (stage.format === 'single-elimination') {
-    nextProject = advanceEliminationRounds(nextProject, stage.id)
+    nextEvent = advanceEliminationRounds(nextEvent, race.id, stage.id)
   }
 
-  return nextProject
+  return nextEvent
 }
 
-export function recordHeatResults(project: RaceProject, input: RecordHeatResultsInput): RaceProject {
-  let nextProject = copyProject(project)
-  const stage = nextProject.stages.find((candidate) => candidate.heats.some((heat) => heat.id === input.heatId))
+export function recordHeatResults(event: RaceEvent, raceId: string, input: RecordHeatResultsInput): RaceEvent {
+  let nextEvent = copyEvent(event)
+  const race = findRace(nextEvent, raceId)
+  const stage = race.stages.find((candidate) => candidate.heats.some((heat) => heat.id === input.heatId))
   const heat = stage?.heats.find((candidate) => candidate.id === input.heatId)
 
   if (!stage || !heat) {
@@ -310,81 +329,97 @@ export function recordHeatResults(project: RaceProject, input: RecordHeatResults
   heat.updatedAt = nowIso()
   stage.status = stage.heats.some((candidate) => candidate.status === 'pending') ? 'running' : 'complete'
   stage.updatedAt = heat.updatedAt
-  nextProject.status = stage.status === 'complete' ? nextProject.status : 'running'
-  nextProject.currentStageId = stage.id
-  nextProject.updatedAt = heat.updatedAt
+  race.status = stage.status === 'complete' ? race.status : 'running'
+  race.currentStageId = stage.id
+  race.updatedAt = heat.updatedAt
+  nextEvent.currentRaceId = race.id
+  nextEvent.status = race.status === 'running' ? 'running' : nextEvent.status
+  nextEvent.updatedAt = heat.updatedAt
 
   if (stage.format === 'single-elimination') {
-    nextProject = advanceEliminationRounds(nextProject, stage.id)
+    nextEvent = advanceEliminationRounds(nextEvent, race.id, stage.id)
   }
 
-  const pendingHeat = nextPendingHeat(nextProject)
-  nextProject.currentHeatId = pendingHeat?.id
-  return nextProject
+  const nextRace = findRace(nextEvent, race.id)
+  nextRace.currentHeatId = nextPendingHeat(nextRace)?.id
+  return nextEvent
 }
 
-export function setCurrentHeat(project: RaceProject, heatId: string): RaceProject {
-  const nextProject = copyProject(project)
-  const stage = nextProject.stages.find((candidate) => candidate.heats.some((heat) => heat.id === heatId))
+export function setCurrentHeat(event: RaceEvent, raceId: string, heatId: string): RaceEvent {
+  const nextEvent = copyEvent(event)
+  const race = findRace(nextEvent, raceId)
+  const stage = race.stages.find((candidate) => candidate.heats.some((heat) => heat.id === heatId))
 
   if (!stage) {
     throw new Error('Heat was not found.')
   }
 
-  nextProject.currentStageId = stage.id
-  nextProject.currentHeatId = heatId
-  nextProject.updatedAt = nowIso()
-  return nextProject
+  race.currentStageId = stage.id
+  race.currentHeatId = heatId
+  race.updatedAt = nowIso()
+  nextEvent.currentRaceId = race.id
+  nextEvent.updatedAt = race.updatedAt
+  return nextEvent
 }
 
-export function advanceToNextHeat(project: RaceProject): RaceProject {
-  const nextProject = copyProject(project)
-  const pendingHeat = nextPendingHeat(nextProject)
-  nextProject.currentHeatId = pendingHeat?.id
-  nextProject.updatedAt = nowIso()
-  return nextProject
+export function advanceToNextHeat(event: RaceEvent, raceId: string): RaceEvent {
+  const nextEvent = copyEvent(event)
+  const race = findRace(nextEvent, raceId)
+  const pendingHeat = nextPendingHeat(race)
+  race.currentHeatId = pendingHeat?.id
+  race.updatedAt = nowIso()
+  nextEvent.currentRaceId = race.id
+  nextEvent.updatedAt = race.updatedAt
+  return nextEvent
 }
 
-export function resolveRacerRemoval(project: RaceProject, strategy: RemovalResolutionStrategy): RaceProject {
-  let nextProject = copyProject(project)
-  const impact = nextProject.activeRemovalImpact
+export function resolveRacerRemoval(event: RaceEvent, strategy: RemovalResolutionStrategy): RaceEvent {
+  let nextEvent = copyEvent(event)
+  const impact = nextEvent.activeRemovalImpact
 
   if (!impact) {
-    return nextProject
+    return nextEvent
   }
 
   if (strategy === 'keep-empty-lanes') {
-    for (const stage of nextProject.stages) {
-      for (const heat of stage.heats) {
-        if (!impact.affectedHeatIds.includes(heat.id)) {
-          continue
-        }
+    for (const race of nextEvent.races) {
+      for (const stage of race.stages) {
+        for (const heat of stage.heats) {
+          if (!impact.affectedHeatIds.includes(heat.id)) {
+            continue
+          }
 
-        heat.laneAssignments = heat.laneAssignments.map((assignment) =>
-          assignment.racerId === impact.racerId ? { ...assignment, racerId: null } : assignment
-        )
-        heat.results = []
-        heat.status = 'pending'
-        heat.invalidReason = undefined
-        heat.updatedAt = nowIso()
+          heat.laneAssignments = heat.laneAssignments.map((assignment) =>
+            assignment.racerId === impact.racerId ? { ...assignment, racerId: null } : assignment
+          )
+          heat.results = []
+          heat.status = 'pending'
+          heat.invalidReason = undefined
+          heat.updatedAt = nowIso()
+        }
       }
+      race.currentHeatId = nextPendingHeat(race)?.id
     }
   }
 
   if (strategy === 'regenerate-pending') {
-    for (const stageId of impact.affectedStageIds) {
-      nextProject = generateStageHeats(nextProject, stageId)
+    for (const raceId of impact.affectedRaceIds) {
+      const race = findRace(nextEvent, raceId)
+      const affectedStages = race.stages.filter((stage) => impact.affectedStageIds.includes(stage.id))
+
+      for (const stage of affectedStages) {
+        nextEvent = generateStageHeats(nextEvent, race.id, stage.id)
+      }
     }
   }
 
-  delete nextProject.activeRemovalImpact
-  nextProject.currentHeatId = nextPendingHeat(nextProject)?.id
-  nextProject.updatedAt = nowIso()
-  return nextProject
+  delete nextEvent.activeRemovalImpact
+  nextEvent.updatedAt = nowIso()
+  return nextEvent
 }
 
-export function createFinalsStage(project: RaceProject, input: CreateFinalsStageInput): RaceProject {
-  const sourceStandings = calculateStandings(project, input.sourceStageId)
+export function createFinalsStage(event: RaceEvent, raceId: string, input: CreateFinalsStageInput): RaceEvent {
+  const sourceStandings = calculateStandings(event, raceId, input.sourceStageId)
   const advancedRacerIds = sourceStandings
     .filter((standing) => standing.score !== null && standing.racerStatus === 'active')
     .slice(0, Math.max(1, input.topCount))
@@ -394,15 +429,15 @@ export function createFinalsStage(project: RaceProject, input: CreateFinalsStage
     throw new Error('No racers are eligible to advance yet.')
   }
 
-  const sourceStage = project.stages.find((stage) => stage.id === input.sourceStageId)
-  const nextProject = addStage(project, {
+  const race = findRace(event, raceId)
+  const sourceStage = race.stages.find((stage) => stage.id === input.sourceStageId)
+
+  return addStageToRace(event, raceId, {
     name: input.name,
     format: input.format,
-    laneCount: input.laneCount ?? sourceStage?.laneCount ?? project.laneCount,
-    roundsPerRacer: input.format === 'timed-heats' ? input.laneCount ?? sourceStage?.laneCount ?? project.laneCount : 1,
+    laneCount: input.laneCount ?? sourceStage?.laneCount ?? race.laneCount ?? event.laneCount,
+    roundsPerRacer: input.format === 'timed-heats' ? input.laneCount ?? sourceStage?.laneCount ?? race.laneCount : 1,
     scoringMode: input.scoringMode,
     eligibleRacerIds: advancedRacerIds
   })
-
-  return nextProject
 }

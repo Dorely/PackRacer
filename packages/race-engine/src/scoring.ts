@@ -1,4 +1,4 @@
-import type { Heat, LaneResult, RaceProject, ScoringMode, Stage, Standing } from './types'
+import type { Heat, LaneResult, RaceEvent, ScoringMode, Stage, Standing } from './types'
 import { formatMilliseconds } from './helpers'
 
 type StandingDraft = Omit<Standing, 'rank' | 'scoreLabel'> & {
@@ -37,11 +37,11 @@ function scorePoints(result: LaneResult, laneCount: number, scoringMode: Scoring
   return Math.max(0, laneCount - position + 1)
 }
 
-function createDrafts(project: RaceProject, stage: Stage): Map<string, StandingDraft> {
+function createDrafts(event: RaceEvent, stage: Stage): Map<string, StandingDraft> {
   const eligibleIds = stage.eligibleRacerIds ? new Set(stage.eligibleRacerIds) : null
   const drafts = new Map<string, StandingDraft>()
 
-  for (const racer of project.racers) {
+  for (const racer of event.racers) {
     if (eligibleIds && !eligibleIds.has(racer.id)) {
       continue
     }
@@ -120,14 +120,15 @@ function rankDrafts(drafts: StandingDraft[], scoringMode: ScoringMode): Standing
   })
 }
 
-export function calculateStandings(project: RaceProject, stageId?: string): Standing[] {
-  const stage = project.stages.find((candidate) => candidate.id === (stageId ?? project.currentStageId)) ?? project.stages[0]
+export function calculateStandings(event: RaceEvent, raceId?: string, stageId?: string): Standing[] {
+  const race = event.races.find((candidate) => candidate.id === (raceId ?? event.currentRaceId)) ?? event.races[0]
+  const stage = race?.stages.find((candidate) => candidate.id === (stageId ?? race.currentStageId)) ?? race?.stages[0]
 
   if (!stage) {
     return []
   }
 
-  const drafts = createDrafts(project, stage)
+  const drafts = createDrafts(event, stage)
   const heats = activeHeats(stage)
 
   for (const heat of heats) {
