@@ -1,0 +1,12 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "PackRacer: Debug Desktop",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "npm run debug",
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}

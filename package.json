@@ -1,0 +1,22 @@
+{
+  "name": "packracer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local-first race event management for volunteer-run competitions.",
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "services/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace @packracer/desktop",
+    "debug": "npm run debug --workspace @packracer/desktop",
+    "build": "npm run build --workspace @packracer/desktop",
+    "typecheck": "npm run typecheck --workspace @packracer/desktop",
+    "preview": "npm run preview --workspace @packracer/desktop"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  }
+}
