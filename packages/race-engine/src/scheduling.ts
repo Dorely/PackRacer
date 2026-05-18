@@ -1,5 +1,6 @@
 import { calculateStandings } from './scoring'
 import {
+  type AdvancementTieBreakerResolution,
   type Heat,
   type LaneAssignment,
   type LaneResult,
@@ -8,7 +9,8 @@ import {
   type RaceEvent,
   type Racer,
   type RecordHeatResultsInput,
-  type RemovalResolutionStrategy
+  type RemovalResolutionStrategy,
+  type Standing
 } from './types'
 import { copyEvent, createId, getEligibleRacers, nextPowerOfTwo, normalizeLaneCount, nowIso } from './helpers'
 
@@ -353,8 +355,12 @@ function nextPendingHeat(race: Race): Heat | undefined {
   return race.heats.find((heat) => heat.status === 'pending')
 }
 
+function isUnfinishedHeat(heat: Heat): boolean {
+  return heat.status === 'pending' || heat.status === 'running' || heat.status === 'invalidated'
+}
+
 function hasUnfinishedHeats(race: Race): boolean {
-  return race.heats.some((heat) => heat.status === 'pending' || heat.status === 'running' || heat.status === 'invalidated')
+  return race.heats.some(isUnfinishedHeat)
 }
 
 function linkedMakeupHeats(race: Race, originalHeatId: string): Heat[] {
@@ -409,6 +415,385 @@ export function areRaceResultsLockedByStartedDependents(event: RaceEvent, source
   return event.races.some((race) => race.source?.sourceRaceId === sourceRaceId && race.heats.length > 0)
 }
 
+function qualifierHeatsComplete(race: Race): boolean {
+  const qualifierHeats = race.heats.filter((heat) => !heat.tieBreakerSource)
+
+  return qualifierHeats.length > 0 && !qualifierHeats.some(isUnfinishedHeat)
+}
+
+function activeScoredStandings(event: RaceEvent, sourceRaceId: string): Standing[] {
+  return calculateStandings(event, sourceRaceId).filter(
+    (standing) => standing.score !== null && standing.racerStatus === 'active'
+  )
+}
+
+function sameRacerSet(first: string[], second: string[]): boolean {
+  if (first.length !== second.length) {
+    return false
+  }
+
+  const firstSet = new Set(first)
+  return second.every((racerId) => firstSet.has(racerId))
+}
+
+function pendingTieBreakerHeatIds(sourceRace: Race, dependentRaceId: string): string[] {
+  return sourceRace.heats
+    .filter(
+      (heat) =>
+        heat.tieBreakerSource?.dependentRaceId === dependentRaceId &&
+        heat.tieBreakerSource.sourceRaceId === sourceRace.id &&
+        isUnfinishedHeat(heat)
+    )
+    .map((heat) => heat.id)
+}
+
+function matchingTieBreakerRoundHeats(
+  sourceRace: Race,
+  dependentRaceId: string,
+  topCount: number,
+  mainScore: number,
+  roundNumber: number,
+  contestedSlots: number,
+  tiedRacerIds: string[]
+): Heat[] {
+  return sourceRace.heats.filter((heat) => {
+    const source = heat.tieBreakerSource
+
+    return Boolean(
+      source &&
+        source.sourceRaceId === sourceRace.id &&
+        source.dependentRaceId === dependentRaceId &&
+        source.topCount === topCount &&
+        source.mainScore === mainScore &&
+        source.roundNumber === roundNumber &&
+        source.contestedSlots === contestedSlots &&
+        sameRacerSet(source.tiedRacerIds, tiedRacerIds)
+    )
+  })
+}
+
+function tieBreakerScore(result: LaneResult | undefined, sourceRace: Race): number {
+  if (!result || result.status !== 'ok') {
+    return Number.POSITIVE_INFINITY
+  }
+
+  if (sourceRace.format === 'timed-heats') {
+    return typeof result.timeMs === 'number' ? result.timeMs : Number.POSITIVE_INFINITY
+  }
+
+  return typeof result.finishPosition === 'number' ? result.finishPosition : Number.POSITIVE_INFINITY
+}
+
+function scoreTieBreakerRound(sourceRace: Race, roundHeats: Heat[], tiedRacerIds: string[]): Map<string, number> {
+  const scores = new Map<string, number>()
+
+  for (const racerId of tiedRacerIds) {
+    scores.set(racerId, Number.POSITIVE_INFINITY)
+  }
+
+  for (const heat of roundHeats) {
+    for (const result of heat.results) {
+      if (!scores.has(result.racerId)) {
+        continue
+      }
+
+      scores.set(result.racerId, Math.min(scores.get(result.racerId) ?? Number.POSITIVE_INFINITY, tieBreakerScore(result, sourceRace)))
+    }
+  }
+
+  return scores
+}
+
+function resolveTieBreakerScores(
+  scores: Map<string, number>,
+  tiedRacerIds: string[],
+  contestedSlots: number
+): {
+  resolved: boolean
+  winnerRacerIds: string[]
+  unresolvedRacerIds: string[]
+  unresolvedContestedSlots: number
+} {
+  const orderedScores = tiedRacerIds
+    .map((racerId, index) => ({ racerId, index, score: scores.get(racerId) ?? Number.POSITIVE_INFINITY }))
+    .sort((first, second) => first.score - second.score || first.index - second.index)
+  const winnerRacerIds: string[] = []
+
+  for (let index = 0; index < orderedScores.length; ) {
+    const score = orderedScores[index].score
+    const group = orderedScores.filter((candidate) => candidate.score === score)
+    const nextIndex = index + group.length
+
+    if (winnerRacerIds.length + group.length < contestedSlots) {
+      winnerRacerIds.push(...group.map((candidate) => candidate.racerId))
+      index = nextIndex
+      continue
+    }
+
+    if (winnerRacerIds.length + group.length === contestedSlots) {
+      winnerRacerIds.push(...group.map((candidate) => candidate.racerId))
+      return {
+        resolved: true,
+        winnerRacerIds,
+        unresolvedRacerIds: [],
+        unresolvedContestedSlots: 0
+      }
+    }
+
+    return {
+      resolved: false,
+      winnerRacerIds,
+      unresolvedRacerIds: group.map((candidate) => candidate.racerId),
+      unresolvedContestedSlots: contestedSlots - winnerRacerIds.length
+    }
+  }
+
+  return {
+    resolved: winnerRacerIds.length >= contestedSlots,
+    winnerRacerIds,
+    unresolvedRacerIds: [],
+    unresolvedContestedSlots: 0
+  }
+}
+
+function unresolvedTieBreakerMessage(sourceRace: Race, unresolvedRacerCount: number, contestedSlots: number): string {
+  if (sourceRace.format !== 'timed-heats' && sourceRace.format !== 'points-heats') {
+    return 'Automated advancement tie-breakers are only available for timed and points heat races.'
+  }
+
+  const laneCount = normalizeLaneCount(sourceRace.laneCount)
+
+  if (sourceRace.format === 'points-heats' && unresolvedRacerCount > laneCount) {
+    return `The tied cutoff group has ${unresolvedRacerCount} racers, which does not fit on a ${laneCount}-lane track. Resolve this advancement tie manually.`
+  }
+
+  return `Run a tie-breaker for ${unresolvedRacerCount} tied racer(s) to resolve ${contestedSlots} finalist slot(s).`
+}
+
+function resolveAdvancementForTarget(event: RaceEvent, targetRace: Race): AdvancementTieBreakerResolution {
+  if (!targetRace.source) {
+    throw new Error('This race does not have a source race configured.')
+  }
+
+  const sourceRace = event.races.find((race) => race.id === targetRace.source?.sourceRaceId)
+
+  if (!sourceRace) {
+    throw new Error('The configured source race was not found.')
+  }
+
+  const topCount = Math.max(1, targetRace.source.topCount)
+  const sourceComplete = sourceRace.heats.length > 0 && !hasUnfinishedHeats(sourceRace)
+  const qualifierComplete = qualifierHeatsComplete(sourceRace)
+  const baseResolution: AdvancementTieBreakerResolution = {
+    sourceRaceId: sourceRace.id,
+    dependentRaceId: targetRace.id,
+    topCount,
+    sourceComplete,
+    qualifierComplete,
+    needsTieBreaker: false,
+    resolved: true,
+    canGenerateTieBreaker: false,
+    selectedRacerIds: [],
+    lockedRacerIds: [],
+    resolvedRacerIds: [],
+    tiedRacerIds: [],
+    unresolvedRacerIds: [],
+    contestedSlots: 0,
+    unresolvedContestedSlots: 0,
+    mainScore: null,
+    pendingHeatIds: pendingTieBreakerHeatIds(sourceRace, targetRace.id),
+    latestRoundNumber: 0,
+    nextRoundNumber: 1
+  }
+
+  if (!qualifierComplete) {
+    return {
+      ...baseResolution,
+      resolved: false,
+      message: 'Complete the source race before resolving advancement.'
+    }
+  }
+
+  const sourceStandings = activeScoredStandings(event, sourceRace.id)
+
+  if (sourceStandings.length === 0) {
+    return {
+      ...baseResolution,
+      resolved: false,
+      message: 'No source standings are ready to populate this race.'
+    }
+  }
+
+  const desiredCount = Math.min(topCount, sourceStandings.length)
+
+  if (sourceStandings.length <= topCount) {
+    return {
+      ...baseResolution,
+      selectedRacerIds: sourceStandings.map((standing) => standing.racerId)
+    }
+  }
+
+  const cutoffStanding = sourceStandings[desiredCount - 1]
+
+  if (cutoffStanding.score === null) {
+    return {
+      ...baseResolution,
+      resolved: false,
+      message: 'No source standings are ready to populate this race.'
+    }
+  }
+
+  const firstTieIndex = sourceStandings.findIndex((standing) => standing.score === cutoffStanding.score)
+  const tiedStandings = sourceStandings.filter((standing) => standing.score === cutoffStanding.score)
+  const lockedRacerIds = sourceStandings.slice(0, firstTieIndex).map((standing) => standing.racerId)
+  const tiedRacerIds = tiedStandings.map((standing) => standing.racerId)
+  const contestedSlots = desiredCount - lockedRacerIds.length
+
+  if (tiedRacerIds.length <= contestedSlots) {
+    return {
+      ...baseResolution,
+      selectedRacerIds: sourceStandings.slice(0, desiredCount).map((standing) => standing.racerId),
+      lockedRacerIds,
+      tiedRacerIds,
+      contestedSlots,
+      mainScore: cutoffStanding.score
+    }
+  }
+
+  let unresolvedRacerIds = tiedRacerIds
+  let unresolvedContestedSlots = contestedSlots
+  let latestRoundNumber = 0
+  let nextRoundNumber = 1
+  const resolvedRacerIds: string[] = []
+
+  while (unresolvedRacerIds.length > unresolvedContestedSlots) {
+    const pendingHeatIds = pendingTieBreakerHeatIds(sourceRace, targetRace.id)
+
+    if (pendingHeatIds.length > 0) {
+      return {
+        ...baseResolution,
+        needsTieBreaker: true,
+        resolved: false,
+        selectedRacerIds: [...lockedRacerIds, ...resolvedRacerIds],
+        lockedRacerIds,
+        resolvedRacerIds,
+        tiedRacerIds,
+        unresolvedRacerIds,
+        contestedSlots,
+        unresolvedContestedSlots,
+        mainScore: cutoffStanding.score,
+        pendingHeatIds,
+        latestRoundNumber,
+        nextRoundNumber,
+        message: 'Complete the existing tie-breaker heat before generating another round.'
+      }
+    }
+
+    const roundHeats = matchingTieBreakerRoundHeats(
+      sourceRace,
+      targetRace.id,
+      topCount,
+      cutoffStanding.score,
+      nextRoundNumber,
+      unresolvedContestedSlots,
+      unresolvedRacerIds
+    ).filter((heat) => heat.status === 'complete')
+
+    if (roundHeats.length === 0) {
+      break
+    }
+
+    const roundResolution = resolveTieBreakerScores(
+      scoreTieBreakerRound(sourceRace, roundHeats, unresolvedRacerIds),
+      unresolvedRacerIds,
+      unresolvedContestedSlots
+    )
+    resolvedRacerIds.push(...roundResolution.winnerRacerIds)
+    latestRoundNumber = nextRoundNumber
+
+    if (roundResolution.resolved) {
+      return {
+        ...baseResolution,
+        needsTieBreaker: true,
+        resolved: true,
+        selectedRacerIds: [...lockedRacerIds, ...resolvedRacerIds],
+        lockedRacerIds,
+        resolvedRacerIds,
+        tiedRacerIds,
+        unresolvedRacerIds: [],
+        contestedSlots,
+        unresolvedContestedSlots: 0,
+        mainScore: cutoffStanding.score,
+        latestRoundNumber,
+        nextRoundNumber: latestRoundNumber + 1,
+        message: 'Advancement tie-breaker is resolved.'
+      }
+    }
+
+    unresolvedRacerIds = roundResolution.unresolvedRacerIds
+    unresolvedContestedSlots = roundResolution.unresolvedContestedSlots
+    nextRoundNumber += 1
+  }
+
+  if (unresolvedRacerIds.length <= unresolvedContestedSlots) {
+    return {
+      ...baseResolution,
+      needsTieBreaker: true,
+      resolved: true,
+      selectedRacerIds: [...lockedRacerIds, ...resolvedRacerIds, ...unresolvedRacerIds],
+      lockedRacerIds,
+      resolvedRacerIds: [...resolvedRacerIds, ...unresolvedRacerIds],
+      tiedRacerIds,
+      unresolvedRacerIds: [],
+      contestedSlots,
+      unresolvedContestedSlots: 0,
+      mainScore: cutoffStanding.score,
+      latestRoundNumber,
+      nextRoundNumber,
+      message: 'Advancement tie-breaker is resolved.'
+    }
+  }
+
+  const canGenerateTieBreaker =
+    qualifierComplete &&
+    (sourceRace.format === 'timed-heats' ||
+      (sourceRace.format === 'points-heats' && unresolvedRacerIds.length <= normalizeLaneCount(sourceRace.laneCount)))
+
+  return {
+    ...baseResolution,
+    needsTieBreaker: true,
+    resolved: false,
+    canGenerateTieBreaker,
+    selectedRacerIds: [...lockedRacerIds, ...resolvedRacerIds],
+    lockedRacerIds,
+    resolvedRacerIds,
+    tiedRacerIds,
+    unresolvedRacerIds,
+    contestedSlots,
+    unresolvedContestedSlots,
+    mainScore: cutoffStanding.score,
+    latestRoundNumber,
+    nextRoundNumber,
+    message: unresolvedTieBreakerMessage(sourceRace, unresolvedRacerIds.length, unresolvedContestedSlots)
+  }
+}
+
+export function getAdvancementTieBreakerResolution(event: RaceEvent, dependentRaceId: string): AdvancementTieBreakerResolution {
+  const targetRace = event.races.find((race) => race.id === dependentRaceId)
+
+  if (!targetRace) {
+    throw new Error('Race was not found.')
+  }
+
+  return resolveAdvancementForTarget(event, targetRace)
+}
+
+export function getAdvancementTieBreakerStatuses(event: RaceEvent, sourceRaceId: string): AdvancementTieBreakerResolution[] {
+  return event.races
+    .filter((race) => race.source?.sourceRaceId === sourceRaceId)
+    .map((race) => resolveAdvancementForTarget(event, race))
+}
+
 function populateDependentRacesFromSource(event: RaceEvent, sourceRaceId: string): RaceEvent {
   let nextEvent = event
   const currentRaceId = nextEvent.currentRaceId
@@ -420,6 +805,12 @@ function populateDependentRacesFromSource(event: RaceEvent, sourceRaceId: string
     const dependentRace = findRace(nextEvent, dependentRaceId)
 
     if (dependentRace.heats.length > 0 || !hasPopulatableSourceStandings(nextEvent, dependentRace)) {
+      continue
+    }
+
+    const advancementResolution = resolveAdvancementForTarget(nextEvent, dependentRace)
+
+    if (advancementResolution.needsTieBreaker && !advancementResolution.resolved) {
       continue
     }
 
@@ -604,12 +995,19 @@ export function populateRaceEntriesFromSource(event: RaceEvent, raceId: string):
     throw new Error('Complete the source race before generating heats for this race.')
   }
 
+  const advancementResolution = resolveAdvancementForTarget(nextEvent, targetRace)
+
+  if (advancementResolution.needsTieBreaker && !advancementResolution.resolved) {
+    throw new Error(advancementResolution.message ?? 'Run the advancement tie-breaker before populating this race.')
+  }
+
   const sourceStandings = calculateStandings(nextEvent, source.sourceRaceId)
+  const standingByRacerId = new Map(sourceStandings.map((standing) => [standing.racerId, standing]))
   const existingEntries = new Map((targetRace.entries ?? []).map((entry) => [entry.racerId, entry]))
   const createdAt = nowIso()
-  const entries: RaceEntry[] = sourceStandings
-    .filter((standing) => standing.score !== null && standing.racerStatus === 'active')
-    .slice(0, Math.max(1, source.topCount))
+  const entries: RaceEntry[] = advancementResolution.selectedRacerIds
+    .map((racerId) => standingByRacerId.get(racerId))
+    .filter((standing): standing is Standing => Boolean(standing))
     .map((standing) => {
       const existingEntry = existingEntries.get(standing.racerId)
 
@@ -635,6 +1033,111 @@ export function populateRaceEntriesFromSource(event: RaceEvent, raceId: string):
   targetRace.heats = []
   targetRace.updatedAt = createdAt
   nextEvent.currentRaceId = targetRace.id
+  nextEvent.updatedAt = createdAt
+  return nextEvent
+}
+
+export function generateAdvancementTieBreakerHeats(
+  event: RaceEvent,
+  sourceRaceId: string,
+  dependentRaceId: string
+): RaceEvent {
+  let nextEvent = copyEvent(event)
+  const sourceRace = findRace(nextEvent, sourceRaceId)
+  const dependentRace = findRace(nextEvent, dependentRaceId)
+
+  if (dependentRace.source?.sourceRaceId !== sourceRace.id) {
+    throw new Error('This race does not advance from the selected source race.')
+  }
+
+  if (dependentRace.heats.length > 0) {
+    throw new Error('Dependent race heats have already been generated.')
+  }
+
+  if (sourceRace.format !== 'timed-heats' && sourceRace.format !== 'points-heats') {
+    throw new Error('Automated advancement tie-breakers are only available for timed and points heat races.')
+  }
+
+  const advancementResolution = resolveAdvancementForTarget(nextEvent, dependentRace)
+
+  if (!advancementResolution.needsTieBreaker) {
+    throw new Error('No advancement tie-breaker is needed for this race.')
+  }
+
+  if (advancementResolution.resolved) {
+    return populateRaceEntriesFromSource(nextEvent, dependentRace.id)
+  }
+
+  if (advancementResolution.pendingHeatIds.length > 0) {
+    throw new Error('Complete the existing tie-breaker heat before generating another round.')
+  }
+
+  if (!advancementResolution.canGenerateTieBreaker || advancementResolution.mainScore === null) {
+    throw new Error(advancementResolution.message ?? 'This advancement tie requires manual resolution.')
+  }
+
+  const createdAt = nowIso()
+  const laneCount = normalizeLaneCount(sourceRace.laneCount)
+  const tiedRacerIds = advancementResolution.unresolvedRacerIds
+  const tieBreakerSource = {
+    sourceRaceId: sourceRace.id,
+    dependentRaceId: dependentRace.id,
+    topCount: advancementResolution.topCount,
+    contestedSlots: advancementResolution.unresolvedContestedSlots,
+    mainScore: advancementResolution.mainScore,
+    roundNumber: advancementResolution.nextRoundNumber,
+    tiedRacerIds
+  }
+  const nextHeats: Heat[] = []
+
+  if (sourceRace.format === 'points-heats') {
+    if (tiedRacerIds.length > laneCount) {
+      throw new Error(
+        `The tied cutoff group has ${tiedRacerIds.length} racers, which does not fit on a ${laneCount}-lane track. Resolve this advancement tie manually.`
+      )
+    }
+
+    const heat = makeHeat(
+      sourceRace.heats.length + 1,
+      advancementResolution.nextRoundNumber,
+      fillOpenLanes(
+        tiedRacerIds.map((racerId, index) => ({
+          lane: index + 1,
+          racerId
+        })),
+        laneCount
+      )
+    )
+    heat.tieBreakerSource = tieBreakerSource
+    nextHeats.push(heat)
+  } else {
+    for (let index = 0; index < tiedRacerIds.length; index += laneCount) {
+      const heat = makeHeat(
+        sourceRace.heats.length + nextHeats.length + 1,
+        advancementResolution.nextRoundNumber,
+        fillOpenLanes(
+          tiedRacerIds.slice(index, index + laneCount).map((racerId, laneIndex) => ({
+            lane: laneIndex + 1,
+            racerId
+          })),
+          laneCount
+        )
+      )
+      heat.tieBreakerSource = tieBreakerSource
+      nextHeats.push(heat)
+    }
+  }
+
+  if (nextHeats.length === 0) {
+    throw new Error('No tied racers are available for a tie-breaker heat.')
+  }
+
+  sourceRace.heats = renumberHeats([...sourceRace.heats, ...nextHeats])
+  sourceRace.currentHeatId = nextHeats[0].id
+  sourceRace.status = 'running'
+  sourceRace.updatedAt = createdAt
+  nextEvent.currentRaceId = sourceRace.id
+  nextEvent.status = 'running'
   nextEvent.updatedAt = createdAt
   return nextEvent
 }
@@ -702,6 +1205,10 @@ export function recordHeatResults(event: RaceEvent, raceId: string, input: Recor
 
   const rescheduleLaneSet = new Set(input.rescheduleLanes ?? [])
 
+  if (rescheduleLaneSet.size > 0 && heat.tieBreakerSource) {
+    throw new Error('Makeup runs are not available for advancement tie-breaker heats.')
+  }
+
   if (rescheduleLaneSet.size > 0 && !supportsMakeupRescheduling(race)) {
     throw new Error('Makeup heats are only available for timed and points heat races.')
   }
@@ -720,7 +1227,7 @@ export function recordHeatResults(event: RaceEvent, raceId: string, input: Recor
           ? Math.round(result.timeMs)
           : undefined,
       notes: result.notes,
-      excludedFromScoring: undefined,
+      excludedFromScoring: heat.tieBreakerSource ? true : undefined,
       makeupHeatId: undefined
     }))
 
@@ -728,7 +1235,7 @@ export function recordHeatResults(event: RaceEvent, raceId: string, input: Recor
     throw new Error('Record at least one lane result.')
   }
 
-  const makeupResults = supportsMakeupRescheduling(race)
+  const makeupResults = supportsMakeupRescheduling(race) && !heat.tieBreakerSource
     ? normalizedResults.filter(
         (result): result is LaneResult & { status: 'dns' | 'dnf' } => rescheduleLaneSet.has(result.lane) && isMakeupResult(result)
       )

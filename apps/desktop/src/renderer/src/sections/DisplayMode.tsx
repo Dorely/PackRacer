@@ -52,7 +52,15 @@ export function DisplayMode({ event, currentRace, selectedRaceId, setSelectedRac
       <div className="display-grid">
         <article>
           <span>{raceFinished ? 'Race Finished' : 'Current Heat'}</span>
-          <strong>{raceFinished ? currentRace.name : currentHeat ? `Heat ${currentHeat.heatNumber}` : 'No heat'}</strong>
+          <strong>
+            {raceFinished
+              ? currentRace.name
+              : currentHeat?.tieBreakerSource
+                ? `Tie-Breaker Round ${currentHeat.tieBreakerSource.roundNumber}`
+                : currentHeat
+                  ? `Heat ${currentHeat.heatNumber}`
+                  : 'No heat'}
+          </strong>
           {raceFinished ? (
             <p className="empty-state">All heats are complete.</p>
           ) : (

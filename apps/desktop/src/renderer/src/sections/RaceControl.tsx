@@ -4,6 +4,7 @@ import { ChevronRight, Flag, Play, RotateCcw, Save } from 'lucide-react'
 import {
   areRaceResultsLockedByStartedDependents,
   calculateStandings,
+  getAdvancementTieBreakerStatuses,
   type Heat,
   type LaneResultStatus,
   type ScoringMode
@@ -82,6 +83,17 @@ export function RaceControl({
     () => (event && currentRace ? calculateStandings(event, currentRace.id) : []),
     [event, currentRace]
   )
+  const advancementTieBreakers = useMemo(
+    () =>
+      event && currentRace
+        ? getAdvancementTieBreakerStatuses(event, currentRace.id).filter((status) => status.needsTieBreaker && !status.resolved)
+        : [],
+    [event, currentRace]
+  )
+  const dependentRaceById = useMemo(
+    () => new Map(event?.races.map((race) => [race.id, race]) ?? []),
+    [event]
+  )
   const showTimeResults = usesTimeResults(currentRace?.scoringMode ?? 'average-time')
   const canGenerateHeats = Boolean(
     currentRace && (allHeats.length === 0 || (currentRace.source && currentRace.entries.length === 0 && completedHeats === 0))
@@ -128,7 +140,7 @@ export function RaceControl({
           finishPosition
         }
       })
-    const rescheduleLanes = supportsMakeupResults(currentRace.format)
+    const rescheduleLanes = supportsMakeupResults(currentRace.format) && !currentHeat.tieBreakerSource
       ? currentHeat.laneAssignments
           .filter((assignment) => {
             const draft = resultDrafts[assignment.lane]
@@ -225,7 +237,13 @@ export function RaceControl({
             <div className="lane-grid" aria-label="Lane assignments and results">
               {currentHeat.laneAssignments.map((assignment) => (
                 <div className="lane-row result-row" key={assignment.lane} data-muted={!assignment.racerId}>
-                  <span>{assignment.makeupSource ? `Lane ${assignment.lane} makeup` : `Lane ${assignment.lane}`}</span>
+                  <span>
+                    {currentHeat.tieBreakerSource
+                      ? `Lane ${assignment.lane} tie-breaker`
+                      : assignment.makeupSource
+                        ? `Lane ${assignment.lane} makeup`
+                        : `Lane ${assignment.lane}`}
+                  </span>
                   <strong>{racerLabel(event.racers, assignment.racerId)}</strong>
                   {assignment.racerId ? (
                     <>
@@ -265,7 +283,9 @@ export function RaceControl({
                         <option value="dq">DQ</option>
                       </select>
                       <div className="makeup-cell">
-                        {supportsMakeupResults(currentRace.format) && canMakeupStatus(resultDrafts[assignment.lane]?.status ?? 'ok') ? (
+                        {supportsMakeupResults(currentRace.format) &&
+                        !currentHeat.tieBreakerSource &&
+                        canMakeupStatus(resultDrafts[assignment.lane]?.status ?? 'ok') ? (
                           <label className="makeup-toggle">
                             <input
                               checked={resultDrafts[assignment.lane]?.rescheduleMakeup ?? false}
@@ -316,6 +336,39 @@ export function RaceControl({
           <div className="live-standings-panel">
             <strong>Final results</strong>
             <p className="empty-state">All heats are complete. Select any heat from the heat sheet to edit results or run it again.</p>
+            {advancementTieBreakers.length > 0 ? (
+              <div className="advancement-summary-list">
+                {advancementTieBreakers.map((status) => {
+                  const dependentRace = dependentRaceById.get(status.dependentRaceId)
+                  const tiedRacers = status.unresolvedRacerIds.map((racerId) => racerLabel(event.racers, racerId)).join(', ')
+
+                  return (
+                    <section className="decision-panel" key={status.dependentRaceId}>
+                      <strong>{dependentRace?.name ?? 'Dependent race'} needs a tie-breaker</strong>
+                      <span>
+                        {status.selectedRacerIds.length}/{status.topCount} finalist(s) locked. {tiedRacers} tied for{' '}
+                        {status.unresolvedContestedSlots} slot(s).
+                      </span>
+                      {status.pendingHeatIds.length > 0 ? (
+                        <span>Complete the generated tie-breaker heat before advancing this race.</span>
+                      ) : status.canGenerateTieBreaker ? (
+                        <div className="button-row">
+                          <button
+                            className="secondary-action"
+                            onClick={() => void actions.generateTieBreaker(currentRace.id, status.dependentRaceId)}
+                            type="button"
+                          >
+                            Generate Tie-Breaker
+                          </button>
+                        </div>
+                      ) : (
+                        <span>{status.message ?? 'Resolve this advancement tie manually.'}</span>
+                      )}
+                    </section>
+                  )
+                })}
+              </div>
+            ) : null}
             <ol className="leader-list compact">
               {liveStandings.map((standing) => (
                 <li key={standing.racerId}>
@@ -378,8 +431,20 @@ export function RaceControl({
           {allHeats.map((heat) => (
             <article className="heat-list-item" data-active={heat.id === currentHeat?.id} key={heat.id}>
               <button className="bare-select" onClick={() => void actions.setCurrentHeat(currentRace.id, heat.id)} type="button">
-                <strong>{heat.makeupSource ? `Heat ${heat.heatNumber} makeup` : `Heat ${heat.heatNumber}`}</strong>
-                <span>{heat.makeupSource ? `From Heat ${heat.makeupSource.originalHeatNumber} - ${formatStatus(heat.status)}` : formatStatus(heat.status)}</span>
+                <strong>
+                  {heat.tieBreakerSource
+                    ? `Heat ${heat.heatNumber} tie-breaker`
+                    : heat.makeupSource
+                      ? `Heat ${heat.heatNumber} makeup`
+                      : `Heat ${heat.heatNumber}`}
+                </strong>
+                <span>
+                  {heat.tieBreakerSource
+                    ? `${dependentRaceById.get(heat.tieBreakerSource.dependentRaceId)?.name ?? 'Advancement'} Round ${heat.tieBreakerSource.roundNumber} - ${formatStatus(heat.status)}`
+                    : heat.makeupSource
+                      ? `From Heat ${heat.makeupSource.originalHeatNumber} - ${formatStatus(heat.status)}`
+                      : formatStatus(heat.status)}
+                </span>
               </button>
             </article>
           ))}

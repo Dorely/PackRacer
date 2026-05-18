@@ -1,4 +1,4 @@
-export const EVENT_SCHEMA_VERSION = 5
+export const EVENT_SCHEMA_VERSION = 6
 
 export type RaceFormat = 'timed-heats' | 'points-heats' | 'round-robin' | 'single-elimination'
 
@@ -42,6 +42,39 @@ export type MakeupAssignmentSource = {
   originalHeatNumber: number
   originalLane: number
   resultStatus: Extract<LaneResultStatus, 'dns' | 'dnf'>
+}
+
+export type AdvancementTieBreakerSource = {
+  sourceRaceId: string
+  dependentRaceId: string
+  topCount: number
+  contestedSlots: number
+  mainScore: number
+  roundNumber: number
+  tiedRacerIds: string[]
+}
+
+export type AdvancementTieBreakerResolution = {
+  sourceRaceId: string
+  dependentRaceId: string
+  topCount: number
+  sourceComplete: boolean
+  qualifierComplete: boolean
+  needsTieBreaker: boolean
+  resolved: boolean
+  canGenerateTieBreaker: boolean
+  selectedRacerIds: string[]
+  lockedRacerIds: string[]
+  resolvedRacerIds: string[]
+  tiedRacerIds: string[]
+  unresolvedRacerIds: string[]
+  contestedSlots: number
+  unresolvedContestedSlots: number
+  mainScore: number | null
+  pendingHeatIds: string[]
+  latestRoundNumber: number
+  nextRoundNumber: number
+  message?: string
 }
 
 export type RaceSource = {
@@ -131,6 +164,7 @@ export type Heat = {
   bracketSlot?: number
   sourceHeatIds?: string[]
   makeupSource?: MakeupHeatSource
+  tieBreakerSource?: AdvancementTieBreakerSource
   invalidReason?: string
   notes?: string
   createdAt: string

@@ -30,6 +30,7 @@ import {
 import {
   advanceToNextHeat,
   clearHeatResults,
+  generateAdvancementTieBreakerHeats,
   generateRaceHeats,
   recordHeatResults,
   resolveRacerRemoval,
@@ -120,6 +121,15 @@ ipcMain.handle('race:delete', (_event, raceId: string) =>
 
 ipcMain.handle('race:generate-heats', (_event, raceId: string) =>
   mutateEvent('race:generate-heats', (raceEvent) => generateRaceHeats(raceEvent, raceId), { raceId }, raceId)
+)
+
+ipcMain.handle('race:generate-tie-breaker', (_event, sourceRaceId: string, dependentRaceId: string) =>
+  mutateEvent(
+    'race:generate-tie-breaker',
+    (raceEvent) => generateAdvancementTieBreakerHeats(raceEvent, sourceRaceId, dependentRaceId),
+    { sourceRaceId, dependentRaceId },
+    sourceRaceId
+  )
 )
 
 ipcMain.handle('racer:add', (_event, input: AddRacerInput) =>

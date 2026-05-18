@@ -43,6 +43,7 @@ export type AppActions = {
   removeRaceEntry: (raceId: string, entryId: string) => Promise<void>
   scratchRaceEntry: (raceId: string, entryId: string) => Promise<void>
   generateHeats: (raceId: string) => Promise<void>
+  generateTieBreaker: (sourceRaceId: string, dependentRaceId: string) => Promise<void>
   recordHeatResults: (raceId: string, input: RecordHeatResultsInput) => Promise<void>
   clearHeatResults: (raceId: string, heatId: string) => Promise<void>
   setCurrentHeat: (raceId: string, heatId: string) => Promise<void>

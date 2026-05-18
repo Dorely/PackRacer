@@ -1,12 +1,12 @@
 import { useMemo } from 'react'
 import { Award, Trophy } from 'lucide-react'
 
-import { calculateStandings } from '@packracer/race-engine'
+import { calculateStandings, getAdvancementTieBreakerStatuses, type Standing } from '@packracer/race-engine'
 
 import { formatStatus, formatTime } from '../formatters'
 import type { SectionProps } from './types'
 
-export function Standings({ event, currentRace, selectedRaceId, setSelectedRaceId }: SectionProps) {
+export function Standings({ event, currentRace, selectedRaceId, setSelectedRaceId, actions }: SectionProps) {
   const standings = useMemo(
     () => (event && currentRace ? calculateStandings(event, currentRace.id) : []),
     [event, currentRace]
@@ -22,6 +22,18 @@ export function Standings({ event, currentRace, selectedRaceId, setSelectedRaceI
   const eligibleStandings = useMemo(
     () => standings.filter((standing) => standing.score !== null && standing.racerStatus === 'active'),
     [standings]
+  )
+  const standingsByRacerId = useMemo(
+    () => new Map(standings.map((standing) => [standing.racerId, standing])),
+    [standings]
+  )
+  const advancementStatuses = useMemo(
+    () => (event && currentRace ? getAdvancementTieBreakerStatuses(event, currentRace.id) : []),
+    [event, currentRace]
+  )
+  const advancementStatusByRaceId = useMemo(
+    () => new Map(advancementStatuses.map((status) => [status.dependentRaceId, status])),
+    [advancementStatuses]
   )
 
   if (!event) {
@@ -111,7 +123,22 @@ export function Standings({ event, currentRace, selectedRaceId, setSelectedRaceI
 
           {dependentRaces.map((race) => {
             const topCount = race.source?.topCount ?? 0
-            const advancingStandings = eligibleStandings.slice(0, topCount)
+            const advancementStatus = advancementStatusByRaceId.get(race.id)
+            const selectedStandings =
+              advancementStatus && advancementStatus.selectedRacerIds.length > 0
+                ? advancementStatus.selectedRacerIds
+                    .map((racerId) => standingsByRacerId.get(racerId))
+                    .filter((standing): standing is Standing => Boolean(standing))
+                : []
+            const advancingStandings = advancementStatus?.needsTieBreaker
+              ? selectedStandings
+              : selectedStandings.length > 0
+                ? selectedStandings
+                : eligibleStandings.slice(0, topCount)
+            const unresolvedStandings =
+              advancementStatus?.unresolvedRacerIds
+                .map((racerId) => standingsByRacerId.get(racerId))
+                .filter((standing): standing is Standing => Boolean(standing)) ?? []
             const populatedEntries = race.entries.filter((entry) => entry.status === 'active').length
 
             return (
@@ -122,6 +149,13 @@ export function Standings({ event, currentRace, selectedRaceId, setSelectedRaceI
                     ? `${populatedEntries}/${topCount} entries populated from these standings.`
                     : `Top ${topCount} advance when this race is complete.`}
                 </span>
+                {advancementStatus?.needsTieBreaker ? (
+                  <span>
+                    {advancementStatus.resolved
+                      ? `${advancementStatus.selectedRacerIds.length}/${topCount} finalists resolved by tie-breaker.`
+                      : `${advancementStatus.selectedRacerIds.length}/${topCount} finalists locked; cutoff tie needs ${advancementStatus.unresolvedContestedSlots} slot(s).`}
+                  </span>
+                ) : null}
                 {advancingStandings.length > 0 ? (
                   <ol className="advancement-list">
                     {advancingStandings.map((standing) => (
@@ -131,9 +165,37 @@ export function Standings({ event, currentRace, selectedRaceId, setSelectedRaceI
                       </li>
                     ))}
                   </ol>
+                ) : advancementStatus?.needsTieBreaker ? (
+                  <span>No finalists are locked until the cutoff tie is resolved.</span>
                 ) : (
                   <span>No eligible standings yet.</span>
                 )}
+                {advancementStatus?.needsTieBreaker && !advancementStatus.resolved ? (
+                  <div className="decision-panel">
+                    <strong>Cutoff tie</strong>
+                    <span>
+                      {unresolvedStandings.length > 0
+                        ? unresolvedStandings.map((standing) => `#${standing.racerNumber} ${standing.racerName}`).join(', ')
+                        : 'Tied racers'}{' '}
+                      are still contested.
+                    </span>
+                    {advancementStatus.pendingHeatIds.length > 0 ? (
+                      <span>Complete the generated tie-breaker heat before advancing.</span>
+                    ) : advancementStatus.canGenerateTieBreaker ? (
+                      <div className="button-row">
+                        <button
+                          className="secondary-action"
+                          onClick={() => void actions.generateTieBreaker(currentRace.id, race.id)}
+                          type="button"
+                        >
+                          Generate Tie-Breaker
+                        </button>
+                      </div>
+                    ) : (
+                      <span>{advancementStatus.message ?? 'Resolve this advancement tie manually.'}</span>
+                    )}
+                  </div>
+                ) : null}
               </section>
             )
           })}

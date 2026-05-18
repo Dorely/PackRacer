@@ -40,6 +40,7 @@ declare global {
       removeRaceEntry: (raceId: string, entryId: string) => Promise<EventSessionSnapshot>
       scratchRaceEntry: (raceId: string, entryId: string) => Promise<EventSessionSnapshot>
       generateHeats: (raceId: string) => Promise<EventSessionSnapshot>
+      generateTieBreaker: (sourceRaceId: string, dependentRaceId: string) => Promise<EventSessionSnapshot>
       recordHeatResults: (raceId: string, input: RecordHeatResultsInput) => Promise<EventSessionSnapshot>
       clearHeatResults: (raceId: string, heatId: string) => Promise<EventSessionSnapshot>
       setCurrentHeat: (raceId: string, heatId: string) => Promise<EventSessionSnapshot>

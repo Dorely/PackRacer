@@ -135,6 +135,8 @@ export function App() {
       removeRaceEntry: (raceId: string, entryId: string) => runAction(() => getPackRacerApi().removeRaceEntry(raceId, entryId)),
       scratchRaceEntry: (raceId: string, entryId: string) => runAction(() => getPackRacerApi().scratchRaceEntry(raceId, entryId)),
       generateHeats: (raceId: string) => runAction(() => getPackRacerApi().generateHeats(raceId)),
+      generateTieBreaker: (sourceRaceId: string, dependentRaceId: string) =>
+        runAction(() => getPackRacerApi().generateTieBreaker(sourceRaceId, dependentRaceId)),
       recordHeatResults: (raceId: string, input: RecordHeatResultsInput) =>
         runAction(() => getPackRacerApi().recordHeatResults(raceId, input)),
       clearHeatResults: (raceId: string, heatId: string) => runAction(() => getPackRacerApi().clearHeatResults(raceId, heatId)),

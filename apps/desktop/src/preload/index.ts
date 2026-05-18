@@ -47,6 +47,8 @@ const packRacerApi = {
   scratchRaceEntry: (raceId: string, entryId: string): Promise<EventSessionSnapshot> =>
     invoke('race-entry:scratch', raceId, entryId),
   generateHeats: (raceId: string): Promise<EventSessionSnapshot> => invoke('race:generate-heats', raceId),
+  generateTieBreaker: (sourceRaceId: string, dependentRaceId: string): Promise<EventSessionSnapshot> =>
+    invoke('race:generate-tie-breaker', sourceRaceId, dependentRaceId),
   recordHeatResults: (raceId: string, input: RecordHeatResultsInput): Promise<EventSessionSnapshot> =>
     invoke('heat:record-results', raceId, input),
   clearHeatResults: (raceId: string, heatId: string): Promise<EventSessionSnapshot> =>
