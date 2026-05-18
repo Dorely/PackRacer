@@ -64,6 +64,7 @@ export function EventSetup({ event, currentRace, actions, selectedRaceId, setSel
   const [editScoringMode, setEditScoringMode] = useState<ScoringMode>(currentRace?.scoringMode ?? 'average-time')
   const [avoidSameLane, setAvoidSameLane] = useState(currentRace?.schedulingOptions?.avoidSameLane ?? true)
   const [avoidSameOpponents, setAvoidSameOpponents] = useState(currentRace?.schedulingOptions?.avoidSameOpponents ?? true)
+  const [fillPartialHeats, setFillPartialHeats] = useState(currentRace?.schedulingOptions?.fillPartialHeats ?? true)
   const [usesSource, setUsesSource] = useState(Boolean(currentRace?.source))
   const [sourceRaceId, setSourceRaceId] = useState(currentRace?.source?.sourceRaceId ?? '')
   const [sourceTopCount, setSourceTopCount] = useState(currentRace?.source?.topCount ?? 8)
@@ -80,6 +81,7 @@ export function EventSetup({ event, currentRace, actions, selectedRaceId, setSel
     setEditScoringMode(currentRace.scoringMode)
     setAvoidSameLane(currentRace.schedulingOptions?.avoidSameLane ?? true)
     setAvoidSameOpponents(currentRace.schedulingOptions?.avoidSameOpponents ?? true)
+    setFillPartialHeats(currentRace.schedulingOptions?.fillPartialHeats ?? true)
     setUsesSource(Boolean(currentRace.source))
     setSourceRaceId(currentRace.source?.sourceRaceId ?? '')
     setSourceTopCount(currentRace.source?.topCount ?? 8)
@@ -114,7 +116,7 @@ export function EventSetup({ event, currentRace, actions, selectedRaceId, setSel
       laneCount: raceLaneCount,
       roundsPerRacer: createSupportsRuns ? raceRounds : 1,
       scoringMode: selectedScoringMode(raceFormat, raceScoringMode),
-      schedulingOptions: { avoidSameLane: true, avoidSameOpponents: true }
+      schedulingOptions: { avoidSameLane: true, avoidSameOpponents: true, fillPartialHeats: true }
     })
     setRaceName('Additional Race')
   }
@@ -132,7 +134,7 @@ export function EventSetup({ event, currentRace, actions, selectedRaceId, setSel
       laneCount: editLaneCount,
       roundsPerRacer: editSupportsRuns ? editRaceRounds : 1,
       scoringMode: selectedScoringMode(editRaceFormat, editScoringMode),
-      schedulingOptions: { avoidSameLane, avoidSameOpponents },
+      schedulingOptions: { avoidSameLane, avoidSameOpponents, fillPartialHeats },
       source: usesSource && sourceRaceId ? { sourceRaceId, topCount: sourceTopCount } : undefined
     })
   }
@@ -220,7 +222,7 @@ export function EventSetup({ event, currentRace, actions, selectedRaceId, setSel
             >
               <div>
                 <strong>{race.name}</strong>
-                <span>{raceSummary(race)}</span>
+                <span>{raceSummary(race, event.races)}</span>
               </div>
             </button>
           ))}
@@ -299,6 +301,10 @@ export function EventSetup({ event, currentRace, actions, selectedRaceId, setSel
                   <label className="inline-toggle">
                     <input type="checkbox" checked={avoidSameOpponents} onChange={(inputEvent) => setAvoidSameOpponents(inputEvent.target.checked)} />
                     <span>Avoid repeated opponents</span>
+                  </label>
+                  <label className="inline-toggle">
+                    <input type="checkbox" checked={fillPartialHeats} onChange={(inputEvent) => setFillPartialHeats(inputEvent.target.checked)} />
+                    <span>Fill partial heats</span>
                   </label>
                 </>
               ) : null}

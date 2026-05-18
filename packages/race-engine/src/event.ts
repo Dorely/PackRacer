@@ -23,7 +23,8 @@ import { generateRaceHeats } from './scheduling'
 
 const defaultSchedulingOptions: SchedulingOptions = {
   avoidSameLane: true,
-  avoidSameOpponents: true
+  avoidSameOpponents: true,
+  fillPartialHeats: true
 }
 
 function defaultScoringMode(format: RaceFormat): ScoringMode {

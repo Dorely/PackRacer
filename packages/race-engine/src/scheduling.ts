@@ -21,7 +21,11 @@ function findRace(event: RaceEvent, raceId: string): Race {
 
   race.entries ??= []
   race.heats ??= []
-  race.schedulingOptions ??= { avoidSameLane: true, avoidSameOpponents: true }
+  race.schedulingOptions = {
+    avoidSameLane: race.schedulingOptions?.avoidSameLane ?? true,
+    avoidSameOpponents: race.schedulingOptions?.avoidSameOpponents ?? true,
+    fillPartialHeats: race.schedulingOptions?.fillPartialHeats ?? true
+  }
   return race
 }
 
@@ -65,21 +69,26 @@ function pairKey(firstRacerId: string, secondRacerId: string): string {
   return [firstRacerId, secondRacerId].sort().join(':')
 }
 
+function scheduledHeatAssignments(heat: Heat): Array<LaneAssignment & { racerId: string }> {
+  const excludedResults = new Set(
+    heat.results
+      .filter((result) => result.excludedFromScoring)
+      .map((result) => `${result.lane}:${result.racerId}`)
+  )
+
+  return heat.laneAssignments.filter(
+    (assignment): assignment is LaneAssignment & { racerId: string } =>
+      Boolean(assignment.racerId) && !excludedResults.has(`${assignment.lane}:${assignment.racerId}`)
+  )
+}
+
 function recordHeatHistory(
   heat: Heat,
   laneHistory: Map<string, Set<number>>,
   opponentCounts: Map<string, number>,
   runCounts: Map<string, number>
 ): void {
-  const excludedResults = new Set(
-    heat.results
-      .filter((result) => result.excludedFromScoring)
-      .map((result) => `${result.lane}:${result.racerId}`)
-  )
-  const racerAssignments = heat.laneAssignments.filter(
-    (assignment): assignment is LaneAssignment & { racerId: string } =>
-      Boolean(assignment.racerId) && !excludedResults.has(`${assignment.lane}:${assignment.racerId}`)
-  )
+  const racerAssignments = scheduledHeatAssignments(heat)
 
   for (const assignment of racerAssignments) {
     laneHistory.get(assignment.racerId)?.add(assignment.lane) ?? laneHistory.set(assignment.racerId, new Set([assignment.lane]))
@@ -94,7 +103,7 @@ function recordHeatHistory(
   }
 }
 
-function timedOrPointsHeats(race: Race, racers: Racer[], preservedHeats: Heat[]): Heat[] {
+function strictTimedOrPointsHeats(race: Race, racers: Racer[], preservedHeats: Heat[]): Heat[] {
   const heats: Heat[] = []
   const laneCount = normalizeLaneCount(race.laneCount)
   const laneHistory = new Map<string, Set<number>>()
@@ -158,6 +167,90 @@ function timedOrPointsHeats(race: Race, racers: Racer[], preservedHeats: Heat[])
   }
 
   return heats
+}
+
+function filledTimedOrPointsHeats(race: Race, racers: Racer[], preservedHeats: Heat[]): Heat[] {
+  const heats: Heat[] = []
+  const laneCount = normalizeLaneCount(race.laneCount)
+  const laneHistory = new Map<string, Set<number>>()
+  const opponentCounts = new Map<string, number>()
+  const runCounts = new Map<string, number>()
+  const schedulingOptions = {
+    avoidSameLane: race.schedulingOptions?.avoidSameLane ?? true,
+    avoidSameOpponents: race.schedulingOptions?.avoidSameOpponents ?? true
+  }
+
+  for (const heat of preservedHeats) {
+    recordHeatHistory(heat, laneHistory, opponentCounts, runCounts)
+  }
+
+  const lastPreservedHeat = preservedHeats[preservedHeats.length - 1]
+  let previousHeatRacerIds = new Set<string>(
+    lastPreservedHeat ? scheduledHeatAssignments(lastPreservedHeat).map((assignment) => assignment.racerId) : []
+  )
+  let heatNumber = 1
+
+  while (racers.some((racer) => (runCounts.get(racer.id) ?? 0) < race.roundsPerRacer)) {
+    const assignments: LaneAssignment[] = []
+    const selectedRacerIds: string[] = []
+
+    for (let lane = 1; lane <= laneCount; lane += 1) {
+      const eligibleRacers = racers.filter(
+        (racer) => !selectedRacerIds.includes(racer.id) && (runCounts.get(racer.id) ?? 0) < race.roundsPerRacer
+      )
+
+      if (eligibleRacers.length === 0) {
+        break
+      }
+
+      const bestCandidate = eligibleRacers
+        .map((racer, index) => {
+          const repeatedLane = laneHistory.get(racer.id)?.has(lane) ? 1 : 0
+          const repeatedOpponents = selectedRacerIds.reduce(
+            (total, selectedRacerId) => total + (opponentCounts.get(pairKey(racer.id, selectedRacerId)) ?? 0),
+            0
+          )
+          const runBalance = runCounts.get(racer.id) ?? 0
+          const backToBack = previousHeatRacerIds.has(racer.id) ? 1 : 0
+
+          return {
+            racer,
+            index,
+            penalty:
+              runBalance * 10000 +
+              (schedulingOptions.avoidSameLane ? repeatedLane * 1000 : 0) +
+              (schedulingOptions.avoidSameOpponents ? repeatedOpponents * 100 : 0) +
+              backToBack * 50 +
+              index
+          }
+        })
+        .sort((first, second) => first.penalty - second.penalty || first.racer.racerNumber.localeCompare(second.racer.racerNumber, undefined, { numeric: true }))[0]
+
+      assignments.push({ lane, racerId: bestCandidate.racer.id })
+      selectedRacerIds.push(bestCandidate.racer.id)
+    }
+
+    if (assignments.length === 0) {
+      break
+    }
+
+    const roundNumber = Math.min(...assignments.map((assignment) => (runCounts.get(assignment.racerId ?? '') ?? 0) + 1))
+    const heat = makeHeat(heatNumber, roundNumber, fillOpenLanes(assignments, laneCount))
+    recordHeatHistory(heat, laneHistory, opponentCounts, runCounts)
+    previousHeatRacerIds = new Set(scheduledHeatAssignments(heat).map((assignment) => assignment.racerId))
+    heats.push(heat)
+    heatNumber += 1
+  }
+
+  return heats
+}
+
+function timedOrPointsHeats(race: Race, racers: Racer[], preservedHeats: Heat[]): Heat[] {
+  if (race.schedulingOptions?.fillPartialHeats ?? true) {
+    return filledTimedOrPointsHeats(race, racers, preservedHeats)
+  }
+
+  return strictTimedOrPointsHeats(race, racers, preservedHeats)
 }
 
 function roundRobinHeats(race: Race, racers: Racer[]): Heat[] {

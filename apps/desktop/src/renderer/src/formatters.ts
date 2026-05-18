@@ -20,10 +20,11 @@ export function racerLabel(racers: Racer[], racerId: string | null): string {
   return racer ? `#${racer.racerNumber} ${racer.name}` : 'Unknown racer'
 }
 
-export function raceSummary(race: Race): string {
+export function raceSummary(race: Race, races: Race[] = []): string {
   const heatCount = race.heats.length
   const entryCount = race.entries?.length ?? 0
-  const sourceLabel = race.source ? ` - top ${race.source.topCount} from source` : ''
+  const sourceRace = race.source ? races.find((candidate) => candidate.id === race.source?.sourceRaceId) : null
+  const sourceLabel = race.source ? ` - top ${race.source.topCount} from ${sourceRace?.name ?? 'source race'}` : ''
   return `${formatStatus(race.format)} - ${entryCount} entries - ${heatCount} heats${sourceLabel}`
 }
 

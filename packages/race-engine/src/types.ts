@@ -45,6 +45,7 @@ export type RaceSource = {
 export type SchedulingOptions = {
   avoidSameLane: boolean
   avoidSameOpponents: boolean
+  fillPartialHeats: boolean
 }
 
 export type AdvancementRule = {
