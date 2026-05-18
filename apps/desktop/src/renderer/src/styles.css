@@ -201,6 +201,60 @@ label {
   overflow: hidden;
 }
 
+.popout-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-height: 100vh;
+  padding: 20px;
+  overflow: auto;
+  background: #f5f3ee;
+}
+
+.popout-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 14px 18px;
+  border: 1px solid #d5ded8;
+  border-radius: 8px;
+  color: #17211d;
+  background: #ffffff;
+  box-shadow: 0 12px 22px rgba(22, 53, 44, 0.08);
+}
+
+.popout-header h1 {
+  margin: 0;
+  font-size: 26px;
+  line-height: 1.1;
+}
+
+.popout-content {
+  display: grid;
+  gap: 18px;
+  min-height: 0;
+}
+
+.popout-shell[data-section="display"] {
+  background: #102820;
+}
+
+.popout-shell[data-section="display"] .popout-header {
+  border-color: #376557;
+  color: #f4fbf7;
+  background: #16352c;
+  box-shadow: none;
+}
+
+.popout-shell[data-section="display"] .popout-header .eyebrow {
+  color: #9fe3c2;
+}
+
+.popout-shell[data-section="display"] .popout-content > .display-board {
+  min-height: calc(100vh - 116px);
+}
+
 .topbar {
   display: flex;
   align-items: center;

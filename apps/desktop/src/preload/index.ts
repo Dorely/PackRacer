@@ -18,8 +18,19 @@ import type {
 
 const invoke = <T>(channel: string, ...args: unknown[]): Promise<T> => ipcRenderer.invoke(channel, ...args) as Promise<T>
 
+type PopoutRequest = {
+  sectionId: string
+  selectedRaceId?: string
+}
+
 const packRacerApi = {
   getVersion: (): Promise<string> => invoke('app:get-version'),
+  openPopout: (input: PopoutRequest): Promise<void> => invoke('app:open-popout', input),
+  onSessionUpdated: (callback: (snapshot: EventSessionSnapshot | null) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, snapshot: EventSessionSnapshot | null) => callback(snapshot)
+    ipcRenderer.on('session:updated', listener)
+    return () => ipcRenderer.removeListener('session:updated', listener)
+  },
   createEvent: (input: CreateEventInput): Promise<EventSessionSnapshot> => invoke('event:create', input),
   getCurrentEvent: (): Promise<EventSessionSnapshot | null> => invoke('event:get-current'),
   listEvents: (): Promise<EventSummary[]> => invoke('event:list'),

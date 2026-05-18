@@ -1,4 +1,4 @@
-import { CalendarDays, ClipboardList, Flag, Monitor, Trophy, Users } from 'lucide-react'
+import { CalendarDays, ClipboardList, ExternalLink, Flag, Monitor, Trophy, Users } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import type {
@@ -24,13 +24,37 @@ import { Registration } from './sections/Registration'
 import { Standings } from './sections/Standings'
 import type { AppActions, ConfirmationRequest } from './sections/types'
 
-type SectionId = 'events' | 'event' | 'registration' | 'race-control' | 'standings' | 'display'
+const sectionIds = ['events', 'event', 'registration', 'race-control', 'standings', 'display'] as const
+
+type SectionId = (typeof sectionIds)[number]
 
 type NavigationItem = {
   id: SectionId
   label: string
   meta: string
   icon: typeof ClipboardList
+}
+
+type WindowContext = {
+  isPopout: boolean
+  initialSection: SectionId
+  initialRaceId: string
+}
+
+function isSectionId(value: string | null): value is SectionId {
+  return sectionIds.includes(value as SectionId)
+}
+
+function readWindowContext(): WindowContext {
+  const params = new URLSearchParams(window.location.search)
+  const isPopout = params.get('mode') === 'popout'
+  const section = params.get('section')
+
+  return {
+    isPopout,
+    initialSection: isPopout && isSectionId(section) ? section : 'events',
+    initialRaceId: params.get('raceId') ?? ''
+  }
 }
 
 function getPackRacerApi(): Window['packRacer'] {
@@ -41,51 +65,25 @@ function getPackRacerApi(): Window['packRacer'] {
   return window.packRacer
 }
 
+const initialWindowContext = readWindowContext()
+
+function selectedRaceIdForSession(nextSession: EventSessionSnapshot, preferredRaceId: string): string {
+  const event = nextSession.event
+  return (
+    event.races.find((race) => race.id === preferredRaceId)?.id ??
+    event.races.find((race) => race.id === event.currentRaceId)?.id ??
+    event.races[0]?.id ??
+    ''
+  )
+}
+
 export function App() {
-  const [activeSection, setActiveSection] = useState<SectionId>('events')
+  const [activeSection, setActiveSection] = useState<SectionId>(initialWindowContext.initialSection)
   const [appVersion, setAppVersion] = useState('0.1.0')
   const [session, setSession] = useState<EventSessionSnapshot | null>(null)
-  const [selectedRaceId, setSelectedRaceId] = useState('')
+  const [selectedRaceId, setSelectedRaceId] = useState(initialWindowContext.initialRaceId)
   const [errorMessage, setErrorMessage] = useState('')
   const [confirmationRequest, setConfirmationRequest] = useState<ConfirmationRequest | null>(null)
-
-  useEffect(() => {
-    if (!window.packRacer) {
-      setErrorMessage('The PackRacer desktop bridge did not load. Restart the Electron app from npm run dev.')
-      return
-    }
-
-    void window.packRacer.getVersion().then(setAppVersion)
-    void window.packRacer.getCurrentEvent().then((currentSession) => {
-      if (currentSession) {
-        setSession(currentSession)
-        const race = currentSession.event.races.find((candidate) => candidate.id === currentSession.event.currentRaceId) ?? currentSession.event.races[0]
-        setSelectedRaceId(race?.id ?? '')
-      }
-    })
-  }, [])
-
-  const event = session?.event ?? null
-  const currentRace = event?.races.find((race) => race.id === selectedRaceId) ?? event?.races[0] ?? null
-
-  useEffect(() => {
-    if (!event) {
-      setSelectedRaceId('')
-      return
-    }
-
-    const race = event.races.find((candidate) => candidate.id === selectedRaceId) ?? event.races[0]
-
-    if (!race) {
-      setSelectedRaceId('')
-      return
-    }
-
-    if (race.id !== selectedRaceId) {
-      setSelectedRaceId(race.id)
-    }
-
-  }, [event, selectedRaceId])
 
   const applySession = useCallback((nextSession: EventSessionSnapshot | null) => {
     if (!nextSession) {
@@ -95,9 +93,44 @@ export function App() {
     }
 
     setSession(nextSession)
-    const race = nextSession.event.races.find((candidate) => candidate.id === nextSession.event.currentRaceId) ?? nextSession.event.races[0]
-    setSelectedRaceId(race?.id ?? '')
+    setSelectedRaceId((previousRaceId) => selectedRaceIdForSession(nextSession, previousRaceId))
   }, [])
+
+  useEffect(() => {
+    if (!window.packRacer) {
+      setErrorMessage('The PackRacer desktop bridge did not load. Restart the Electron app from npm run dev.')
+      return
+    }
+
+    void window.packRacer.getVersion().then(setAppVersion)
+    void window.packRacer.getCurrentEvent().then(applySession)
+    return window.packRacer.onSessionUpdated(applySession)
+  }, [applySession])
+
+  const event = session?.event ?? null
+  const currentRace =
+    event?.races.find((race) => race.id === selectedRaceId) ??
+    event?.races.find((race) => race.id === event.currentRaceId) ??
+    event?.races[0] ??
+    null
+
+  useEffect(() => {
+    if (!event) {
+      setSelectedRaceId('')
+      return
+    }
+
+    const nextRaceId =
+      event.races.find((candidate) => candidate.id === selectedRaceId)?.id ??
+      event.races.find((candidate) => candidate.id === event.currentRaceId)?.id ??
+      event.races[0]?.id ??
+      ''
+
+    if (nextRaceId !== selectedRaceId) {
+      setSelectedRaceId(nextRaceId)
+    }
+
+  }, [event, selectedRaceId])
 
   const runAction = useCallback(
     async (action: () => Promise<EventSessionSnapshot | null>): Promise<void> => {
@@ -145,6 +178,15 @@ export function App() {
     }),
     [runAction]
   )
+
+  const openActiveSectionPopout = useCallback(async () => {
+    try {
+      setErrorMessage('')
+      await getPackRacerApi().openPopout({ sectionId: activeSection, selectedRaceId })
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'The pop-out window could not be opened.')
+    }
+  }, [activeSection, selectedRaceId])
 
   const navigationItems: NavigationItem[] = useMemo(() => {
     const activeRacers = currentRace?.entries?.filter((entry) => entry.status === 'active').length ?? 0
@@ -209,6 +251,72 @@ export function App() {
     requestConfirmation
   }
 
+  const renderedSection = (
+    <>
+      {activeSection === 'events' ? <Events {...sectionProps} /> : null}
+      {activeSection === 'event' ? <EventSetup {...sectionProps} /> : null}
+      {activeSection === 'registration' ? <Registration {...sectionProps} /> : null}
+      {activeSection === 'race-control' ? <RaceControl {...sectionProps} /> : null}
+      {activeSection === 'standings' ? <Standings {...sectionProps} /> : null}
+      {activeSection === 'display' ? <DisplayMode {...sectionProps} /> : null}
+    </>
+  )
+  const notices = (
+    <>
+      {errorMessage ? <div className="notice-banner" role="alert">{errorMessage}</div> : null}
+
+      {event?.activeRemovalImpact ? (
+        <div className="notice-banner warning" role="status">
+          {event.activeRemovalImpact.racerName} was scratched. {event.activeRemovalImpact.affectedHeatIds.length}{' '}
+          pending heat(s) across {event.activeRemovalImpact.affectedRaceIds.length} race(s) need an operator decision.
+        </div>
+      ) : null}
+    </>
+  )
+  const confirmationDialog = confirmationRequest ? (
+    <div className="modal-backdrop" role="presentation">
+      <section aria-labelledby="confirmation-title" aria-modal="true" className="confirmation-dialog" role="dialog">
+        <div>
+          <p className="eyebrow">Confirm</p>
+          <h3 id="confirmation-title">{confirmationRequest.title}</h3>
+        </div>
+        <p>{confirmationRequest.message}</p>
+        <div className="dialog-actions">
+          <button className="secondary-action" onClick={cancelConfirmation} type="button">
+            {confirmationRequest.cancelLabel ?? 'Cancel'}
+          </button>
+          <button
+            className={confirmationRequest.destructive ? 'danger-action' : 'primary-action'}
+            onClick={confirmPendingAction}
+            type="button"
+          >
+            {confirmationRequest.confirmLabel ?? 'Confirm'}
+          </button>
+        </div>
+      </section>
+    </div>
+  ) : null
+
+  if (initialWindowContext.isPopout) {
+    const Icon = activeNavigationItem.icon
+
+    return (
+      <main className="popout-shell" data-section={activeSection}>
+        <header className="popout-header">
+          <div>
+            <p className="eyebrow">{activeNavigationItem.meta}</p>
+            <h1>{activeNavigationItem.label}</h1>
+          </div>
+          <Icon aria-hidden="true" size={26} />
+        </header>
+
+        {notices}
+        <section className="popout-content">{renderedSection}</section>
+        {confirmationDialog}
+      </main>
+    )
+  }
+
   return (
     <main className="app-shell">
       <aside className="sidebar" aria-label="Primary navigation">
@@ -255,16 +363,15 @@ export function App() {
             <p className="eyebrow">{activeNavigationItem.meta}</p>
             <h2 id="workspace-title">{activeNavigationItem.label}</h2>
           </div>
+          <div className="topbar-actions">
+            <button className="secondary-action" onClick={() => void openActiveSectionPopout()} type="button">
+              <ExternalLink aria-hidden="true" size={18} />
+              <span>Pop Out</span>
+            </button>
+          </div>
         </header>
 
-        {errorMessage ? <div className="notice-banner" role="alert">{errorMessage}</div> : null}
-
-        {event?.activeRemovalImpact ? (
-          <div className="notice-banner warning" role="status">
-            {event.activeRemovalImpact.racerName} was scratched. {event.activeRemovalImpact.affectedHeatIds.length}{' '}
-            pending heat(s) across {event.activeRemovalImpact.affectedRaceIds.length} race(s) need an operator decision.
-          </div>
-        ) : null}
+        {notices}
 
         <div className="status-strip" aria-label="Event readiness">
           {workflowStats.map((stat) => (
@@ -276,36 +383,8 @@ export function App() {
           ))}
         </div>
 
-        {activeSection === 'events' ? <Events {...sectionProps} /> : null}
-        {activeSection === 'event' ? <EventSetup {...sectionProps} /> : null}
-        {activeSection === 'registration' ? <Registration {...sectionProps} /> : null}
-        {activeSection === 'race-control' ? <RaceControl {...sectionProps} /> : null}
-        {activeSection === 'standings' ? <Standings {...sectionProps} /> : null}
-        {activeSection === 'display' ? <DisplayMode {...sectionProps} /> : null}
-
-        {confirmationRequest ? (
-          <div className="modal-backdrop" role="presentation">
-            <section aria-labelledby="confirmation-title" aria-modal="true" className="confirmation-dialog" role="dialog">
-              <div>
-                <p className="eyebrow">Confirm</p>
-                <h3 id="confirmation-title">{confirmationRequest.title}</h3>
-              </div>
-              <p>{confirmationRequest.message}</p>
-              <div className="dialog-actions">
-                <button className="secondary-action" onClick={cancelConfirmation} type="button">
-                  {confirmationRequest.cancelLabel ?? 'Cancel'}
-                </button>
-                <button
-                  className={confirmationRequest.destructive ? 'danger-action' : 'primary-action'}
-                  onClick={confirmPendingAction}
-                  type="button"
-                >
-                  {confirmationRequest.confirmLabel ?? 'Confirm'}
-                </button>
-              </div>
-            </section>
-          </div>
-        ) : null}
+        {renderedSection}
+        {confirmationDialog}
       </section>
     </main>
   )

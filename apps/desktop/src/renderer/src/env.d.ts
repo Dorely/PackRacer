@@ -20,6 +20,8 @@ declare global {
   interface Window {
     packRacer: {
       getVersion: () => Promise<string>
+      openPopout: (input: { sectionId: string; selectedRaceId?: string }) => Promise<void>
+      onSessionUpdated: (callback: (snapshot: EventSessionSnapshot | null) => void) => () => void
       createEvent: (input: CreateEventInput) => Promise<EventSessionSnapshot>
       getCurrentEvent: () => Promise<EventSessionSnapshot | null>
       listEvents: () => Promise<EventSummary[]>
