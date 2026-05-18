@@ -28,5 +28,9 @@ export function raceSummary(race: Race): string {
 }
 
 export function heatLabel(heat: Heat): string {
+  if (heat.makeupSource) {
+    return `Heat ${heat.heatNumber} - Makeup for Heat ${heat.makeupSource.originalHeatNumber} - ${formatStatus(heat.status)}`
+  }
+
   return `Heat ${heat.heatNumber} - Round ${heat.roundNumber} - ${formatStatus(heat.status)}`
 }

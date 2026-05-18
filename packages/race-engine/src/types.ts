@@ -1,4 +1,4 @@
-export const EVENT_SCHEMA_VERSION = 3
+export const EVENT_SCHEMA_VERSION = 4
 
 export type RaceFormat = 'timed-heats' | 'points-heats' | 'round-robin' | 'single-elimination'
 
@@ -24,6 +24,18 @@ export type ScoringMode =
   | 'elimination'
 
 export type RemovalResolutionStrategy = 'keep-empty-lanes' | 'regenerate-pending' | 'invalidate-pending'
+
+export type MakeupHeatSource = {
+  originalHeatId: string
+  originalHeatNumber: number
+  lanes: MakeupLaneSource[]
+}
+
+export type MakeupLaneSource = {
+  originalLane: number
+  racerId: string
+  resultStatus: Extract<LaneResultStatus, 'dns' | 'dnf'>
+}
 
 export type RaceSource = {
   sourceRaceId: string
@@ -110,6 +122,7 @@ export type Heat = {
   results: LaneResult[]
   bracketSlot?: number
   sourceHeatIds?: string[]
+  makeupSource?: MakeupHeatSource
   invalidReason?: string
   notes?: string
   createdAt: string
@@ -129,6 +142,8 @@ export type LaneResult = {
   timeMs?: number
   finishPosition?: number
   notes?: string
+  excludedFromScoring?: boolean
+  makeupHeatId?: string
 }
 
 export type Standing = {
@@ -247,6 +262,7 @@ export type UpdateRaceEntryInput = Partial<Pick<RaceEntry, 'status' | 'checkedIn
 export type RecordHeatResultsInput = {
   heatId: string
   results: LaneResult[]
+  rescheduleLanes?: number[]
   notes?: string
 }
 

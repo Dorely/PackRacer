@@ -16,10 +16,19 @@ type ResultDraft = {
   status: LaneResultStatus
   timeSeconds: string
   finishPosition: string
+  rescheduleMakeup: boolean
 }
 
 function usesTimeResults(scoringMode: ScoringMode): boolean {
   return scoringMode === 'average-time' || scoringMode === 'best-time' || scoringMode === 'total-time'
+}
+
+function supportsMakeupResults(format: string | undefined): boolean {
+  return format === 'timed-heats' || format === 'points-heats'
+}
+
+function canMakeupStatus(status: LaneResultStatus): boolean {
+  return status === 'dns' || status === 'dnf'
 }
 
 function initialDraft(heat: Heat | undefined): Record<number, ResultDraft> {
@@ -30,7 +39,8 @@ function initialDraft(heat: Heat | undefined): Record<number, ResultDraft> {
     draft[assignment.lane] = {
       status: result?.status ?? 'ok',
       timeSeconds: typeof result?.timeMs === 'number' ? `${result.timeMs / 1000}` : '',
-      finishPosition: typeof result?.finishPosition === 'number' ? `${result.finishPosition}` : assignment.racerId ? `${assignment.lane}` : ''
+      finishPosition: typeof result?.finishPosition === 'number' ? `${result.finishPosition}` : assignment.racerId ? `${assignment.lane}` : '',
+      rescheduleMakeup: Boolean(result?.excludedFromScoring)
     }
   }
 
@@ -113,8 +123,20 @@ export function RaceControl({
           finishPosition
         }
       })
+    const rescheduleLanes = supportsMakeupResults(currentRace.format)
+      ? currentHeat.laneAssignments
+          .filter((assignment) => {
+            const draft = resultDrafts[assignment.lane]
+            return assignment.racerId && canMakeupStatus(draft?.status ?? 'ok') && draft?.rescheduleMakeup
+          })
+          .map((assignment) => assignment.lane)
+      : []
 
-    void actions.recordHeatResults(currentRace.id, { heatId: currentHeat.id, results })
+    void actions.recordHeatResults(currentRace.id, {
+      heatId: currentHeat.id,
+      results,
+      rescheduleLanes: rescheduleLanes.length > 0 ? rescheduleLanes : undefined
+    })
   }
 
   const scratchLaneRacer = (racerId: string) => {
@@ -225,13 +247,29 @@ export function RaceControl({
                         aria-label={`Lane ${assignment.lane} status`}
                         disabled={resultsLockedByDependents}
                         value={resultDrafts[assignment.lane]?.status ?? 'ok'}
-                        onChange={(inputEvent) => updateDraft(assignment.lane, { status: inputEvent.target.value as LaneResultStatus })}
+                        onChange={(inputEvent) => {
+                          const status = inputEvent.target.value as LaneResultStatus
+                          updateDraft(assignment.lane, { status, rescheduleMakeup: canMakeupStatus(status) })
+                        }}
                       >
                         <option value="ok">OK</option>
                         <option value="dns">DNS</option>
                         <option value="dnf">DNF</option>
                         <option value="dq">DQ</option>
                       </select>
+                      <div className="makeup-cell">
+                        {supportsMakeupResults(currentRace.format) && canMakeupStatus(resultDrafts[assignment.lane]?.status ?? 'ok') ? (
+                          <label className="makeup-toggle">
+                            <input
+                              checked={resultDrafts[assignment.lane]?.rescheduleMakeup ?? false}
+                              disabled={resultsLockedByDependents}
+                              onChange={(inputEvent) => updateDraft(assignment.lane, { rescheduleMakeup: inputEvent.target.checked })}
+                              type="checkbox"
+                            />
+                            <span>Add makeup run</span>
+                          </label>
+                        ) : null}
+                      </div>
                       <button
                         className="danger-action"
                         disabled={resultsLockedByDependents}
@@ -318,8 +356,8 @@ export function RaceControl({
           {allHeats.map((heat) => (
             <article className="heat-list-item" data-active={heat.id === currentHeat?.id} key={heat.id}>
               <button className="bare-select" onClick={() => void actions.setCurrentHeat(currentRace.id, heat.id)} type="button">
-                <strong>Heat {heat.heatNumber}</strong>
-                <span>{formatStatus(heat.status)}</span>
+                <strong>{heat.makeupSource ? `Heat ${heat.heatNumber} makeup` : `Heat ${heat.heatNumber}`}</strong>
+                <span>{heat.makeupSource ? `From Heat ${heat.makeupSource.originalHeatNumber} - ${formatStatus(heat.status)}` : formatStatus(heat.status)}</span>
               </button>
             </article>
           ))}

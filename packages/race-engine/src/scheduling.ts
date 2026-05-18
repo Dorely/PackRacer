@@ -40,6 +40,14 @@ function makeHeat(heatNumber: number, roundNumber: number, assignments: LaneAssi
   }
 }
 
+function supportsMakeupRescheduling(race: Race): boolean {
+  return race.format === 'timed-heats' || race.format === 'points-heats'
+}
+
+function isMakeupResult(result: LaneResult): result is LaneResult & { status: 'dns' | 'dnf' } {
+  return result.status === 'dns' || result.status === 'dnf'
+}
+
 function fillOpenLanes(assignments: LaneAssignment[], laneCount: number): LaneAssignment[] {
   const usedLanes = new Set(assignments.map((assignment) => assignment.lane))
   const nextAssignments = [...assignments]
@@ -63,8 +71,14 @@ function recordHeatHistory(
   opponentCounts: Map<string, number>,
   runCounts: Map<string, number>
 ): void {
+  const excludedResults = new Set(
+    heat.results
+      .filter((result) => result.excludedFromScoring)
+      .map((result) => `${result.lane}:${result.racerId}`)
+  )
   const racerAssignments = heat.laneAssignments.filter(
-    (assignment): assignment is LaneAssignment & { racerId: string } => Boolean(assignment.racerId)
+    (assignment): assignment is LaneAssignment & { racerId: string } =>
+      Boolean(assignment.racerId) && !excludedResults.has(`${assignment.lane}:${assignment.racerId}`)
   )
 
   for (const assignment of racerAssignments) {
@@ -248,6 +262,26 @@ function nextPendingHeat(race: Race): Heat | undefined {
 
 function hasUnfinishedHeats(race: Race): boolean {
   return race.heats.some((heat) => heat.status === 'pending' || heat.status === 'running' || heat.status === 'invalidated')
+}
+
+function linkedMakeupHeats(race: Race, originalHeatId: string): Heat[] {
+  return race.heats.filter((heat) => heat.makeupSource?.originalHeatId === originalHeatId)
+}
+
+function removeReplaceableMakeupHeats(race: Race, originalHeatId: string): void {
+  const linkedHeats = linkedMakeupHeats(race, originalHeatId)
+  const completeMakeupHeat = linkedHeats.find((heat) => heat.status === 'complete')
+
+  if (completeMakeupHeat) {
+    throw new Error('Clear the linked makeup heat result before changing this original heat.')
+  }
+
+  if (linkedHeats.length === 0) {
+    return
+  }
+
+  const linkedHeatIds = new Set(linkedHeats.map((heat) => heat.id))
+  race.heats = race.heats.filter((heat) => !linkedHeatIds.has(heat.id))
 }
 
 function hasPopulatableSourceStandings(event: RaceEvent, race: Race): boolean {
@@ -486,8 +520,16 @@ export function recordHeatResults(event: RaceEvent, raceId: string, input: Recor
     throw new Error('Resolve the scratched racer impact before recording this heat.')
   }
 
+  const rescheduleLaneSet = new Set(input.rescheduleLanes ?? [])
+
+  if (rescheduleLaneSet.size > 0 && !supportsMakeupRescheduling(race)) {
+    throw new Error('Makeup heats are only available for timed and points heat races.')
+  }
+
+  removeReplaceableMakeupHeats(race, heat.id)
+
   const assignedRacerIds = new Set(heat.laneAssignments.map((assignment) => assignment.racerId).filter(Boolean))
-  const normalizedResults = input.results
+  const normalizedResults: LaneResult[] = input.results
     .filter((result) => assignedRacerIds.has(result.racerId))
     .map((result) => ({
       ...result,
@@ -496,11 +538,50 @@ export function recordHeatResults(event: RaceEvent, raceId: string, input: Recor
       timeMs:
         typeof result.timeMs === 'number' && Number.isFinite(result.timeMs) && result.timeMs >= 0
           ? Math.round(result.timeMs)
-          : undefined
+          : undefined,
+      notes: result.notes,
+      excludedFromScoring: undefined,
+      makeupHeatId: undefined
     }))
 
   if (normalizedResults.length === 0) {
     throw new Error('Record at least one lane result.')
+  }
+
+  const makeupResults = supportsMakeupRescheduling(race)
+    ? normalizedResults.filter(
+        (result): result is LaneResult & { status: 'dns' | 'dnf' } => rescheduleLaneSet.has(result.lane) && isMakeupResult(result)
+      )
+    : []
+
+  if (makeupResults.length > 0) {
+    const makeupHeat = makeHeat(
+      race.heats.length + 1,
+      heat.roundNumber,
+      fillOpenLanes(
+        makeupResults.map((result) => ({ lane: result.lane, racerId: result.racerId })),
+        race.laneCount
+      )
+    )
+
+    makeupHeat.makeupSource = {
+      originalHeatId: heat.id,
+      originalHeatNumber: heat.heatNumber,
+      lanes: makeupResults.map((result) => ({
+        originalLane: result.lane,
+        racerId: result.racerId,
+        resultStatus: result.status
+      }))
+    }
+
+    race.heats.push(makeupHeat)
+
+    for (const result of normalizedResults) {
+      if (makeupResults.some((makeupResult) => makeupResult.lane === result.lane && makeupResult.racerId === result.racerId)) {
+        result.excludedFromScoring = true
+        result.makeupHeatId = makeupHeat.id
+      }
+    }
   }
 
   heat.results = normalizedResults
@@ -516,6 +597,7 @@ export function recordHeatResults(event: RaceEvent, raceId: string, input: Recor
   }
 
   const nextRace = findRace(nextEvent, race.id)
+  nextRace.heats = renumberHeats(nextRace.heats)
   const pendingHeat = nextPendingHeat(nextRace)
   const raceComplete = !hasUnfinishedHeats(nextRace)
   nextRace.currentHeatId = pendingHeat?.id
@@ -542,10 +624,13 @@ export function clearHeatResults(event: RaceEvent, raceId: string, heatId: strin
     throw new Error('Heat results are locked because a dependent race has generated heats.')
   }
 
+  removeReplaceableMakeupHeats(race, heat.id)
+
   heat.results = []
   heat.notes = undefined
   heat.status = 'pending'
   heat.updatedAt = nowIso()
+  race.heats = renumberHeats(race.heats)
   race.status = 'ready'
   race.currentHeatId = heat.id
   race.updatedAt = heat.updatedAt

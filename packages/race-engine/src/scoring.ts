@@ -144,6 +144,10 @@ export function calculateStandings(event: RaceEvent, raceId?: string): Standing[
       const winner = getWinner(heat.results)
 
       for (const result of heat.results) {
+        if (result.excludedFromScoring) {
+          continue
+        }
+
         const draft = drafts.get(result.racerId)
 
         if (!draft) {
@@ -172,6 +176,10 @@ export function calculateStandings(event: RaceEvent, raceId?: string): Standing[
       const winner = getWinner(heat.results)
 
       for (const result of heat.results) {
+        if (result.excludedFromScoring) {
+          continue
+        }
+
         const draft = drafts.get(result.racerId)
 
         if (!draft) {
@@ -191,6 +199,10 @@ export function calculateStandings(event: RaceEvent, raceId?: string): Standing[
     }
 
     for (const result of heat.results) {
+      if (result.excludedFromScoring) {
+        continue
+      }
+
       const draft = drafts.get(result.racerId)
 
       if (!draft) {
