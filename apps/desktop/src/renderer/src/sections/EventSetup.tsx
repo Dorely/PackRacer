@@ -1,4 +1,4 @@
-import { Flag, ListPlus, RotateCcw, Save, Trash2 } from 'lucide-react'
+import { Flag, ListPlus, Save, Trash2 } from 'lucide-react'
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 
 import type { RaceFormat, ScoringMode } from '@packracer/race-engine'
@@ -327,12 +327,6 @@ export function EventSetup({ event, currentRace, actions, selectedRaceId, setSel
                 <Save aria-hidden="true" size={18} />
                 <span>Save Race</span>
               </button>
-              {currentRace.heats.length === 0 ? (
-                <button className="secondary-action" onClick={() => void actions.generateHeats(currentRace.id)} type="button">
-                  <RotateCcw aria-hidden="true" size={18} />
-                  <span>Generate Heats</span>
-                </button>
-              ) : null}
             </div>
           </form>
         ) : (

@@ -41,7 +41,7 @@ function createDrafts(event: RaceEvent, race: Race): Map<string, StandingDraft> 
   const eligibleIds = race.eligibleRacerIds ? new Set(race.eligibleRacerIds) : null
   const entries = race.entries ?? []
   const entryByRacerId = new Map(entries.map((entry) => [entry.racerId, entry]))
-  const registeredRacerIds = entries.length > 0 ? new Set(entries.map((entry) => entry.racerId)) : null
+  const registeredRacerIds = entries.length > 0 || race.source ? new Set(entries.map((entry) => entry.racerId)) : null
   const drafts = new Map<string, StandingDraft>()
 
   for (const racer of sortRacers(event.racers)) {

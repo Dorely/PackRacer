@@ -349,16 +349,28 @@ export function populateRaceEntriesFromSource(event: RaceEvent, raceId: string):
     throw new Error('This race does not have a source race configured.')
   }
 
+  const source = targetRace.source
+
   if (targetRace.heats.some((heat) => heat.status === 'complete')) {
     throw new Error('Clear completed heats before replacing this race roster from a source race.')
   }
 
-  const sourceStandings = calculateStandings(nextEvent, targetRace.source.sourceRaceId)
+  const sourceRace = nextEvent.races.find((race) => race.id === source.sourceRaceId)
+
+  if (!sourceRace) {
+    throw new Error('The configured source race was not found.')
+  }
+
+  if (sourceRace.heats.length === 0 || hasUnfinishedHeats(sourceRace)) {
+    throw new Error('Complete the source race before generating heats for this race.')
+  }
+
+  const sourceStandings = calculateStandings(nextEvent, source.sourceRaceId)
   const existingEntries = new Map((targetRace.entries ?? []).map((entry) => [entry.racerId, entry]))
   const createdAt = nowIso()
   const entries: RaceEntry[] = sourceStandings
     .filter((standing) => standing.score !== null && standing.racerStatus === 'active')
-    .slice(0, Math.max(1, targetRace.source.topCount))
+    .slice(0, Math.max(1, source.topCount))
     .map((standing) => {
       const existingEntry = existingEntries.get(standing.racerId)
 
@@ -390,7 +402,13 @@ export function populateRaceEntriesFromSource(event: RaceEvent, raceId: string):
 
 export function generateRaceHeats(event: RaceEvent, raceId: string): RaceEvent {
   let nextEvent = copyEvent(event)
-  const race = findRace(nextEvent, raceId)
+  let race = findRace(nextEvent, raceId)
+
+  if (race.source && !race.heats.some((heat) => heat.status === 'complete')) {
+    nextEvent = populateRaceEntriesFromSource(nextEvent, race.id)
+    race = findRace(nextEvent, raceId)
+  }
+
   const racers = getEligibleRacers(nextEvent, race)
 
   if (racers.length === 0) {

@@ -58,6 +58,9 @@ export function RaceControl({
     [event, currentRace]
   )
   const showTimeResults = usesTimeResults(currentRace?.scoringMode ?? 'average-time')
+  const canGenerateHeats = Boolean(
+    currentRace && (allHeats.length === 0 || (currentRace.source && currentRace.entries.length === 0 && completedHeats === 0))
+  )
 
   const updateDraft = (lane: number, patch: Partial<ResultDraft>) => {
     setResultDrafts((previous) => ({
@@ -157,7 +160,7 @@ export function RaceControl({
               ))}
             </select>
           </label>
-          {allHeats.length === 0 ? (
+          {canGenerateHeats ? (
             <button
               className="secondary-action"
               onClick={() => void actions.generateHeats(currentRace.id)}
