@@ -11,6 +11,7 @@ import type {
   RegisterRacerInput,
   RemovalResolutionStrategy,
   UpdateEventInput,
+  UpdateRaceLaneAvailabilityInput,
   UpdateRaceEntryInput,
   UpdateRaceInput,
   UpdateRacerInput
@@ -39,6 +40,8 @@ const packRacerApi = {
   deleteEvent: (eventId: string): Promise<EventSessionSnapshot | null> => invoke('event:delete', eventId),
   createRace: (input: CreateRaceInput): Promise<EventSessionSnapshot> => invoke('race:create', input),
   updateRace: (raceId: string, input: UpdateRaceInput): Promise<EventSessionSnapshot> => invoke('race:update', raceId, input),
+  updateRaceLaneAvailability: (raceId: string, input: UpdateRaceLaneAvailabilityInput): Promise<EventSessionSnapshot> =>
+    invoke('race:update-lane-availability', raceId, input),
   deleteRace: (raceId: string): Promise<EventSessionSnapshot> => invoke('race:delete', raceId),
   addRacer: (input: AddRacerInput): Promise<EventSessionSnapshot> => invoke('racer:add', input),
   updateRacer: (racerId: string, input: UpdateRacerInput): Promise<EventSessionSnapshot> =>

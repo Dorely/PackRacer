@@ -12,6 +12,7 @@ import type {
   RemovalResolutionStrategy,
   UpdateRaceEntryInput,
   UpdateEventInput,
+  UpdateRaceLaneAvailabilityInput,
   UpdateRaceInput,
   UpdateRacerInput
 } from '@packracer/race-engine'
@@ -152,6 +153,8 @@ export function App() {
       deleteEvent: (eventId: string) => runAction(() => getPackRacerApi().deleteEvent(eventId)),
       createRace: (input: CreateRaceInput) => runAction(() => getPackRacerApi().createRace(input)),
       updateRace: (raceId: string, input: UpdateRaceInput) => runAction(() => getPackRacerApi().updateRace(raceId, input)),
+      updateRaceLaneAvailability: (raceId: string, input: UpdateRaceLaneAvailabilityInput) =>
+        runAction(() => getPackRacerApi().updateRaceLaneAvailability(raceId, input)),
       deleteRace: (raceId: string) => runAction(() => getPackRacerApi().deleteRace(raceId)),
       addRacer: (input: AddRacerInput) => runAction(() => getPackRacerApi().addRacer(input)),
       updateRacer: (racerId: string, input: UpdateRacerInput) =>

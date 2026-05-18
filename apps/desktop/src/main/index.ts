@@ -13,6 +13,7 @@ import {
   scratchRacer,
   updateEventSettings,
   updateRace,
+  updateRaceLaneAvailability,
   updateRaceEntry,
   updateRacer,
   type AddRaceEntryInput,
@@ -24,6 +25,7 @@ import {
   type RegisterRacerInput,
   type RemovalResolutionStrategy,
   type UpdateEventInput,
+  type UpdateRaceLaneAvailabilityInput,
   type UpdateRaceEntryInput,
   type UpdateRaceInput,
   type UpdateRacerInput
@@ -238,6 +240,17 @@ ipcMain.handle('race:create', (_event, input: CreateRaceInput) =>
 ipcMain.handle('race:update', (_event, raceId: string, input: UpdateRaceInput) =>
   withSessionBroadcast(
     mutateEvent('race:update', (raceEvent) => updateRace(raceEvent, raceId, input), { raceId, input }, raceId)
+  )
+)
+
+ipcMain.handle('race:update-lane-availability', (_event, raceId: string, input: UpdateRaceLaneAvailabilityInput) =>
+  withSessionBroadcast(
+    mutateEvent(
+      'race:update-lane-availability',
+      (raceEvent) => updateRaceLaneAvailability(raceEvent, raceId, input),
+      { raceId, input },
+      raceId
+    )
   )
 )
 

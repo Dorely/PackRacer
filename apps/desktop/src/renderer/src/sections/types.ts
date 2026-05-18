@@ -10,6 +10,7 @@ import type {
   RegisterRacerInput,
   RemovalResolutionStrategy,
   UpdateEventInput,
+  UpdateRaceLaneAvailabilityInput,
   UpdateRaceEntryInput,
   UpdateRaceInput,
   UpdateRacerInput
@@ -31,6 +32,7 @@ export type AppActions = {
   deleteEvent: (eventId: string) => Promise<void>
   createRace: (input: CreateRaceInput) => Promise<void>
   updateRace: (raceId: string, input: UpdateRaceInput) => Promise<void>
+  updateRaceLaneAvailability: (raceId: string, input: UpdateRaceLaneAvailabilityInput) => Promise<void>
   deleteRace: (raceId: string) => Promise<void>
   addRacer: (input: AddRacerInput) => Promise<void>
   updateRacer: (racerId: string, input: UpdateRacerInput) => Promise<void>

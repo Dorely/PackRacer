@@ -1,11 +1,12 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
-import { ChevronRight, Flag, Play, RotateCcw, Save } from 'lucide-react'
+import { ChevronDown, ChevronRight, ChevronUp, Flag, Play, RotateCcw, Save } from 'lucide-react'
 
 import {
   areRaceResultsLockedByStartedDependents,
   calculateStandings,
   getAdvancementTieBreakerStatuses,
   type Heat,
+  type HeatStatus,
   type LaneResultStatus,
   type ScoringMode
 } from '@packracer/race-engine'
@@ -30,6 +31,10 @@ function supportsMakeupResults(format: string | undefined): boolean {
 
 function canMakeupStatus(status: LaneResultStatus): boolean {
   return status === 'dns' || status === 'dnf'
+}
+
+function isUnfinishedHeatStatus(status: HeatStatus | undefined): boolean {
+  return status === 'pending' || status === 'running' || status === 'invalidated'
 }
 
 function parseFinishPosition(value: string): number | null {
@@ -201,10 +206,23 @@ export function RaceControl({
   const pendingHeat = allHeats.find((heat) => heat.status === 'pending')
   const currentHeat = allHeats.find((heat) => heat.id === currentRace?.currentHeatId) ?? pendingHeat
   const [resultDrafts, setResultDrafts] = useState<Record<number, ResultDraft>>(() => initialDraft(currentHeat))
+  const [laneAvailabilityOpen, setLaneAvailabilityOpen] = useState(false)
+  const laneNumbers = useMemo(
+    () => Array.from({ length: currentRace?.laneCount ?? 0 }, (_value, index) => index + 1),
+    [currentRace?.laneCount]
+  )
+  const disabledLaneNumbers = useMemo(
+    () => new Set(currentRace?.disabledLaneNumbers ?? []),
+    [currentRace?.disabledLaneNumbers]
+  )
 
   useEffect(() => {
     setResultDrafts(initialDraft(currentHeat))
   }, [currentHeat?.id, currentHeat?.updatedAt])
+
+  useEffect(() => {
+    setLaneAvailabilityOpen(false)
+  }, [currentRace?.id])
 
   const completedHeats = useMemo(() => allHeats.filter((heat) => heat.status === 'complete').length, [allHeats])
   const hasUnfinishedHeats = useMemo(
@@ -359,6 +377,30 @@ export function RaceControl({
     }
   }
 
+  const changeLaneAvailability = (laneNumber: number, disabled: boolean) => {
+    if (!currentRace || event?.activeRemovalImpact) {
+      return
+    }
+
+    const applyChange = () => actions.updateRaceLaneAvailability(currentRace.id, { laneNumbers: [laneNumber], disabled })
+    const currentLaneAssignment = currentHeat?.laneAssignments.find(
+      (assignment) => assignment.lane === laneNumber && assignment.racerId
+    )
+
+    if (disabled && currentLaneAssignment && isUnfinishedHeatStatus(currentHeat?.status)) {
+      requestConfirmation({
+        title: `Disable lane ${laneNumber}`,
+        message: `Disable lane ${laneNumber} and reschedule the current unfinished heat plus later heats?`,
+        confirmLabel: 'Disable Lane',
+        destructive: true,
+        onConfirm: applyChange
+      })
+      return
+    }
+
+    void applyChange()
+  }
+
   if (!event) {
     return <p className="empty-state full-width-message">Create an event before race control.</p>
   }
@@ -413,85 +455,91 @@ export function RaceControl({
         {currentHeat ? (
           <form className="result-entry" onSubmit={submitResults}>
             <div className="lane-grid" aria-label="Lane assignments and results">
-              {currentHeat.laneAssignments.map((assignment) => (
-                <div className="lane-row result-row" key={assignment.lane} data-muted={!assignment.racerId}>
-                  <span>
-                    {currentHeat.tieBreakerSource
-                      ? `Lane ${assignment.lane} tie-breaker`
-                      : assignment.makeupSource
-                        ? `Lane ${assignment.lane} makeup`
-                        : `Lane ${assignment.lane}`}
-                  </span>
-                  <strong>{racerLabel(event.racers, assignment.racerId)}</strong>
-                  {assignment.racerId ? (
-                    <>
-                      {showTimeResults ? (
-                        <input
-                          aria-label={`Lane ${assignment.lane} time`}
-                          disabled={resultsLockedByDependents}
-                          inputMode="decimal"
-                          placeholder="0.000s"
-                          value={resultDrafts[assignment.lane]?.timeSeconds ?? ''}
-                          onChange={(inputEvent) => updateDraft(assignment.lane, { timeSeconds: inputEvent.target.value })}
-                        />
-                      ) : (
+              {currentHeat.laneAssignments.map((assignment) => {
+                const isDisabledLane = !assignment.racerId && disabledLaneNumbers.has(assignment.lane)
+
+                return (
+                  <div className="lane-row result-row" key={assignment.lane} data-disabled={isDisabledLane} data-muted={!assignment.racerId}>
+                    <span>
+                      {isDisabledLane
+                        ? `Lane ${assignment.lane} disabled`
+                        : currentHeat.tieBreakerSource
+                          ? `Lane ${assignment.lane} tie-breaker`
+                          : assignment.makeupSource
+                            ? `Lane ${assignment.lane} makeup`
+                            : `Lane ${assignment.lane}`}
+                    </span>
+                    <strong>{isDisabledLane ? 'Disabled' : racerLabel(event.racers, assignment.racerId)}</strong>
+                    {assignment.racerId ? (
+                      <>
+                        {showTimeResults ? (
+                          <input
+                            aria-label={`Lane ${assignment.lane} time`}
+                            disabled={resultsLockedByDependents}
+                            inputMode="decimal"
+                            placeholder="0.000s"
+                            value={resultDrafts[assignment.lane]?.timeSeconds ?? ''}
+                            onChange={(inputEvent) => updateDraft(assignment.lane, { timeSeconds: inputEvent.target.value })}
+                          />
+                        ) : (
+                          <select
+                            aria-label={`Lane ${assignment.lane} finish position`}
+                            disabled={resultsLockedByDependents || (resultDrafts[assignment.lane]?.status ?? 'ok') !== 'ok'}
+                            data-muted={(resultDrafts[assignment.lane]?.status ?? 'ok') !== 'ok'}
+                            value={resultDrafts[assignment.lane]?.finishPosition ?? ''}
+                            onChange={(inputEvent) => updateFinishPosition(assignment.lane, inputEvent.target.value)}
+                          >
+                            <option value="">
+                              {(resultDrafts[assignment.lane]?.status ?? 'ok') === 'ok' ? 'Place' : 'Not placed'}
+                            </option>
+                            {(resultDrafts[assignment.lane]?.status ?? 'ok') === 'ok'
+                              ? finishPositionOptions.map((position) => (
+                                  <option key={position} value={position}>
+                                    {position}
+                                  </option>
+                                ))
+                              : null}
+                          </select>
+                        )}
                         <select
-                          aria-label={`Lane ${assignment.lane} finish position`}
-                          disabled={resultsLockedByDependents || (resultDrafts[assignment.lane]?.status ?? 'ok') !== 'ok'}
-                          data-muted={(resultDrafts[assignment.lane]?.status ?? 'ok') !== 'ok'}
-                          value={resultDrafts[assignment.lane]?.finishPosition ?? ''}
-                          onChange={(inputEvent) => updateFinishPosition(assignment.lane, inputEvent.target.value)}
+                          aria-label={`Lane ${assignment.lane} status`}
+                          disabled={resultsLockedByDependents}
+                          value={resultDrafts[assignment.lane]?.status ?? 'ok'}
+                          onChange={(inputEvent) => updateStatus(assignment.lane, inputEvent.target.value as LaneResultStatus)}
                         >
-                          <option value="">
-                            {(resultDrafts[assignment.lane]?.status ?? 'ok') === 'ok' ? 'Place' : 'Not placed'}
-                          </option>
-                          {(resultDrafts[assignment.lane]?.status ?? 'ok') === 'ok'
-                            ? finishPositionOptions.map((position) => (
-                                <option key={position} value={position}>
-                                  {position}
-                                </option>
-                              ))
-                            : null}
+                          <option value="ok">OK</option>
+                          <option value="dns">DNS</option>
+                          <option value="dnf">DNF</option>
+                          <option value="dq">DQ</option>
                         </select>
-                      )}
-                      <select
-                        aria-label={`Lane ${assignment.lane} status`}
-                        disabled={resultsLockedByDependents}
-                        value={resultDrafts[assignment.lane]?.status ?? 'ok'}
-                        onChange={(inputEvent) => updateStatus(assignment.lane, inputEvent.target.value as LaneResultStatus)}
-                      >
-                        <option value="ok">OK</option>
-                        <option value="dns">DNS</option>
-                        <option value="dnf">DNF</option>
-                        <option value="dq">DQ</option>
-                      </select>
-                      <div className="makeup-cell">
-                        {supportsMakeupResults(currentRace.format) &&
-                        !currentHeat.tieBreakerSource &&
-                        canMakeupStatus(resultDrafts[assignment.lane]?.status ?? 'ok') ? (
-                          <label className="makeup-toggle">
-                            <input
-                              checked={resultDrafts[assignment.lane]?.rescheduleMakeup ?? false}
-                              disabled={resultsLockedByDependents}
-                              onChange={(inputEvent) => updateDraft(assignment.lane, { rescheduleMakeup: inputEvent.target.checked })}
-                              type="checkbox"
-                            />
-                            <span>Add makeup run</span>
-                          </label>
-                        ) : null}
-                      </div>
-                      <button
-                        className="danger-action"
-                        disabled={resultsLockedByDependents}
-                        onClick={() => scratchLaneRacer(assignment.racerId as string)}
-                        type="button"
-                      >
-                        Scratch
-                      </button>
-                    </>
-                  ) : null}
-                </div>
-              ))}
+                        <div className="makeup-cell">
+                          {supportsMakeupResults(currentRace.format) &&
+                          !currentHeat.tieBreakerSource &&
+                          canMakeupStatus(resultDrafts[assignment.lane]?.status ?? 'ok') ? (
+                            <label className="makeup-toggle">
+                              <input
+                                checked={resultDrafts[assignment.lane]?.rescheduleMakeup ?? false}
+                                disabled={resultsLockedByDependents}
+                                onChange={(inputEvent) => updateDraft(assignment.lane, { rescheduleMakeup: inputEvent.target.checked })}
+                                type="checkbox"
+                              />
+                              <span>Add makeup run</span>
+                            </label>
+                          ) : null}
+                        </div>
+                        <button
+                          className="danger-action"
+                          disabled={resultsLockedByDependents}
+                          onClick={() => scratchLaneRacer(assignment.racerId as string)}
+                          type="button"
+                        >
+                          Scratch
+                        </button>
+                      </>
+                    ) : null}
+                  </div>
+                )
+              })}
             </div>
 
             {resultsLockedByDependents ? (
@@ -594,6 +642,48 @@ export function RaceControl({
             <h3>{completedHeats}/{allHeats.length} complete</h3>
           </div>
           <Flag aria-hidden="true" size={24} />
+        </div>
+
+        <div className="lane-availability-panel">
+          <button
+            aria-expanded={laneAvailabilityOpen}
+            className="lane-availability-summary"
+            onClick={() => setLaneAvailabilityOpen((isOpen) => !isOpen)}
+            type="button"
+          >
+            <span>
+              <strong>Lane availability</strong>
+              <small>{disabledLaneNumbers.size} disabled / {Math.max(0, laneNumbers.length - disabledLaneNumbers.size)} active</small>
+            </span>
+            {laneAvailabilityOpen ? <ChevronUp aria-hidden="true" size={18} /> : <ChevronDown aria-hidden="true" size={18} />}
+          </button>
+          {laneAvailabilityOpen ? (
+            <div className="lane-availability-list">
+              {laneNumbers.map((laneNumber) => {
+                const isDisabled = disabledLaneNumbers.has(laneNumber)
+
+                return (
+                  <div className="lane-availability-row" data-disabled={isDisabled} key={laneNumber}>
+                    <div>
+                      <span>Lane {laneNumber}</span>
+                      <strong>{isDisabled ? 'Disabled' : 'Active'}</strong>
+                    </div>
+                    <button
+                      className={isDisabled ? 'secondary-action' : 'danger-action'}
+                      disabled={Boolean(event.activeRemovalImpact)}
+                      onClick={() => changeLaneAvailability(laneNumber, !isDisabled)}
+                      type="button"
+                    >
+                      {isDisabled ? 'Enable' : 'Disable'}
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          ) : null}
+          {event.activeRemovalImpact ? (
+            <span className="lane-availability-note">Resolve the scratched racer schedule before changing lanes.</span>
+          ) : null}
         </div>
 
         {event.activeRemovalImpact ? (

@@ -19,6 +19,10 @@ export function DisplayMode({ event, currentRace, selectedRaceId, setSelectedRac
     () => (event && currentRace ? calculateStandings(event, currentRace.id).slice(0, 8) : []),
     [event, currentRace]
   )
+  const disabledLaneNumbers = useMemo(
+    () => new Set(currentRace?.disabledLaneNumbers ?? []),
+    [currentRace?.disabledLaneNumbers]
+  )
 
   if (!event) {
     return <p className="empty-state full-width-message">Create an event to use display mode.</p>
@@ -65,12 +69,16 @@ export function DisplayMode({ event, currentRace, selectedRaceId, setSelectedRac
             <p className="empty-state">All heats are complete.</p>
           ) : (
             <div className="lane-grid">
-              {currentHeat?.laneAssignments.map((assignment) => (
-                <div className="lane-row" key={assignment.lane}>
-                  <span>Lane {assignment.lane}</span>
-                  <strong>{racerLabel(event.racers, assignment.racerId)}</strong>
-                </div>
-              )) ?? null}
+              {currentHeat?.laneAssignments.map((assignment) => {
+                const isDisabledLane = !assignment.racerId && disabledLaneNumbers.has(assignment.lane)
+
+                return (
+                  <div className="lane-row" data-disabled={isDisabledLane} key={assignment.lane}>
+                    <span>{isDisabledLane ? `Lane ${assignment.lane} disabled` : `Lane ${assignment.lane}`}</span>
+                    <strong>{isDisabledLane ? 'Disabled' : racerLabel(event.racers, assignment.racerId)}</strong>
+                  </div>
+                )
+              }) ?? null}
             </div>
           )}
         </article>

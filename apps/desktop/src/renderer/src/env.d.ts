@@ -12,6 +12,7 @@ import type {
   RemovalResolutionStrategy,
   UpdateRaceEntryInput,
   UpdateEventInput,
+  UpdateRaceLaneAvailabilityInput,
   UpdateRaceInput,
   UpdateRacerInput
 } from '@packracer/race-engine'
@@ -30,6 +31,7 @@ declare global {
       deleteEvent: (eventId: string) => Promise<EventSessionSnapshot | null>
       createRace: (input: CreateRaceInput) => Promise<EventSessionSnapshot>
       updateRace: (raceId: string, input: UpdateRaceInput) => Promise<EventSessionSnapshot>
+      updateRaceLaneAvailability: (raceId: string, input: UpdateRaceLaneAvailabilityInput) => Promise<EventSessionSnapshot>
       deleteRace: (raceId: string) => Promise<EventSessionSnapshot>
       addRacer: (input: AddRacerInput) => Promise<EventSessionSnapshot>
       updateRacer: (racerId: string, input: UpdateRacerInput) => Promise<EventSessionSnapshot>

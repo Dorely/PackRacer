@@ -71,6 +71,29 @@ export function normalizeLaneCount(laneCount: number): number {
   return Math.max(1, Math.min(12, Math.trunc(laneCount) || 1))
 }
 
+export function normalizeLaneNumbers(laneNumbers: number[] | undefined, laneCount: number): number[] {
+  const normalizedLaneCount = normalizeLaneCount(laneCount)
+  const uniqueLaneNumbers = new Set<number>()
+
+  for (const laneNumber of laneNumbers ?? []) {
+    const normalizedLaneNumber = Math.trunc(laneNumber)
+
+    if (normalizedLaneNumber >= 1 && normalizedLaneNumber <= normalizedLaneCount) {
+      uniqueLaneNumbers.add(normalizedLaneNumber)
+    }
+  }
+
+  return [...uniqueLaneNumbers].sort((first, second) => first - second)
+}
+
+export function activeLaneNumbers(race: Pick<Race, 'laneCount' | 'disabledLaneNumbers'>): number[] {
+  const disabledLaneNumbers = new Set(normalizeLaneNumbers(race.disabledLaneNumbers, race.laneCount))
+
+  return Array.from({ length: normalizeLaneCount(race.laneCount) }, (_value, index) => index + 1).filter(
+    (laneNumber) => !disabledLaneNumbers.has(laneNumber)
+  )
+}
+
 export function normalizeRounds(roundsPerRacer: number): number {
   return Math.max(1, Math.min(24, Math.trunc(roundsPerRacer) || 1))
 }

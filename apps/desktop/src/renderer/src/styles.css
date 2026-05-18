@@ -615,6 +615,17 @@ label {
   opacity: 0.58;
 }
 
+.lane-row[data-disabled="true"] {
+  border-left-color: #8f2f25;
+  background: #fff3ef;
+}
+
+.display-board .lane-row[data-disabled="true"] {
+  border-color: #7f413a;
+  color: #f2d0ca;
+  background: #4a241f;
+}
+
 .result-entry {
   display: grid;
   gap: 16px;
@@ -660,6 +671,70 @@ label {
   border-radius: 8px;
   color: #26352f;
   background: #f8fbf9;
+}
+
+.lane-availability-panel {
+  display: grid;
+  gap: 10px;
+  padding: 13px 14px;
+  border: 1px solid #d9e2dd;
+  border-radius: 8px;
+  background: #f8fbf9;
+}
+
+.lane-availability-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 42px;
+  padding: 0;
+  border: 0;
+  color: #26352f;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.lane-availability-summary span,
+.lane-availability-row div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.lane-availability-summary small,
+.lane-availability-row span,
+.lane-availability-note {
+  color: #607269;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.lane-availability-list {
+  display: grid;
+  gap: 8px;
+}
+
+.lane-availability-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 56px;
+  padding: 0 10px 0 14px;
+  border: 1px solid #cfdcd5;
+  border-left: 6px solid #2d6f7a;
+  border-radius: 8px;
+  color: #26352f;
+  background: #ffffff;
+}
+
+.lane-availability-row[data-disabled="true"] {
+  border-color: #c98978;
+  border-left-color: #8f2f25;
+  background: #fff3ef;
 }
 
 .button-row.nowrap {
@@ -991,6 +1066,7 @@ label {
 
   .compact-form,
   .result-row,
+  .lane-availability-row,
   .toggle-grid {
     grid-template-columns: 1fr;
   }

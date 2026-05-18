@@ -1,4 +1,4 @@
-export const EVENT_SCHEMA_VERSION = 6
+export const EVENT_SCHEMA_VERSION = 7
 
 export type RaceFormat = 'timed-heats' | 'points-heats' | 'round-robin' | 'single-elimination'
 
@@ -116,6 +116,7 @@ export type Race = {
   format: RaceFormat
   status: RaceStatus
   laneCount: number
+  disabledLaneNumbers?: number[]
   roundsPerRacer: number
   scoringMode: ScoringMode
   advancementRule?: AdvancementRule
@@ -262,6 +263,11 @@ export type UpdateRaceInput = Partial<
   Pick<Race, 'name' | 'format' | 'laneCount' | 'roundsPerRacer' | 'scoringMode' | 'advancementRule' | 'eligibleRacerIds' | 'status' | 'source'>
 > & {
   schedulingOptions?: Partial<SchedulingOptions>
+}
+
+export type UpdateRaceLaneAvailabilityInput = {
+  laneNumbers: number[]
+  disabled: boolean
 }
 
 export type AddRacerInput = {

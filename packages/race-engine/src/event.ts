@@ -18,7 +18,7 @@ import {
   type UpdateRaceInput,
   type UpdateRacerInput
 } from './types'
-import { copyEvent, createId, normalizeLaneCount, normalizeRounds, nowIso } from './helpers'
+import { copyEvent, createId, normalizeLaneCount, normalizeLaneNumbers, normalizeRounds, nowIso } from './helpers'
 import { regenerateRaceHeatsAfterRosterChange } from './scheduling'
 
 const defaultSchedulingOptions: SchedulingOptions = {
@@ -92,6 +92,7 @@ function ensureRaceDefaults(race: Race): void {
   race.schedulingOptions = normalizeSchedulingOptions(race.schedulingOptions)
   race.heats ??= []
   race.laneCount = normalizeLaneCount(race.laneCount)
+  race.disabledLaneNumbers = normalizeLaneNumbers(race.disabledLaneNumbers, race.laneCount)
   race.roundsPerRacer = normalizeRoundsForFormat(race.format, race.laneCount, race.roundsPerRacer)
   race.scoringMode = normalizeScoringMode(race.format, race.scoringMode)
 }
@@ -225,6 +226,7 @@ export function addRace(event: RaceEvent, input: CreateRaceInput): RaceEvent {
     format: input.format,
     status: 'draft',
     laneCount,
+    disabledLaneNumbers: [],
     roundsPerRacer: normalizeRoundsForFormat(input.format, laneCount, input.roundsPerRacer),
     scoringMode: normalizeScoringMode(input.format, input.scoringMode),
     advancementRule: input.advancementRule,
@@ -259,6 +261,7 @@ export function updateRace(event: RaceEvent, raceId: string, input: UpdateRaceIn
 
   if (typeof input.laneCount === 'number') {
     race.laneCount = normalizeLaneCount(input.laneCount)
+    race.disabledLaneNumbers = normalizeLaneNumbers(race.disabledLaneNumbers, race.laneCount)
     race.roundsPerRacer = normalizeRoundsForFormat(race.format, race.laneCount, race.roundsPerRacer)
   }
 
