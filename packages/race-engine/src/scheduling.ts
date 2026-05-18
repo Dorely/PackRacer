@@ -260,8 +260,13 @@ function hasPopulatableSourceStandings(event: RaceEvent, race: Race): boolean {
   )
 }
 
+export function areRaceResultsLockedByStartedDependents(event: RaceEvent, sourceRaceId: string): boolean {
+  return event.races.some((race) => race.source?.sourceRaceId === sourceRaceId && race.heats.length > 0)
+}
+
 function populateDependentRacesFromSource(event: RaceEvent, sourceRaceId: string): RaceEvent {
   let nextEvent = event
+  const currentRaceId = nextEvent.currentRaceId
   const dependentRaceIds = nextEvent.races
     .filter((race) => race.source?.sourceRaceId === sourceRaceId)
     .map((race) => race.id)
@@ -269,11 +274,31 @@ function populateDependentRacesFromSource(event: RaceEvent, sourceRaceId: string
   for (const dependentRaceId of dependentRaceIds) {
     const dependentRace = findRace(nextEvent, dependentRaceId)
 
-    if (dependentRace.heats.some((heat) => heat.status === 'complete') || !hasPopulatableSourceStandings(nextEvent, dependentRace)) {
+    if (dependentRace.heats.length > 0 || !hasPopulatableSourceStandings(nextEvent, dependentRace)) {
       continue
     }
 
     nextEvent = populateRaceEntriesFromSource(nextEvent, dependentRace.id)
+  }
+
+  nextEvent.currentRaceId = currentRaceId
+  return nextEvent
+}
+
+function clearUnstartedDependentRacesFromSource(event: RaceEvent, sourceRaceId: string): RaceEvent {
+  const nextEvent = event
+  const updatedAt = nowIso()
+
+  for (const dependentRace of nextEvent.races) {
+    if (dependentRace.source?.sourceRaceId !== sourceRaceId || dependentRace.heats.length > 0) {
+      continue
+    }
+
+    dependentRace.entries = []
+    dependentRace.currentHeatId = undefined
+    dependentRace.status = 'draft'
+    dependentRace.updatedAt = updatedAt
+    nextEvent.updatedAt = updatedAt
   }
 
   return nextEvent
@@ -351,8 +376,8 @@ export function populateRaceEntriesFromSource(event: RaceEvent, raceId: string):
 
   const source = targetRace.source
 
-  if (targetRace.heats.some((heat) => heat.status === 'complete')) {
-    throw new Error('Clear completed heats before replacing this race roster from a source race.')
+  if (targetRace.heats.length > 0) {
+    throw new Error('Clear generated heats before replacing this race roster from a source race.')
   }
 
   const sourceRace = nextEvent.races.find((race) => race.id === source.sourceRaceId)
@@ -453,6 +478,10 @@ export function recordHeatResults(event: RaceEvent, raceId: string, input: Recor
     throw new Error('Heat was not found.')
   }
 
+  if (areRaceResultsLockedByStartedDependents(nextEvent, race.id)) {
+    throw new Error('Heat results are locked because a dependent race has generated heats.')
+  }
+
   if (heat.status === 'invalidated') {
     throw new Error('Resolve the scratched racer impact before recording this heat.')
   }
@@ -509,6 +538,10 @@ export function clearHeatResults(event: RaceEvent, raceId: string, heatId: strin
     throw new Error('Heat was not found.')
   }
 
+  if (areRaceResultsLockedByStartedDependents(nextEvent, race.id)) {
+    throw new Error('Heat results are locked because a dependent race has generated heats.')
+  }
+
   heat.results = []
   heat.notes = undefined
   heat.status = 'pending'
@@ -518,6 +551,7 @@ export function clearHeatResults(event: RaceEvent, raceId: string, heatId: strin
   race.updatedAt = heat.updatedAt
   nextEvent.currentRaceId = race.id
   nextEvent.updatedAt = heat.updatedAt
+  clearUnstartedDependentRacesFromSource(nextEvent, race.id)
   return nextEvent
 }
 

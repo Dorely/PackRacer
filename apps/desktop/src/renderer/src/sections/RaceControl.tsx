@@ -1,7 +1,13 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
-import { ChevronRight, Flag, Play, RotateCcw } from 'lucide-react'
+import { ChevronRight, Flag, Play, RotateCcw, Save } from 'lucide-react'
 
-import { calculateStandings, type Heat, type LaneResultStatus, type ScoringMode } from '@packracer/race-engine'
+import {
+  areRaceResultsLockedByStartedDependents,
+  calculateStandings,
+  type Heat,
+  type LaneResultStatus,
+  type ScoringMode
+} from '@packracer/race-engine'
 
 import { formatStatus, formatTime, heatLabel, racerLabel } from '../formatters'
 import type { SectionProps } from './types'
@@ -46,9 +52,13 @@ export function RaceControl({
 
   useEffect(() => {
     setResultDrafts(initialDraft(currentHeat))
-  }, [currentHeat?.id])
+  }, [currentHeat?.id, currentHeat?.updatedAt])
 
   const completedHeats = useMemo(() => allHeats.filter((heat) => heat.status === 'complete').length, [allHeats])
+  const startedDependentRaces = useMemo(
+    () => event?.races.filter((race) => race.source?.sourceRaceId === currentRace?.id && race.heats.length > 0) ?? [],
+    [event, currentRace]
+  )
   const entryByRacerId = useMemo(
     () => new Map(currentRace?.entries?.map((entry) => [entry.racerId, entry]) ?? []),
     [currentRace]
@@ -61,6 +71,11 @@ export function RaceControl({
   const canGenerateHeats = Boolean(
     currentRace && (allHeats.length === 0 || (currentRace.source && currentRace.entries.length === 0 && completedHeats === 0))
   )
+  const resultsLockedByDependents = Boolean(
+    event && currentRace && areRaceResultsLockedByStartedDependents(event, currentRace.id)
+  )
+  const dependentRaceNames = startedDependentRaces.map((race) => race.name).join(', ')
+  const dependentRaceVerb = startedDependentRaces.length === 1 ? 'has' : 'have'
 
   const updateDraft = (lane: number, patch: Partial<ResultDraft>) => {
     setResultDrafts((previous) => ({
@@ -76,6 +91,10 @@ export function RaceControl({
     formEvent.preventDefault()
 
     if (!currentRace || !currentHeat) {
+      return
+    }
+
+    if (resultsLockedByDependents) {
       return
     }
 
@@ -184,7 +203,7 @@ export function RaceControl({
                       {showTimeResults ? (
                         <input
                           aria-label={`Lane ${assignment.lane} time`}
-                          disabled={currentHeat.status === 'complete'}
+                          disabled={resultsLockedByDependents}
                           inputMode="decimal"
                           placeholder="0.000s"
                           value={resultDrafts[assignment.lane]?.timeSeconds ?? ''}
@@ -193,7 +212,7 @@ export function RaceControl({
                       ) : (
                         <input
                           aria-label={`Lane ${assignment.lane} finish position`}
-                          disabled={currentHeat.status === 'complete'}
+                          disabled={resultsLockedByDependents}
                           inputMode="numeric"
                           min={1}
                           placeholder="Place"
@@ -204,7 +223,7 @@ export function RaceControl({
                       )}
                       <select
                         aria-label={`Lane ${assignment.lane} status`}
-                        disabled={currentHeat.status === 'complete'}
+                        disabled={resultsLockedByDependents}
                         value={resultDrafts[assignment.lane]?.status ?? 'ok'}
                         onChange={(inputEvent) => updateDraft(assignment.lane, { status: inputEvent.target.value as LaneResultStatus })}
                       >
@@ -213,7 +232,12 @@ export function RaceControl({
                         <option value="dnf">DNF</option>
                         <option value="dq">DQ</option>
                       </select>
-                      <button className="danger-action" onClick={() => scratchLaneRacer(assignment.racerId as string)} type="button">
+                      <button
+                        className="danger-action"
+                        disabled={resultsLockedByDependents}
+                        onClick={() => scratchLaneRacer(assignment.racerId as string)}
+                        type="button"
+                      >
                         Scratch
                       </button>
                     </>
@@ -222,17 +246,26 @@ export function RaceControl({
               ))}
             </div>
 
-            {currentHeat.status === 'complete' ? (
-              <button className="secondary-action" onClick={() => runHeatAgain(currentHeat.id)} type="button">
-                <RotateCcw aria-hidden="true" size={18} />
-                <span>Run Again</span>
+            {resultsLockedByDependents ? (
+              <p className="empty-state">Locked because {dependentRaceNames} {dependentRaceVerb} generated heats.</p>
+            ) : null}
+
+            <div className="button-row">
+              {currentHeat.status === 'complete' && !resultsLockedByDependents ? (
+                <button className="secondary-action" onClick={() => runHeatAgain(currentHeat.id)} type="button">
+                  <RotateCcw aria-hidden="true" size={18} />
+                  <span>Run Again</span>
+                </button>
+              ) : null}
+              <button className="primary-action" disabled={currentHeat.status === 'invalidated' || resultsLockedByDependents} type="submit">
+                {currentHeat.status === 'complete' ? (
+                  <Save aria-hidden="true" size={18} />
+                ) : (
+                  <Play aria-hidden="true" size={18} fill="currentColor" />
+                )}
+                <span>{currentHeat.status === 'complete' ? 'Update Results' : 'Record And Advance'}</span>
               </button>
-            ) : (
-              <button className="primary-action" disabled={currentHeat.status === 'invalidated'} type="submit">
-                <Play aria-hidden="true" size={18} fill="currentColor" />
-                <span>Record And Advance</span>
-              </button>
-            )}
+            </div>
           </form>
         ) : (
           <p className="empty-state">Generate heats to start this race.</p>
