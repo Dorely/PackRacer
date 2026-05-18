@@ -37,11 +37,7 @@ export function getRaceRacers(event: RaceEvent, race: Race | undefined): Racer[]
   const entries = raceEntries(race).filter((entry) => entry.status === 'active')
 
   if (entries.length === 0) {
-    if (race?.source) {
-      return []
-    }
-
-    return sortRacers(event.racers.filter((racer) => racer.status === 'active'))
+    return []
   }
 
   const entryRacerIds = new Set(entries.map((entry) => entry.racerId))

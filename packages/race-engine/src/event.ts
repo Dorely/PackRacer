@@ -19,7 +19,7 @@ import {
   type UpdateRacerInput
 } from './types'
 import { copyEvent, createId, normalizeLaneCount, normalizeRounds, nowIso } from './helpers'
-import { generateRaceHeats } from './scheduling'
+import { regenerateRaceHeatsAfterRosterChange } from './scheduling'
 
 const defaultSchedulingOptions: SchedulingOptions = {
   avoidSameLane: true,
@@ -427,7 +427,7 @@ export function addRaceEntry(event: RaceEvent, raceId: string, input: AddRaceEnt
   nextEvent.updatedAt = createdAt
 
   if (hasGeneratedHeats) {
-    return generateRaceHeats(nextEvent, race.id)
+    return regenerateRaceHeatsAfterRosterChange(nextEvent, race.id)
   }
 
   return nextEvent

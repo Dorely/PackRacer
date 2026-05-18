@@ -28,13 +28,17 @@ export function raceSummary(race: Race, races: Race[] = []): string {
   return `${formatStatus(race.format)} - ${entryCount} entries - ${heatCount} heats${sourceLabel}`
 }
 
+export function isMakeupHeat(heat: Heat): boolean {
+  return Boolean(heat.makeupSource) || heat.laneAssignments.some((assignment) => assignment.makeupSource)
+}
+
 export function heatLabel(heat: Heat): string {
   if (heat.tieBreakerSource) {
     return `Heat ${heat.heatNumber} - Tie-Breaker Round ${heat.tieBreakerSource.roundNumber} - ${formatStatus(heat.status)}`
   }
 
-  if (heat.makeupSource) {
-    return `Heat ${heat.heatNumber} - Makeup for Heat ${heat.makeupSource.originalHeatNumber} - ${formatStatus(heat.status)}`
+  if (isMakeupHeat(heat)) {
+    return `Heat ${heat.heatNumber} - Makeup - ${formatStatus(heat.status)}`
   }
 
   return `Heat ${heat.heatNumber} - Round ${heat.roundNumber} - ${formatStatus(heat.status)}`

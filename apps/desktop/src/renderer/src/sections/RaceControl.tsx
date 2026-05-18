@@ -10,7 +10,7 @@ import {
   type ScoringMode
 } from '@packracer/race-engine'
 
-import { formatStatus, formatTime, heatLabel, racerLabel } from '../formatters'
+import { formatStatus, formatTime, heatLabel, isMakeupHeat, racerLabel } from '../formatters'
 import type { SectionProps } from './types'
 
 type ResultDraft = {
@@ -240,9 +240,14 @@ export function RaceControl({
     () => placementOptions(currentHeat, resultDrafts),
     [currentHeat, resultDrafts]
   )
-  const canGenerateHeats = Boolean(
-    currentRace && (allHeats.length === 0 || (currentRace.source && currentRace.entries.length === 0 && completedHeats === 0))
+  const activeEntryCount = useMemo(
+    () => currentRace?.entries?.filter((entry) => entry.status === 'active').length ?? 0,
+    [currentRace]
   )
+  const canGenerateHeats = Boolean(
+    currentRace && completedHeats === 0 && (activeEntryCount > 0 || currentRace.source)
+  )
+  const generateHeatLabel = allHeats.length > 0 ? 'Regenerate' : 'Generate'
   const resultsLockedByDependents = Boolean(
     event && currentRace && areRaceResultsLockedByStartedDependents(event, currentRace.id)
   )
@@ -400,7 +405,7 @@ export function RaceControl({
               type="button"
             >
               <RotateCcw aria-hidden="true" size={18} />
-              <span>Generate</span>
+              <span>{generateHeatLabel}</span>
             </button>
           ) : null}
         </div>
@@ -559,7 +564,11 @@ export function RaceControl({
             </ol>
           </div>
         ) : (
-          <p className="empty-state">Generate heats to start this race.</p>
+          <p className="empty-state">
+            {activeEntryCount === 0 && !currentRace.source
+              ? 'Register racers for this race before generating heats.'
+              : 'Generate heats to start this race.'}
+          </p>
         )}
 
         <div className="live-standings-panel">
@@ -609,15 +618,15 @@ export function RaceControl({
                 <strong>
                   {heat.tieBreakerSource
                     ? `Heat ${heat.heatNumber} tie-breaker`
-                    : heat.makeupSource
+                    : isMakeupHeat(heat)
                       ? `Heat ${heat.heatNumber} makeup`
                       : `Heat ${heat.heatNumber}`}
                 </strong>
                 <span>
                   {heat.tieBreakerSource
                     ? `${dependentRaceById.get(heat.tieBreakerSource.dependentRaceId)?.name ?? 'Advancement'} Round ${heat.tieBreakerSource.roundNumber} - ${formatStatus(heat.status)}`
-                    : heat.makeupSource
-                      ? `From Heat ${heat.makeupSource.originalHeatNumber} - ${formatStatus(heat.status)}`
+                    : isMakeupHeat(heat)
+                      ? `Makeup - ${formatStatus(heat.status)}`
                       : formatStatus(heat.status)}
                 </span>
               </button>
