@@ -50,6 +50,30 @@ function supportsMakeupRescheduling(race: Race): boolean {
   return race.format === 'timed-heats' || race.format === 'points-heats'
 }
 
+function usesTimeResults(race: Race): boolean {
+  return race.scoringMode === 'average-time' || race.scoringMode === 'best-time' || race.scoringMode === 'total-time'
+}
+
+function validateUniqueFinishPositions(race: Race, results: LaneResult[]): void {
+  if (usesTimeResults(race)) {
+    return
+  }
+
+  const usedPositions = new Set<number>()
+
+  for (const result of results) {
+    if (result.status !== 'ok' || typeof result.finishPosition !== 'number') {
+      continue
+    }
+
+    if (usedPositions.has(result.finishPosition)) {
+      throw new Error('Each OK racer must have a unique finish position.')
+    }
+
+    usedPositions.add(result.finishPosition)
+  }
+}
+
 function isMakeupResult(result: LaneResult): result is LaneResult & { status: 'dns' | 'dnf' } {
   return result.status === 'dns' || result.status === 'dnf'
 }
@@ -1221,7 +1245,10 @@ export function recordHeatResults(event: RaceEvent, raceId: string, input: Recor
     .map((result) => ({
       ...result,
       status: result.status,
-      finishPosition: typeof result.finishPosition === 'number' ? Math.max(1, Math.trunc(result.finishPosition)) : undefined,
+      finishPosition:
+        result.status === 'ok' && typeof result.finishPosition === 'number'
+          ? Math.max(1, Math.trunc(result.finishPosition))
+          : undefined,
       timeMs:
         typeof result.timeMs === 'number' && Number.isFinite(result.timeMs) && result.timeMs >= 0
           ? Math.round(result.timeMs)
@@ -1234,6 +1261,8 @@ export function recordHeatResults(event: RaceEvent, raceId: string, input: Recor
   if (normalizedResults.length === 0) {
     throw new Error('Record at least one lane result.')
   }
+
+  validateUniqueFinishPositions(race, normalizedResults)
 
   const makeupResults = supportsMakeupRescheduling(race) && !heat.tieBreakerSource
     ? normalizedResults.filter(

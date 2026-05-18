@@ -47,9 +47,8 @@
 - Run the desktop app with `npm run dev`.
 - Type-check with `npm run typecheck`.
 - Build with `npm run build`.
-- Preview a built app with `npm run preview`.
+- Do not try to Preview the built app with `npm run preview`. Your sandboxed environment makes it fail
 - Do not add test projects or automated tests to this repository yet. Verify changes with `npm run typecheck`, `npm run build`, and a short app launch when UI behavior changes.
-- If the app launches normally for the user but fails only in the agent environment, treat that as an environment limitation. Do not change Electron runtime code solely to fix an agent-local launch failure; report the limitation and rely on typecheck/build unless the user asks for deeper launch debugging.
 
 ## Conventions
 - When you need to understand the current wiring, start with `VISION.md`, then `apps/desktop/src/main/index.ts`, then the relevant feature area.
