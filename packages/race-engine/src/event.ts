@@ -2,32 +2,31 @@ import {
   EVENT_SCHEMA_VERSION,
   type AddRaceEntryInput,
   type AddRacerInput,
-  type AddStageInput,
   type CreateEventInput,
   type CreateRaceInput,
   type Race,
   type RaceEntry,
   type RaceEvent,
+  type RaceFormat,
   type Racer,
   type RegisterRacerInput,
   type RemovalImpact,
   type ScoringMode,
   type SchedulingOptions,
-  type Stage,
   type UpdateEventInput,
   type UpdateRaceEntryInput,
   type UpdateRaceInput,
-  type UpdateRacerInput,
-  type UpdateStageInput
+  type UpdateRacerInput
 } from './types'
 import { copyEvent, createId, normalizeLaneCount, normalizeRounds, nowIso } from './helpers'
+import { generateRaceHeats } from './scheduling'
 
 const defaultSchedulingOptions: SchedulingOptions = {
   avoidSameLane: true,
   avoidSameOpponents: true
 }
 
-function defaultScoringMode(format: Stage['format']): ScoringMode {
+function defaultScoringMode(format: RaceFormat): ScoringMode {
   switch (format) {
     case 'points-heats':
       return 'points-high'
@@ -41,6 +40,28 @@ function defaultScoringMode(format: Stage['format']): ScoringMode {
   }
 }
 
+function normalizeScoringMode(format: RaceFormat, scoringMode: ScoringMode | undefined): ScoringMode {
+  if (format === 'timed-heats') {
+    return scoringMode === 'best-time' || scoringMode === 'total-time' || scoringMode === 'average-time'
+      ? scoringMode
+      : defaultScoringMode(format)
+  }
+
+  if (format === 'points-heats') {
+    return scoringMode === 'points-high' || scoringMode === 'points-low' ? scoringMode : defaultScoringMode(format)
+  }
+
+  return defaultScoringMode(format)
+}
+
+function normalizeRoundsForFormat(format: RaceFormat, laneCount: number, roundsPerRacer: number | undefined): number {
+  if (format === 'timed-heats' || format === 'points-heats') {
+    return normalizeRounds(roundsPerRacer ?? laneCount)
+  }
+
+  return 1
+}
+
 function normalizeSchedulingOptions(input: Partial<SchedulingOptions> | undefined): SchedulingOptions {
   return {
     ...defaultSchedulingOptions,
@@ -48,9 +69,30 @@ function normalizeSchedulingOptions(input: Partial<SchedulingOptions> | undefine
   }
 }
 
+function nextRacerNumber(event: RaceEvent): string {
+  const numericNumbers = event.racers
+    .map((racer) => Number(racer.racerNumber))
+    .filter((racerNumber) => Number.isFinite(racerNumber))
+
+  return `${numericNumbers.length > 0 ? Math.max(...numericNumbers) + 1 : 1}`
+}
+
+function normalizeRacerNumber(event: RaceEvent, racerNumber: string | undefined): string {
+  const trimmedNumber = racerNumber?.trim() ?? ''
+  return trimmedNumber || nextRacerNumber(event)
+}
+
+function supportsMidRaceEntry(race: Race): boolean {
+  return race.format === 'timed-heats' || race.format === 'points-heats'
+}
+
 function ensureRaceDefaults(race: Race): void {
   race.entries ??= []
   race.schedulingOptions = normalizeSchedulingOptions(race.schedulingOptions)
+  race.heats ??= []
+  race.laneCount = normalizeLaneCount(race.laneCount)
+  race.roundsPerRacer = normalizeRoundsForFormat(race.format, race.laneCount, race.roundsPerRacer)
+  race.scoringMode = normalizeScoringMode(race.format, race.scoringMode)
 }
 
 function findRace(event: RaceEvent, raceId: string): Race {
@@ -76,7 +118,6 @@ function findRacer(event: RaceEvent, racerId: string): Racer {
 
 function invalidateRacerHeats(event: RaceEvent, racer: Racer, raceId: string | undefined, reason: string): RemovalImpact {
   const affectedRaceIds = new Set<string>()
-  const affectedStageIds = new Set<string>()
   const affectedHeatIds: string[] = []
   const completedHeatIds: string[] = []
   const invalidatedHeatIds: string[] = []
@@ -86,28 +127,27 @@ function invalidateRacerHeats(event: RaceEvent, racer: Racer, raceId: string | u
       continue
     }
 
-    for (const stage of race.stages) {
-      for (const heat of stage.heats) {
-        const hasRacer = heat.laneAssignments.some((assignment) => assignment.racerId === racer.id)
+    ensureRaceDefaults(race)
 
-        if (!hasRacer) {
-          continue
-        }
+    for (const heat of race.heats) {
+      const hasRacer = heat.laneAssignments.some((assignment) => assignment.racerId === racer.id)
 
-        affectedRaceIds.add(race.id)
-        affectedStageIds.add(stage.id)
-
-        if (heat.status === 'complete') {
-          completedHeatIds.push(heat.id)
-          continue
-        }
-
-        affectedHeatIds.push(heat.id)
-        heat.status = 'invalidated'
-        heat.invalidReason = reason
-        heat.updatedAt = nowIso()
-        invalidatedHeatIds.push(heat.id)
+      if (!hasRacer) {
+        continue
       }
+
+      affectedRaceIds.add(race.id)
+
+      if (heat.status === 'complete') {
+        completedHeatIds.push(heat.id)
+        continue
+      }
+
+      affectedHeatIds.push(heat.id)
+      heat.status = 'invalidated'
+      heat.invalidReason = reason
+      heat.updatedAt = nowIso()
+      invalidatedHeatIds.push(heat.id)
     }
   }
 
@@ -115,7 +155,6 @@ function invalidateRacerHeats(event: RaceEvent, racer: Racer, raceId: string | u
     racerId: racer.id,
     racerName: racer.name,
     affectedRaceIds: [...affectedRaceIds],
-    affectedStageIds: [...affectedStageIds],
     affectedHeatIds,
     completedHeatIds,
     invalidatedHeatIds,
@@ -178,16 +217,21 @@ export function addRace(event: RaceEvent, input: CreateRaceInput): RaceEvent {
   const nextEvent = copyEvent(event)
   const createdAt = nowIso()
   const raceNumber = nextEvent.races.length + 1
+  const laneCount = normalizeLaneCount(input.laneCount ?? nextEvent.laneCount)
   const race: Race = {
     id: createId('race'),
     name: input.name.trim() || `Race ${raceNumber}`,
-    tournamentType: input.tournamentType,
+    format: input.format,
     status: 'draft',
-    laneCount: normalizeLaneCount(input.laneCount ?? nextEvent.laneCount),
+    laneCount,
+    roundsPerRacer: normalizeRoundsForFormat(input.format, laneCount, input.roundsPerRacer),
+    scoringMode: normalizeScoringMode(input.format, input.scoringMode),
+    advancementRule: input.advancementRule,
+    eligibleRacerIds: input.eligibleRacerIds,
     entries: [],
     source: input.source,
     schedulingOptions: normalizeSchedulingOptions(input.schedulingOptions),
-    stages: [],
+    heats: [],
     createdAt,
     updatedAt: createdAt
   }
@@ -206,12 +250,31 @@ export function updateRace(event: RaceEvent, raceId: string, input: UpdateRaceIn
     race.name = input.name.trim() || race.name
   }
 
-  if (input.tournamentType) {
-    race.tournamentType = input.tournamentType
+  if (input.format) {
+    race.format = input.format
+    race.scoringMode = normalizeScoringMode(input.format, input.scoringMode)
+    race.roundsPerRacer = normalizeRoundsForFormat(input.format, race.laneCount, input.roundsPerRacer ?? race.roundsPerRacer)
   }
 
   if (typeof input.laneCount === 'number') {
     race.laneCount = normalizeLaneCount(input.laneCount)
+    race.roundsPerRacer = normalizeRoundsForFormat(race.format, race.laneCount, race.roundsPerRacer)
+  }
+
+  if (typeof input.roundsPerRacer === 'number') {
+    race.roundsPerRacer = normalizeRoundsForFormat(race.format, race.laneCount, input.roundsPerRacer)
+  }
+
+  if (input.scoringMode) {
+    race.scoringMode = normalizeScoringMode(race.format, input.scoringMode)
+  }
+
+  if ('advancementRule' in input) {
+    race.advancementRule = input.advancementRule
+  }
+
+  if ('eligibleRacerIds' in input) {
+    race.eligibleRacerIds = input.eligibleRacerIds
   }
 
   if ('source' in input) {
@@ -226,6 +289,7 @@ export function updateRace(event: RaceEvent, raceId: string, input: UpdateRaceIn
     race.status = input.status
   }
 
+  ensureRaceDefaults(race)
   race.updatedAt = nowIso()
   nextEvent.currentRaceId = race.id
   nextEvent.updatedAt = race.updatedAt
@@ -251,7 +315,7 @@ export function addRacer(event: RaceEvent, input: AddRacerInput): RaceEvent {
   const createdAt = nowIso()
   const racer: Racer = {
     id: createId('racer'),
-    racerNumber: input.racerNumber.trim(),
+    racerNumber: normalizeRacerNumber(nextEvent, input.racerNumber),
     name: input.name.trim(),
     division: input.division.trim() || 'Open',
     vehicleName: input.vehicleName?.trim() || '',
@@ -263,8 +327,8 @@ export function addRacer(event: RaceEvent, input: AddRacerInput): RaceEvent {
     updatedAt: createdAt
   }
 
-  if (!racer.racerNumber || !racer.name) {
-    throw new Error('Racer number and name are required.')
+  if (!racer.name) {
+    throw new Error('Racer name is required.')
   }
 
   nextEvent.racers.push(racer)
@@ -313,13 +377,11 @@ export function deleteRacer(event: RaceEvent, racerId: string): RaceEvent {
     ensureRaceDefaults(race)
     race.entries = race.entries.filter((entry) => entry.racerId !== racerId)
 
-    for (const stage of race.stages) {
-      for (const heat of stage.heats) {
-        heat.laneAssignments = heat.laneAssignments.map((assignment) =>
-          assignment.racerId === racerId ? { ...assignment, racerId: null } : assignment
-        )
-        heat.results = heat.results.filter((result) => result.racerId !== racerId)
-      }
+    for (const heat of race.heats) {
+      heat.laneAssignments = heat.laneAssignments.map((assignment) =>
+        assignment.racerId === racerId ? { ...assignment, racerId: null } : assignment
+      )
+      heat.results = heat.results.filter((result) => result.racerId !== racerId)
     }
   }
 
@@ -340,6 +402,12 @@ export function addRaceEntry(event: RaceEvent, raceId: string, input: AddRaceEnt
     throw new Error(`${racer.name} is already registered for this race.`)
   }
 
+  const hasGeneratedHeats = race.heats.length > 0
+
+  if (hasGeneratedHeats && !supportsMidRaceEntry(race)) {
+    throw new Error('This race format cannot accept new racers after heats are generated.')
+  }
+
   const createdAt = nowIso()
   const entry: RaceEntry = {
     id: createId('entry'),
@@ -356,6 +424,11 @@ export function addRaceEntry(event: RaceEvent, raceId: string, input: AddRaceEnt
   race.updatedAt = createdAt
   nextEvent.currentRaceId = race.id
   nextEvent.updatedAt = createdAt
+
+  if (hasGeneratedHeats) {
+    return generateRaceHeats(nextEvent, race.id)
+  }
+
   return nextEvent
 }
 
@@ -458,97 +531,4 @@ export function scratchRacer(event: RaceEvent, racerId: string): { event: RaceEv
   nextEvent.activeRemovalImpact = impact
   nextEvent.updatedAt = impact.createdAt
   return { event: nextEvent, impact }
-}
-
-export function addStageToRace(event: RaceEvent, raceId: string, input: AddStageInput): RaceEvent {
-  const nextEvent = copyEvent(event)
-  const race = findRace(nextEvent, raceId)
-  const createdAt = nowIso()
-  const laneCount = normalizeLaneCount(input.laneCount ?? race.laneCount ?? nextEvent.laneCount)
-  const stage: Stage = {
-    id: createId('stage'),
-    name: input.name.trim() || `${input.format} stage`,
-    format: input.format,
-    status: 'draft',
-    laneCount,
-    roundsPerRacer: normalizeRounds(input.roundsPerRacer ?? (input.format === 'timed-heats' ? laneCount : 1)),
-    scoringMode: input.scoringMode ?? defaultScoringMode(input.format),
-    advancementRule: input.advancementRule,
-    eligibleRacerIds: input.eligibleRacerIds,
-    heats: [],
-    createdAt,
-    updatedAt: createdAt
-  }
-
-  race.stages.push(stage)
-  race.currentStageId ??= stage.id
-  race.updatedAt = createdAt
-  nextEvent.currentRaceId = race.id
-  nextEvent.updatedAt = createdAt
-  return nextEvent
-}
-
-export function updateStageInRace(event: RaceEvent, raceId: string, stageId: string, input: UpdateStageInput): RaceEvent {
-  const nextEvent = copyEvent(event)
-  const race = findRace(nextEvent, raceId)
-  const stage = race.stages.find((candidate) => candidate.id === stageId)
-
-  if (!stage) {
-    throw new Error('Stage was not found.')
-  }
-
-  if (typeof input.name === 'string') {
-    stage.name = input.name.trim() || stage.name
-  }
-
-  if (input.format) {
-    stage.format = input.format
-    stage.scoringMode = input.scoringMode ?? defaultScoringMode(input.format)
-  }
-
-  if (typeof input.laneCount === 'number') {
-    stage.laneCount = normalizeLaneCount(input.laneCount)
-  }
-
-  if (typeof input.roundsPerRacer === 'number') {
-    stage.roundsPerRacer = normalizeRounds(input.roundsPerRacer)
-  }
-
-  if (input.scoringMode) {
-    stage.scoringMode = input.scoringMode
-  }
-
-  if (input.advancementRule) {
-    stage.advancementRule = input.advancementRule
-  }
-
-  if (input.eligibleRacerIds) {
-    stage.eligibleRacerIds = input.eligibleRacerIds
-  }
-
-  stage.updatedAt = nowIso()
-  race.updatedAt = stage.updatedAt
-  nextEvent.currentRaceId = race.id
-  nextEvent.updatedAt = stage.updatedAt
-  return nextEvent
-}
-
-export function deleteStageFromRace(event: RaceEvent, raceId: string, stageId: string): RaceEvent {
-  const nextEvent = copyEvent(event)
-  const race = findRace(nextEvent, raceId)
-  const stageIndex = race.stages.findIndex((candidate) => candidate.id === stageId)
-
-  if (stageIndex === -1) {
-    throw new Error('Stage was not found.')
-  }
-
-  race.stages.splice(stageIndex, 1)
-  race.currentStageId = race.currentStageId === stageId ? race.stages[0]?.id : race.currentStageId
-  race.currentHeatId = race.stages.some((stage) => stage.heats.some((heat) => heat.id === race.currentHeatId))
-    ? race.currentHeatId
-    : undefined
-  race.updatedAt = nowIso()
-  nextEvent.currentRaceId = race.id
-  nextEvent.updatedAt = race.updatedAt
-  return nextEvent
 }

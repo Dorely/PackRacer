@@ -1,9 +1,7 @@
 import type {
   AddRaceEntryInput,
   AddRacerInput,
-  AddStageInput,
   CreateEventInput,
-  CreateFinalsStageInput,
   CreateRaceInput,
   EventSessionSnapshot,
   Race,
@@ -14,8 +12,7 @@ import type {
   UpdateEventInput,
   UpdateRaceEntryInput,
   UpdateRaceInput,
-  UpdateRacerInput,
-  UpdateStageInput
+  UpdateRacerInput
 } from '@packracer/race-engine'
 
 export type ConfirmationRequest = {
@@ -35,7 +32,6 @@ export type AppActions = {
   createRace: (input: CreateRaceInput) => Promise<void>
   updateRace: (raceId: string, input: UpdateRaceInput) => Promise<void>
   deleteRace: (raceId: string) => Promise<void>
-  populateRaceEntriesFromSource: (raceId: string) => Promise<void>
   addRacer: (input: AddRacerInput) => Promise<void>
   updateRacer: (racerId: string, input: UpdateRacerInput) => Promise<void>
   deleteRacer: (racerId: string) => Promise<void>
@@ -46,14 +42,9 @@ export type AppActions = {
   updateRaceEntry: (raceId: string, entryId: string, input: UpdateRaceEntryInput) => Promise<void>
   removeRaceEntry: (raceId: string, entryId: string) => Promise<void>
   scratchRaceEntry: (raceId: string, entryId: string) => Promise<void>
-  addStage: (raceId: string, input: AddStageInput) => Promise<void>
-  updateStage: (raceId: string, stageId: string, input: UpdateStageInput) => Promise<void>
-  deleteStage: (raceId: string, stageId: string) => Promise<void>
-  generateHeats: (raceId: string, stageId: string) => Promise<void>
-  createFinalsStage: (raceId: string, input: CreateFinalsStageInput) => Promise<void>
+  generateHeats: (raceId: string) => Promise<void>
   recordHeatResults: (raceId: string, input: RecordHeatResultsInput) => Promise<void>
   clearHeatResults: (raceId: string, heatId: string) => Promise<void>
-  deleteHeat: (raceId: string, heatId: string) => Promise<void>
   setCurrentHeat: (raceId: string, heatId: string) => Promise<void>
   advanceHeat: (raceId: string) => Promise<void>
 }
@@ -65,7 +56,5 @@ export type SectionProps = {
   actions: AppActions
   selectedRaceId: string
   setSelectedRaceId: (raceId: string) => void
-  selectedStageId: string
-  setSelectedStageId: (stageId: string) => void
   requestConfirmation: (request: ConfirmationRequest) => void
 }

@@ -1,4 +1,4 @@
-import type { Heat, Race, Racer, Stage } from '@packracer/race-engine'
+import type { Heat, Race, Racer } from '@packracer/race-engine'
 
 export function formatTime(timeMs: number | undefined): string {
   return typeof timeMs === 'number' ? `${(timeMs / 1000).toFixed(3)}s` : 'No time'
@@ -20,16 +20,11 @@ export function racerLabel(racers: Racer[], racerId: string | null): string {
   return racer ? `#${racer.racerNumber} ${racer.name}` : 'Unknown racer'
 }
 
-export function stageSummary(stage: Stage): string {
-  const completeHeats = stage.heats.filter((heat) => heat.status === 'complete').length
-  return `${formatStatus(stage.format)} - ${completeHeats}/${stage.heats.length} heats complete`
-}
-
 export function raceSummary(race: Race): string {
-  const heatCount = race.stages.reduce((total, stage) => total + stage.heats.length, 0)
+  const heatCount = race.heats.length
   const entryCount = race.entries?.length ?? 0
   const sourceLabel = race.source ? ` - top ${race.source.topCount} from source` : ''
-  return `${formatStatus(race.tournamentType)} - ${entryCount} entries - ${race.stages.length} stages - ${heatCount} heats${sourceLabel}`
+  return `${formatStatus(race.format)} - ${entryCount} entries - ${heatCount} heats${sourceLabel}`
 }
 
 export function heatLabel(heat: Heat): string {

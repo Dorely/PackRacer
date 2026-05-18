@@ -61,7 +61,7 @@
 | `apps/desktop/src/renderer/index.html` | Renderer HTML entry point. |
 | `apps/desktop/src/renderer/src/App.tsx` | PackRacer operator shell, navigation, event/race session state, and race-day action wiring. |
 | `apps/desktop/src/renderer/src/env.d.ts` | Renderer global and Vite type declarations. |
-| `apps/desktop/src/renderer/src/formatters.ts` | Renderer formatting helpers for race statuses, times, racers, stages, and heats. |
+| `apps/desktop/src/renderer/src/formatters.ts` | Renderer formatting helpers for race statuses, times, racers, and heats. |
 | `apps/desktop/src/renderer/src/main.tsx` | React renderer bootstrap. |
 | `apps/desktop/src/renderer/src/styles.css` | Desktop app shell styling. |
 
@@ -69,12 +69,12 @@
 
 | File | Description |
 |------|-------------|
-| `apps/desktop/src/renderer/src/sections/DisplayMode.tsx` | In-app display board for current heat lane assignments and leader standings. |
+| `apps/desktop/src/renderer/src/sections/DisplayMode.tsx` | In-app display board with race selection, current heat lane assignments, and leader standings. |
 | `apps/desktop/src/renderer/src/sections/Events.tsx` | Event create, select, edit, and delete screen shown at app startup. |
-| `apps/desktop/src/renderer/src/sections/EventSetup.tsx` | Race creation, race dependency configuration, scheduling options, and race stage setup workflow. |
-| `apps/desktop/src/renderer/src/sections/RaceControl.tsx` | Race-scoped heat selection, result entry, status marking, and heat cycling workflow. |
-| `apps/desktop/src/renderer/src/sections/Registration.tsx` | Race-scoped racer registration, roster edits, check-in/inspection toggles, scratching, and removal controls. |
-| `apps/desktop/src/renderer/src/sections/Standings.tsx` | Race-scoped live standings table and finals-stage advancement workflow. |
+| `apps/desktop/src/renderer/src/sections/EventSetup.tsx` | Race creation, format-specific setup, source-race configuration, and scheduling options. |
+| `apps/desktop/src/renderer/src/sections/RaceControl.tsx` | Race-scoped heat selection, scoring-mode result entry, rerun control, status marking, and heat cycling workflow. |
+| `apps/desktop/src/renderer/src/sections/Registration.tsx` | Manual race registration with auto-numbered racers, roster edits, check-in/inspection toggles, scratching, and removal controls. |
+| `apps/desktop/src/renderer/src/sections/Standings.tsx` | Race-scoped live standings table and compact source/dependent advancement summaries. |
 | `apps/desktop/src/renderer/src/sections/types.ts` | Shared renderer section prop and action types. |
 
 ## Race Engine Package
@@ -82,9 +82,9 @@
 | File | Description |
 |------|-------------|
 | `packages/race-engine/package.json` | Workspace package metadata for the pure race-domain engine. |
-| `packages/race-engine/src/event.ts` | Event, race, racer, and stage mutation functions. |
+| `packages/race-engine/src/event.ts` | Event, race, racer, race-entry, and heat-impact mutation functions. |
 | `packages/race-engine/src/helpers.ts` | Shared ID, time, sorting, lane-count, race selection, and eligibility helpers. |
 | `packages/race-engine/src/index.ts` | Public exports for the race engine package. |
-| `packages/race-engine/src/scheduling.ts` | Race-scoped heat generation, result recording, heat advancement, finals creation, and racer-removal reconciliation. |
+| `packages/race-engine/src/scheduling.ts` | Race-scoped heat generation, result recording, heat advancement, and racer-removal reconciliation. |
 | `packages/race-engine/src/scoring.ts` | Race-scoped standings calculations for timed, points, round-robin, and elimination formats. |
-| `packages/race-engine/src/types.ts` | Shared event, race, stage, heat, result, standing, and IPC payload types. |
+| `packages/race-engine/src/types.ts` | Shared event, race, heat, result, standing, and IPC payload types. |

@@ -1,38 +1,28 @@
-import { FormEvent, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { Award, Trophy } from 'lucide-react'
 
-import { calculateStandings, type RaceFormat } from '@packracer/race-engine'
+import { calculateStandings } from '@packracer/race-engine'
 
 import { formatStatus, formatTime } from '../formatters'
 import type { SectionProps } from './types'
 
-const finalsFormats: RaceFormat[] = ['timed-heats', 'points-heats', 'round-robin', 'single-elimination']
-
-export function Standings({ event, currentRace, actions, selectedRaceId, setSelectedRaceId, selectedStageId, setSelectedStageId }: SectionProps) {
-  const selectedStage = currentRace?.stages.find((stage) => stage.id === selectedStageId) ?? currentRace?.stages[0]
-  const [topCount, setTopCount] = useState(4)
-  const [finalsFormat, setFinalsFormat] = useState<RaceFormat>('single-elimination')
-
+export function Standings({ event, currentRace, selectedRaceId, setSelectedRaceId }: SectionProps) {
   const standings = useMemo(
-    () => (event && currentRace && selectedStage ? calculateStandings(event, currentRace.id, selectedStage.id) : []),
-    [event, currentRace, selectedStage]
+    () => (event && currentRace ? calculateStandings(event, currentRace.id) : []),
+    [event, currentRace]
   )
-
-  const submitFinals = (formEvent: FormEvent) => {
-    formEvent.preventDefault()
-
-    if (!currentRace || !selectedStage) {
-      return
-    }
-
-    void actions.createFinalsStage(currentRace.id, {
-      sourceStageId: selectedStage.id,
-      name: `${selectedStage.name} Finals`,
-      format: finalsFormat,
-      topCount,
-      laneCount: selectedStage.laneCount
-    })
-  }
+  const dependentRaces = useMemo(
+    () => event?.races.filter((race) => race.source?.sourceRaceId === currentRace?.id) ?? [],
+    [event, currentRace]
+  )
+  const sourceRace = useMemo(
+    () => event?.races.find((race) => race.id === currentRace?.source?.sourceRaceId) ?? null,
+    [event, currentRace]
+  )
+  const eligibleStandings = useMemo(
+    () => standings.filter((standing) => standing.score !== null && standing.racerStatus === 'active'),
+    [standings]
+  )
 
   if (!event) {
     return <p className="empty-state full-width-message">Create an event to view standings.</p>
@@ -48,7 +38,7 @@ export function Standings({ event, currentRace, actions, selectedRaceId, setSele
         <div className="panel-heading">
           <div>
             <p className="eyebrow">Standings</p>
-            <h3>{selectedStage ? selectedStage.name : currentRace.name}</h3>
+            <h3>{currentRace.name}</h3>
           </div>
           <Trophy aria-hidden="true" size={24} />
         </div>
@@ -60,16 +50,6 @@ export function Standings({ event, currentRace, actions, selectedRaceId, setSele
               {event.races.map((race) => (
                 <option key={race.id} value={race.id}>
                   {race.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span>Stage</span>
-            <select value={selectedStage?.id ?? ''} onChange={(inputEvent) => setSelectedStageId(inputEvent.target.value)}>
-              {currentRace.stages.map((stage) => (
-                <option key={stage.id} value={stage.id}>
-                  {stage.name}
                 </option>
               ))}
             </select>
@@ -109,46 +89,60 @@ export function Standings({ event, currentRace, actions, selectedRaceId, setSele
         </div>
       </div>
 
-      <form className="race-panel form-panel" onSubmit={submitFinals}>
+      <div className="race-panel form-panel advancement-panel">
         <div className="panel-heading">
           <div>
             <p className="eyebrow">Advancement</p>
-            <h3>{currentRace.source ? 'Source race' : 'Create finals'}</h3>
+            <h3>{dependentRaces.length > 0 ? 'Dependent races' : currentRace.source ? 'Populated roster' : 'No dependency'}</h3>
           </div>
           <Award aria-hidden="true" size={24} />
         </div>
 
-        {currentRace.source ? (
-          <div className="decision-panel">
-            <strong>Populate this race from its source</strong>
-            <span>Top {currentRace.source.topCount} eligible racers will replace the current roster before heats are generated.</span>
-            <button className="secondary-action" onClick={() => void actions.populateRaceEntriesFromSource(currentRace.id)} type="button">
-              Populate Entries
-            </button>
-          </div>
-        ) : null}
+        <div className="advancement-summary-list">
+          {currentRace.source ? (
+            <section className="advancement-summary">
+              <strong>{sourceRace?.name ?? 'Source race'}</strong>
+              <span>
+                Top {currentRace.source.topCount} eligible racers populate this roster automatically when the source race is complete.
+              </span>
+              <span>{currentRace.entries.filter((entry) => entry.status === 'active').length} active entries currently populated.</span>
+            </section>
+          ) : null}
 
-        <div className="form-grid">
-          <label>
-            <span>Advance top</span>
-            <input min={1} type="number" value={topCount} onChange={(inputEvent) => setTopCount(Number(inputEvent.target.value))} />
-          </label>
-          <label>
-            <span>Finals format</span>
-            <select value={finalsFormat} onChange={(inputEvent) => setFinalsFormat(inputEvent.target.value as RaceFormat)}>
-              {finalsFormats.map((format) => (
-                <option key={format} value={format}>
-                  {formatStatus(format)}
-                </option>
-              ))}
-            </select>
-          </label>
+          {dependentRaces.map((race) => {
+            const topCount = race.source?.topCount ?? 0
+            const advancingStandings = eligibleStandings.slice(0, topCount)
+            const populatedEntries = race.entries.filter((entry) => entry.status === 'active').length
+
+            return (
+              <section className="advancement-summary" key={race.id}>
+                <strong>{race.name}</strong>
+                <span>
+                  {currentRace.status === 'complete'
+                    ? `${populatedEntries}/${topCount} entries populated from these standings.`
+                    : `Top ${topCount} advance when this race is complete.`}
+                </span>
+                {advancingStandings.length > 0 ? (
+                  <ol className="advancement-list">
+                    {advancingStandings.map((standing) => (
+                      <li key={`${race.id}-${standing.racerId}`}>
+                        <span>#{standing.racerNumber} {standing.racerName}</span>
+                        <strong>{standing.scoreLabel}</strong>
+                      </li>
+                    ))}
+                  </ol>
+                ) : (
+                  <span>No eligible standings yet.</span>
+                )}
+              </section>
+            )
+          })}
+
+          {!currentRace.source && dependentRaces.length === 0 ? (
+            <p className="empty-state">Configure a dependent race in Race Setup to advance racers from these standings.</p>
+          ) : null}
         </div>
-
-        <button className="primary-action" disabled={!selectedStage || standings.every((standing) => standing.score === null)} type="submit">
-          Create Finals Stage
-        </button>
-      </form>
+      </div>
     </section>
   )
 }

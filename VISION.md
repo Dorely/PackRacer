@@ -10,7 +10,7 @@ The core philosophy is:
 
 > One laptop should be capable of running an entire race day from registration through awards with no internet connection and no external infrastructure.
 
-PackRace is not designed specifically around Pinewood Derby or Raingutter Regatta rules. Instead, it is built as a generic competition engine capable of supporting many race formats, stages, and advancement structures.
+PackRace is not designed specifically around Pinewood Derby or Raingutter Regatta rules. Instead, it is built as a generic competition engine capable of supporting many race formats and advancement structures.
 
 Race-specific experiences are implemented as templates and configurations, not hardcoded workflows.
 
@@ -49,7 +49,7 @@ The application should model:
 * heats
 * matches
 * lanes
-* stages
+* races
 * scoring
 * advancement
 * standings
@@ -58,9 +58,9 @@ It should not encode race-specific assumptions.
 
 This allows the software to support many event styles.
 
-## 4. Multi-Stage Events
+## 4. Multi-Race Events
 
-An event may contain multiple stages.
+An event may contain multiple races.
 
 Examples:
 
@@ -71,7 +71,7 @@ Examples:
 * den-only races
 * sibling/adult exhibitions
 
-Stages may feed into later stages through advancement rules.
+Races may feed into later races through advancement rules.
 
 ## 5. Better Than Spreadsheets
 
@@ -104,7 +104,7 @@ Contains:
 
 * competitors
 * groups/divisions
-* stages
+* races
 * tracks/lanes
 * awards
 * event configuration
@@ -123,9 +123,9 @@ Fields may include:
 * notes
 * optional vehicle/team name
 
-## Stage
+## Race
 
-A portion of the competition.
+A configured competition within an event.
 
 Examples:
 
@@ -136,7 +136,7 @@ Examples:
 * round robin
 * finals
 
-Each stage defines:
+Each race defines:
 
 * format
 * schedule
@@ -159,7 +159,7 @@ Contains:
 
 ## Advancement Rule
 
-Defines how competitors move between stages.
+Defines how competitors move between races.
 
 Examples:
 
@@ -179,7 +179,7 @@ A pack should be able to:
 1. Create an event
 2. Register competitors
 3. Configure divisions/groups
-4. Build one or more race stages
+4. Build one or more races
 5. Run heats and brackets
 6. Record results
 7. Display standings live
@@ -247,7 +247,7 @@ Configurable:
 * top N overall
 * top N per division
 * manual advancement
-* seed from prior stage
+* seed from prior race
 
 ## Heat Generation
 
@@ -309,7 +309,7 @@ Configurable:
 
 ## Pack Championship Event
 
-### Stage 1: Qualifying
+### Race 1: Qualifying
 
 Format: Timed Heats
 
@@ -321,11 +321,11 @@ Advancement:
 
 * Top 8 overall advance
 
-### Stage 2: Championship Bracket
+### Race 2: Championship Bracket
 
 Format: Single Elimination
 
-* Seeded from Stage 1 results
+* Seeded from qualifying results
 * Best-of-3 matches
 
 Awards:
@@ -567,7 +567,7 @@ This is critical.
 The engine should contain:
 
 * event models
-* stage management
+* race management
 * scheduling algorithms
 * lane balancing
 * scoring systems
@@ -588,12 +588,12 @@ Contains:
 
 * metadata
 * competitors
-* stages
+* races
 * settings
 * tracks
 * awards
 
-## Stage
+## Race
 
 Contains:
 

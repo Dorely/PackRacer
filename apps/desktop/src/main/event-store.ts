@@ -159,7 +159,7 @@ function selectedStandings(event: RaceEvent): Standing[] {
   const raceId = event.currentRaceId ?? event.races[0]?.id
   const race = event.races.find((candidate) => candidate.id === raceId) ?? event.races[0]
 
-  return race ? calculateStandings(event, race.id, race.currentStageId) : []
+  return race ? calculateStandings(event, race.id) : []
 }
 
 function snapshot(database: SqlDatabase): EventSessionSnapshot {

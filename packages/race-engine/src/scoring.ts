@@ -1,4 +1,4 @@
-import type { Heat, LaneResult, Race, RaceEvent, ScoringMode, Stage, Standing } from './types'
+import type { Heat, LaneResult, Race, RaceEvent, ScoringMode, Standing } from './types'
 import { formatMilliseconds, sortRacers } from './helpers'
 
 type StandingDraft = Omit<Standing, 'rank' | 'scoreLabel'> & {
@@ -7,8 +7,8 @@ type StandingDraft = Omit<Standing, 'rank' | 'scoreLabel'> & {
   resultTimes: number[]
 }
 
-function activeHeats(stage: Stage): Heat[] {
-  return stage.heats.filter((heat) => heat.status === 'complete')
+function activeHeats(race: Race): Heat[] {
+  return race.heats.filter((heat) => heat.status === 'complete')
 }
 
 function resultRankValue(result: LaneResult): number {
@@ -37,8 +37,8 @@ function scorePoints(result: LaneResult, laneCount: number, scoringMode: Scoring
   return Math.max(0, laneCount - position + 1)
 }
 
-function createDrafts(event: RaceEvent, race: Race, stage: Stage): Map<string, StandingDraft> {
-  const eligibleIds = stage.eligibleRacerIds ? new Set(stage.eligibleRacerIds) : null
+function createDrafts(event: RaceEvent, race: Race): Map<string, StandingDraft> {
+  const eligibleIds = race.eligibleRacerIds ? new Set(race.eligibleRacerIds) : null
   const entries = race.entries ?? []
   const entryByRacerId = new Map(entries.map((entry) => [entry.racerId, entry]))
   const registeredRacerIds = entries.length > 0 ? new Set(entries.map((entry) => entry.racerId)) : null
@@ -129,19 +129,18 @@ function rankDrafts(drafts: StandingDraft[], scoringMode: ScoringMode): Standing
   })
 }
 
-export function calculateStandings(event: RaceEvent, raceId?: string, stageId?: string): Standing[] {
+export function calculateStandings(event: RaceEvent, raceId?: string): Standing[] {
   const race = event.races.find((candidate) => candidate.id === (raceId ?? event.currentRaceId)) ?? event.races[0]
-  const stage = race?.stages.find((candidate) => candidate.id === (stageId ?? race.currentStageId)) ?? race?.stages[0]
 
-  if (!race || !stage) {
+  if (!race) {
     return []
   }
 
-  const drafts = createDrafts(event, race, stage)
-  const heats = activeHeats(stage)
+  const drafts = createDrafts(event, race)
+  const heats = activeHeats(race)
 
   for (const heat of heats) {
-    if (stage.format === 'round-robin') {
+    if (race.format === 'round-robin') {
       const winner = getWinner(heat.results)
 
       for (const result of heat.results) {
@@ -169,7 +168,7 @@ export function calculateStandings(event: RaceEvent, raceId?: string, stageId?: 
       continue
     }
 
-    if (stage.format === 'single-elimination') {
+    if (race.format === 'single-elimination') {
       const winner = getWinner(heat.results)
 
       for (const result of heat.results) {
@@ -204,8 +203,8 @@ export function calculateStandings(event: RaceEvent, raceId?: string, stageId?: 
         draft.resultTimes.push(result.timeMs)
       }
 
-      if (stage.format === 'points-heats') {
-        draft.totalPoints = (draft.totalPoints ?? 0) + scorePoints(result, stage.laneCount, stage.scoringMode)
+      if (race.format === 'points-heats') {
+        draft.totalPoints = (draft.totalPoints ?? 0) + scorePoints(result, race.laneCount, race.scoringMode)
       }
     }
   }
@@ -220,7 +219,7 @@ export function calculateStandings(event: RaceEvent, raceId?: string, stageId?: 
       draft.averageTimeMs = averageTimeMs
     }
 
-    switch (stage.scoringMode) {
+    switch (race.scoringMode) {
       case 'best-time':
         draft.score = draft.bestTimeMs ?? null
         draft.scoreLabel = draft.score === null ? 'No time' : formatMilliseconds(draft.bestTimeMs)
@@ -250,5 +249,5 @@ export function calculateStandings(event: RaceEvent, raceId?: string, stageId?: 
     }
   }
 
-  return rankDrafts([...drafts.values()], stage.scoringMode)
+  return rankDrafts([...drafts.values()], race.scoringMode)
 }

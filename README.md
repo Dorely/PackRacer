@@ -43,9 +43,9 @@ The current app can run a first-pass race day from one laptop:
 1. Create an event in the local app database from Event Setup.
 2. Configure the event name, date, track, lane count, and one or more races within the event.
 3. Register racers manually with number, name, division, and optional vehicle name.
-4. Add race stages and generate heats for timed heats, points heats, round robin, or single elimination stages.
+4. Configure races in timed heats, points heats, round robin, or single elimination formats, then generate heats.
 5. Use Race Control to enter both time and finish order, mark DNS/DNF/DQ, and advance to the next heat within the selected race.
-6. View live standings for the selected race and create a finals stage from top-ranked racers.
+6. View live standings for the selected race and populate later races from top-ranked racers.
 7. Scratch a racer from Registration and choose whether to keep empty lanes, regenerate pending heats, or leave affected heats flagged across races.
 
 Every mutation is written immediately to the local SQLite database under Electron's user data folder.

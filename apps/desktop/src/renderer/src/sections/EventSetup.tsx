@@ -1,13 +1,14 @@
 import { Flag, ListPlus, RotateCcw, Save, Trash2 } from 'lucide-react'
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 
-import type { RaceFormat, ScoringMode, TournamentType } from '@packracer/race-engine'
+import type { RaceFormat, ScoringMode } from '@packracer/race-engine'
 
-import { formatStatus, raceSummary, stageSummary } from '../formatters'
+import { formatStatus, raceSummary } from '../formatters'
 import type { SectionProps } from './types'
 
 const raceFormats: RaceFormat[] = ['timed-heats', 'points-heats', 'round-robin', 'single-elimination']
-const tournamentTypes: TournamentType[] = ['timed-heats', 'points-heats', 'round-robin', 'single-elimination', 'multi-stage']
+const timedScoringModes: ScoringMode[] = ['average-time', 'best-time', 'total-time']
+const pointsScoringModes: ScoringMode[] = ['points-high', 'points-low']
 
 function defaultScoringMode(format: RaceFormat): ScoringMode {
   if (format === 'points-heats') {
@@ -25,36 +26,47 @@ function defaultScoringMode(format: RaceFormat): ScoringMode {
   return 'average-time'
 }
 
-export function EventSetup({
-  event,
-  currentRace,
-  actions,
-  selectedRaceId,
-  setSelectedRaceId,
-  selectedStageId,
-  setSelectedStageId,
-  requestConfirmation
-}: SectionProps) {
+function scoringOptions(format: RaceFormat): ScoringMode[] {
+  if (format === 'timed-heats') {
+    return timedScoringModes
+  }
+
+  if (format === 'points-heats') {
+    return pointsScoringModes
+  }
+
+  return []
+}
+
+function supportsRunsPerRacer(format: RaceFormat): boolean {
+  return format === 'timed-heats' || format === 'points-heats'
+}
+
+function supportsSchedulingOptions(format: RaceFormat): boolean {
+  return format === 'timed-heats' || format === 'points-heats'
+}
+
+function selectedScoringMode(format: RaceFormat, scoringMode: ScoringMode): ScoringMode {
+  const options = scoringOptions(format)
+  return options.length === 0 || options.includes(scoringMode) ? scoringMode : defaultScoringMode(format)
+}
+
+export function EventSetup({ event, currentRace, actions, selectedRaceId, setSelectedRaceId, requestConfirmation }: SectionProps) {
   const [raceName, setRaceName] = useState('Main Tournament')
-  const [raceType, setRaceType] = useState<TournamentType>('multi-stage')
+  const [raceFormat, setRaceFormat] = useState<RaceFormat>('timed-heats')
   const [raceLaneCount, setRaceLaneCount] = useState(3)
+  const [raceRounds, setRaceRounds] = useState(3)
+  const [raceScoringMode, setRaceScoringMode] = useState<ScoringMode>('average-time')
   const [editRaceName, setEditRaceName] = useState(currentRace?.name ?? '')
-  const [editRaceType, setEditRaceType] = useState<TournamentType>(currentRace?.tournamentType ?? 'timed-heats')
+  const [editRaceFormat, setEditRaceFormat] = useState<RaceFormat>(currentRace?.format ?? 'timed-heats')
   const [editLaneCount, setEditLaneCount] = useState(currentRace?.laneCount ?? 3)
+  const [editRaceRounds, setEditRaceRounds] = useState(currentRace?.roundsPerRacer ?? 3)
+  const [editScoringMode, setEditScoringMode] = useState<ScoringMode>(currentRace?.scoringMode ?? 'average-time')
   const [avoidSameLane, setAvoidSameLane] = useState(currentRace?.schedulingOptions?.avoidSameLane ?? true)
   const [avoidSameOpponents, setAvoidSameOpponents] = useState(currentRace?.schedulingOptions?.avoidSameOpponents ?? true)
   const [usesSource, setUsesSource] = useState(Boolean(currentRace?.source))
   const [sourceRaceId, setSourceRaceId] = useState(currentRace?.source?.sourceRaceId ?? '')
-  const [sourceStageId, setSourceStageId] = useState(currentRace?.source?.sourceStageId ?? '')
   const [sourceTopCount, setSourceTopCount] = useState(currentRace?.source?.topCount ?? 8)
-  const [stageName, setStageName] = useState('Qualifying')
-  const [stageFormat, setStageFormat] = useState<RaceFormat>('timed-heats')
-  const [roundsPerRacer, setRoundsPerRacer] = useState(3)
-  const selectedStage = currentRace?.stages.find((stage) => stage.id === selectedStageId) ?? currentRace?.stages[0]
-  const [editStageName, setEditStageName] = useState(selectedStage?.name ?? '')
-  const [editStageFormat, setEditStageFormat] = useState<RaceFormat>(selectedStage?.format ?? 'timed-heats')
-  const [editStageLaneCount, setEditStageLaneCount] = useState(selectedStage?.laneCount ?? 3)
-  const [editStageRounds, setEditStageRounds] = useState(selectedStage?.roundsPerRacer ?? 3)
 
   useEffect(() => {
     if (!currentRace) {
@@ -62,39 +74,46 @@ export function EventSetup({
     }
 
     setEditRaceName(currentRace.name)
-    setEditRaceType(currentRace.tournamentType)
+    setEditRaceFormat(currentRace.format)
     setEditLaneCount(currentRace.laneCount)
+    setEditRaceRounds(currentRace.roundsPerRacer)
+    setEditScoringMode(currentRace.scoringMode)
     setAvoidSameLane(currentRace.schedulingOptions?.avoidSameLane ?? true)
     setAvoidSameOpponents(currentRace.schedulingOptions?.avoidSameOpponents ?? true)
     setUsesSource(Boolean(currentRace.source))
     setSourceRaceId(currentRace.source?.sourceRaceId ?? '')
-    setSourceStageId(currentRace.source?.sourceStageId ?? '')
     setSourceTopCount(currentRace.source?.topCount ?? 8)
   }, [currentRace])
-
-  useEffect(() => {
-    if (!selectedStage) {
-      return
-    }
-
-    setEditStageName(selectedStage.name)
-    setEditStageFormat(selectedStage.format)
-    setEditStageLaneCount(selectedStage.laneCount)
-    setEditStageRounds(selectedStage.roundsPerRacer)
-  }, [selectedStage])
 
   const sourceRaceOptions = useMemo(
     () => event?.races.filter((race) => race.id !== currentRace?.id) ?? [],
     [event, currentRace]
   )
-  const sourceStageOptions = sourceRaceOptions.find((race) => race.id === sourceRaceId)?.stages ?? []
+
+  const createScoringOptions = scoringOptions(raceFormat)
+  const editScoringOptions = scoringOptions(editRaceFormat)
+  const createSupportsRuns = supportsRunsPerRacer(raceFormat)
+  const editSupportsRuns = supportsRunsPerRacer(editRaceFormat)
+  const editSupportsScheduling = supportsSchedulingOptions(editRaceFormat)
+
+  const changeCreateFormat = (format: RaceFormat) => {
+    setRaceFormat(format)
+    setRaceScoringMode(defaultScoringMode(format))
+  }
+
+  const changeEditFormat = (format: RaceFormat) => {
+    setEditRaceFormat(format)
+    setEditScoringMode(defaultScoringMode(format))
+  }
 
   const submitRace = (formEvent: FormEvent) => {
     formEvent.preventDefault()
     void actions.createRace({
       name: raceName,
-      tournamentType: raceType,
+      format: raceFormat,
       laneCount: raceLaneCount,
+      roundsPerRacer: createSupportsRuns ? raceRounds : 1,
+      scoringMode: selectedScoringMode(raceFormat, raceScoringMode),
       schedulingOptions: { avoidSameLane: true, avoidSameOpponents: true }
     })
     setRaceName('Additional Race')
@@ -109,43 +128,12 @@ export function EventSetup({
 
     void actions.updateRace(currentRace.id, {
       name: editRaceName,
-      tournamentType: editRaceType,
+      format: editRaceFormat,
       laneCount: editLaneCount,
+      roundsPerRacer: editSupportsRuns ? editRaceRounds : 1,
+      scoringMode: selectedScoringMode(editRaceFormat, editScoringMode),
       schedulingOptions: { avoidSameLane, avoidSameOpponents },
-      source: usesSource && sourceRaceId ? { sourceRaceId, sourceStageId: sourceStageId || undefined, topCount: sourceTopCount } : undefined
-    })
-  }
-
-  const submitStage = (formEvent: FormEvent) => {
-    formEvent.preventDefault()
-
-    if (!currentRace) {
-      return
-    }
-
-    void actions.addStage(currentRace.id, {
-      name: stageName,
-      format: stageFormat,
-      laneCount: currentRace.laneCount,
-      roundsPerRacer,
-      scoringMode: defaultScoringMode(stageFormat)
-    })
-    setStageName(stageFormat === 'single-elimination' ? 'Final Bracket' : 'Next Stage')
-  }
-
-  const submitStageSettings = (formEvent: FormEvent) => {
-    formEvent.preventDefault()
-
-    if (!currentRace || !selectedStage) {
-      return
-    }
-
-    void actions.updateStage(currentRace.id, selectedStage.id, {
-      name: editStageName,
-      format: editStageFormat,
-      laneCount: editStageLaneCount,
-      roundsPerRacer: editStageRounds,
-      scoringMode: defaultScoringMode(editStageFormat)
+      source: usesSource && sourceRaceId ? { sourceRaceId, topCount: sourceTopCount } : undefined
     })
   }
 
@@ -153,22 +141,10 @@ export function EventSetup({
     if (currentRace) {
       requestConfirmation({
         title: 'Delete race',
-        message: `Delete ${currentRace.name}? This permanently removes its stages, heats, and registrations.`,
+        message: `Delete ${currentRace.name}? This permanently removes its heats and registrations.`,
         confirmLabel: 'Delete Race',
         destructive: true,
         onConfirm: () => actions.deleteRace(currentRace.id)
-      })
-    }
-  }
-
-  const deleteStage = (stageId: string, name: string) => {
-    if (currentRace) {
-      requestConfirmation({
-        title: 'Delete stage',
-        message: `Delete ${name}? This permanently removes its heats and results.`,
-        confirmLabel: 'Delete Stage',
-        destructive: true,
-        onConfirm: () => actions.deleteStage(currentRace.id, stageId)
       })
     }
   }
@@ -195,11 +171,11 @@ export function EventSetup({
           </label>
           <div className="form-grid two-column">
             <label>
-              <span>Type</span>
-              <select value={raceType} onChange={(inputEvent) => setRaceType(inputEvent.target.value as TournamentType)}>
-                {tournamentTypes.map((type) => (
-                  <option key={type} value={type}>
-                    {formatStatus(type)}
+              <span>Format</span>
+              <select value={raceFormat} onChange={(inputEvent) => changeCreateFormat(inputEvent.target.value as RaceFormat)}>
+                {raceFormats.map((format) => (
+                  <option key={format} value={format}>
+                    {formatStatus(format)}
                   </option>
                 ))}
               </select>
@@ -208,6 +184,24 @@ export function EventSetup({
               <span>Lanes</span>
               <input min={1} max={12} type="number" value={raceLaneCount} onChange={(inputEvent) => setRaceLaneCount(Number(inputEvent.target.value))} />
             </label>
+            {createSupportsRuns ? (
+              <label>
+                <span>Runs per racer</span>
+                <input min={1} max={24} type="number" value={raceRounds} onChange={(inputEvent) => setRaceRounds(Number(inputEvent.target.value))} />
+              </label>
+            ) : null}
+            {createScoringOptions.length > 0 ? (
+              <label>
+                <span>Scoring</span>
+                <select value={selectedScoringMode(raceFormat, raceScoringMode)} onChange={(inputEvent) => setRaceScoringMode(inputEvent.target.value as ScoringMode)}>
+                  {createScoringOptions.map((mode) => (
+                    <option key={mode} value={mode}>
+                      {formatStatus(mode)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
           </div>
           <button className="primary-action" type="submit">
             <ListPlus aria-hidden="true" size={18} />
@@ -249,100 +243,15 @@ export function EventSetup({
         </div>
 
         {currentRace ? (
-          <>
-            <form className="form-grid" onSubmit={submitRaceSettings}>
-              <div className="form-grid two-column">
-                <label>
-                  <span>Race name</span>
-                  <input value={editRaceName} onChange={(inputEvent) => setEditRaceName(inputEvent.target.value)} />
-                </label>
-                <label>
-                  <span>Type</span>
-                  <select value={editRaceType} onChange={(inputEvent) => setEditRaceType(inputEvent.target.value as TournamentType)}>
-                    {tournamentTypes.map((type) => (
-                      <option key={type} value={type}>
-                        {formatStatus(type)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  <span>Lanes</span>
-                  <input min={1} max={12} type="number" value={editLaneCount} onChange={(inputEvent) => setEditLaneCount(Number(inputEvent.target.value))} />
-                </label>
-                <label>
-                  <span>Advance top</span>
-                  <input disabled={!usesSource} min={1} type="number" value={sourceTopCount} onChange={(inputEvent) => setSourceTopCount(Number(inputEvent.target.value))} />
-                </label>
-              </div>
-
-              <div className="toggle-grid">
-                <label className="inline-toggle">
-                  <input type="checkbox" checked={avoidSameLane} onChange={(inputEvent) => setAvoidSameLane(inputEvent.target.checked)} />
-                  <span>Avoid repeated lanes</span>
-                </label>
-                <label className="inline-toggle">
-                  <input type="checkbox" checked={avoidSameOpponents} onChange={(inputEvent) => setAvoidSameOpponents(inputEvent.target.checked)} />
-                  <span>Avoid repeated opponents</span>
-                </label>
-                <label className="inline-toggle">
-                  <input type="checkbox" checked={usesSource} onChange={(inputEvent) => setUsesSource(inputEvent.target.checked)} />
-                  <span>Populate from another race</span>
-                </label>
-              </div>
-
-              {usesSource ? (
-                <div className="form-grid two-column">
-                  <label>
-                    <span>Source race</span>
-                    <select value={sourceRaceId} onChange={(inputEvent) => setSourceRaceId(inputEvent.target.value)}>
-                      <option value="">Select source race</option>
-                      {sourceRaceOptions.map((race) => (
-                        <option key={race.id} value={race.id}>
-                          {race.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    <span>Source stage</span>
-                    <select value={sourceStageId} onChange={(inputEvent) => setSourceStageId(inputEvent.target.value)}>
-                      <option value="">Current source stage</option>
-                      {sourceStageOptions.map((stage) => (
-                        <option key={stage.id} value={stage.id}>
-                          {stage.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-              ) : null}
-
-              <div className="button-row">
-                <button className="primary-action" type="submit">
-                  <Save aria-hidden="true" size={18} />
-                  <span>Save Race</span>
-                </button>
-                <button
-                  className="secondary-action"
-                  disabled={!currentRace.source}
-                  onClick={() => void actions.populateRaceEntriesFromSource(currentRace.id)}
-                  type="button"
-                >
-                  <RotateCcw aria-hidden="true" size={18} />
-                  <span>Populate Entries</span>
-                </button>
-              </div>
-            </form>
-
-            <form className="compact-form stage-form" onSubmit={submitStage}>
+          <form className="form-grid" onSubmit={submitRaceSettings}>
+            <div className="form-grid two-column">
               <label>
-                <span>Stage name</span>
-                <input value={stageName} onChange={(inputEvent) => setStageName(inputEvent.target.value)} />
+                <span>Race name</span>
+                <input value={editRaceName} onChange={(inputEvent) => setEditRaceName(inputEvent.target.value)} />
               </label>
               <label>
                 <span>Format</span>
-                <select value={stageFormat} onChange={(inputEvent) => setStageFormat(inputEvent.target.value as RaceFormat)}>
+                <select value={editRaceFormat} onChange={(inputEvent) => changeEditFormat(inputEvent.target.value as RaceFormat)}>
                   {raceFormats.map((format) => (
                     <option key={format} value={format}>
                       {formatStatus(format)}
@@ -351,67 +260,81 @@ export function EventSetup({
                 </select>
               </label>
               <label>
-                <span>Runs per racer</span>
-                <input min={1} max={24} type="number" value={roundsPerRacer} onChange={(inputEvent) => setRoundsPerRacer(Number(inputEvent.target.value))} />
+                <span>Lanes</span>
+                <input min={1} max={12} type="number" value={editLaneCount} onChange={(inputEvent) => setEditLaneCount(Number(inputEvent.target.value))} />
               </label>
-              <button className="secondary-action" type="submit">
-                <ListPlus aria-hidden="true" size={18} />
-                <span>Add Stage</span>
-              </button>
-            </form>
-
-            {selectedStage ? (
-              <form className="compact-form" onSubmit={submitStageSettings}>
+              {editSupportsRuns ? (
                 <label>
-                  <span>Selected stage</span>
-                  <input value={editStageName} onChange={(inputEvent) => setEditStageName(inputEvent.target.value)} />
+                  <span>Runs per racer</span>
+                  <input min={1} max={24} type="number" value={editRaceRounds} onChange={(inputEvent) => setEditRaceRounds(Number(inputEvent.target.value))} />
                 </label>
+              ) : null}
+              {editScoringOptions.length > 0 ? (
                 <label>
-                  <span>Format</span>
-                  <select value={editStageFormat} onChange={(inputEvent) => setEditStageFormat(inputEvent.target.value as RaceFormat)}>
-                    {raceFormats.map((format) => (
-                      <option key={format} value={format}>
-                        {formatStatus(format)}
+                  <span>Scoring</span>
+                  <select value={selectedScoringMode(editRaceFormat, editScoringMode)} onChange={(inputEvent) => setEditScoringMode(inputEvent.target.value as ScoringMode)}>
+                    {editScoringOptions.map((mode) => (
+                      <option key={mode} value={mode}>
+                        {formatStatus(mode)}
                       </option>
                     ))}
                   </select>
                 </label>
+              ) : null}
+              {usesSource ? (
                 <label>
-                  <span>Lanes</span>
-                  <input min={1} max={12} type="number" value={editStageLaneCount} onChange={(inputEvent) => setEditStageLaneCount(Number(inputEvent.target.value))} />
+                  <span>Advance top</span>
+                  <input min={1} type="number" value={sourceTopCount} onChange={(inputEvent) => setSourceTopCount(Number(inputEvent.target.value))} />
                 </label>
-                <label>
-                  <span>Runs</span>
-                  <input min={1} max={24} type="number" value={editStageRounds} onChange={(inputEvent) => setEditStageRounds(Number(inputEvent.target.value))} />
-                </label>
-                <button className="secondary-action" type="submit">
-                  <Save aria-hidden="true" size={18} />
-                  <span>Save Stage</span>
-                </button>
-              </form>
+              ) : null}
+            </div>
+
+            <div className="toggle-grid">
+              {editSupportsScheduling ? (
+                <>
+                  <label className="inline-toggle">
+                    <input type="checkbox" checked={avoidSameLane} onChange={(inputEvent) => setAvoidSameLane(inputEvent.target.checked)} />
+                    <span>Avoid repeated lanes</span>
+                  </label>
+                  <label className="inline-toggle">
+                    <input type="checkbox" checked={avoidSameOpponents} onChange={(inputEvent) => setAvoidSameOpponents(inputEvent.target.checked)} />
+                    <span>Avoid repeated opponents</span>
+                  </label>
+                </>
+              ) : null}
+              <label className="inline-toggle">
+                <input type="checkbox" checked={usesSource} onChange={(inputEvent) => setUsesSource(inputEvent.target.checked)} />
+                <span>Populate from another race</span>
+              </label>
+            </div>
+
+            {usesSource ? (
+              <label>
+                <span>Source race</span>
+                <select value={sourceRaceId} onChange={(inputEvent) => setSourceRaceId(inputEvent.target.value)}>
+                  <option value="">Select source race</option>
+                  {sourceRaceOptions.map((race) => (
+                    <option key={race.id} value={race.id}>
+                      {race.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
             ) : null}
 
-            <div className="stack-list">
-              {currentRace.stages.map((stage) => (
-                <article className="list-card" data-active={stage.id === selectedStage?.id} key={stage.id}>
-                  <button className="bare-select" onClick={() => setSelectedStageId(stage.id)} type="button">
-                    <strong>{stage.name}</strong>
-                    <span>{stageSummary(stage)}</span>
-                  </button>
-                  <div className="button-row nowrap">
-                    <button className="secondary-action" onClick={() => void actions.generateHeats(currentRace.id, stage.id)} type="button">
-                      Generate
-                    </button>
-                    <button className="danger-action" onClick={() => deleteStage(stage.id, stage.name)} type="button">
-                      <Trash2 aria-hidden="true" size={16} />
-                      <span>Delete</span>
-                    </button>
-                  </div>
-                </article>
-              ))}
-              {currentRace.stages.length === 0 ? <p className="empty-state">Add a stage to generate the first heat sheet.</p> : null}
+            <div className="button-row">
+              <button className="primary-action" type="submit">
+                <Save aria-hidden="true" size={18} />
+                <span>Save Race</span>
+              </button>
+              {currentRace.heats.length === 0 ? (
+                <button className="secondary-action" onClick={() => void actions.generateHeats(currentRace.id)} type="button">
+                  <RotateCcw aria-hidden="true" size={18} />
+                  <span>Generate Heats</span>
+                </button>
+              ) : null}
             </div>
-          </>
+          </form>
         ) : (
           <p className="empty-state">Add or select a race to define rules.</p>
         )}

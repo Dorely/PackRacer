@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { ChevronRight, Flag, Play, RotateCcw } from 'lucide-react'
 
-import { calculateStandings, type Heat, type LaneResultStatus } from '@packracer/race-engine'
+import { calculateStandings, type Heat, type LaneResultStatus, type ScoringMode } from '@packracer/race-engine'
 
 import { formatStatus, formatTime, heatLabel, racerLabel } from '../formatters'
 import type { SectionProps } from './types'
@@ -10,6 +10,10 @@ type ResultDraft = {
   status: LaneResultStatus
   timeSeconds: string
   finishPosition: string
+}
+
+function usesTimeResults(scoringMode: ScoringMode): boolean {
+  return scoringMode === 'average-time' || scoringMode === 'best-time' || scoringMode === 'total-time'
 }
 
 function initialDraft(heat: Heat | undefined): Record<number, ResultDraft> {
@@ -33,12 +37,9 @@ export function RaceControl({
   actions,
   selectedRaceId,
   setSelectedRaceId,
-  selectedStageId,
-  setSelectedStageId,
   requestConfirmation
 }: SectionProps) {
-  const selectedStage = currentRace?.stages.find((stage) => stage.id === selectedStageId) ?? currentRace?.stages[0]
-  const allHeats = selectedStage?.heats ?? []
+  const allHeats = currentRace?.heats ?? []
   const currentHeat =
     allHeats.find((heat) => heat.id === currentRace?.currentHeatId) ?? allHeats.find((heat) => heat.status === 'pending') ?? allHeats[0]
   const [resultDrafts, setResultDrafts] = useState<Record<number, ResultDraft>>(() => initialDraft(currentHeat))
@@ -53,9 +54,10 @@ export function RaceControl({
     [currentRace]
   )
   const liveStandings = useMemo(
-    () => (event && currentRace && selectedStage ? calculateStandings(event, currentRace.id, selectedStage.id).slice(0, 6) : []),
-    [event, currentRace, selectedStage]
+    () => (event && currentRace ? calculateStandings(event, currentRace.id) : []),
+    [event, currentRace]
   )
+  const showTimeResults = usesTimeResults(currentRace?.scoringMode ?? 'average-time')
 
   const updateDraft = (lane: number, patch: Partial<ResultDraft>) => {
     setResultDrafts((previous) => ({
@@ -78,8 +80,8 @@ export function RaceControl({
       .filter((assignment) => assignment.racerId)
       .map((assignment) => {
         const draft = resultDrafts[assignment.lane]
-        const timeMs = draft.timeSeconds ? Number(draft.timeSeconds) * 1000 : undefined
-        const finishPosition = draft.finishPosition ? Number(draft.finishPosition) : undefined
+        const timeMs = showTimeResults && draft.timeSeconds ? Number(draft.timeSeconds) * 1000 : undefined
+        const finishPosition = !showTimeResults && draft.finishPosition ? Number(draft.finishPosition) : undefined
 
         return {
           lane: assignment.lane,
@@ -107,26 +109,13 @@ export function RaceControl({
     }
   }
 
-  const clearHeat = (heatId: string) => {
+  const runHeatAgain = (heatId: string) => {
     if (currentRace) {
       requestConfirmation({
-        title: 'Clear heat result',
-        message: 'Clear this heat result and mark it pending again?',
-        confirmLabel: 'Clear Result',
-        destructive: true,
+        title: 'Run heat again',
+        message: 'Clear this heat result and run the heat again?',
+        confirmLabel: 'Run Again',
         onConfirm: () => actions.clearHeatResults(currentRace.id, heatId)
-      })
-    }
-  }
-
-  const deleteHeat = (heatId: string) => {
-    if (currentRace) {
-      requestConfirmation({
-        title: 'Delete heat',
-        message: 'Delete this heat from the schedule?',
-        confirmLabel: 'Delete Heat',
-        destructive: true,
-        onConfirm: () => actions.deleteHeat(currentRace.id, heatId)
       })
     }
   }
@@ -137,10 +126,6 @@ export function RaceControl({
 
   if (!currentRace) {
     return <p className="empty-state full-width-message">Add a race in Event Setup before race control.</p>
-  }
-
-  if (currentRace.stages.length === 0) {
-    return <p className="empty-state full-width-message">Add a stage in Event Setup before generating heats.</p>
   }
 
   return (
@@ -172,24 +157,16 @@ export function RaceControl({
               ))}
             </select>
           </label>
-          <label>
-            <span>Stage</span>
-            <select value={selectedStage?.id ?? ''} onChange={(inputEvent) => setSelectedStageId(inputEvent.target.value)}>
-              {currentRace.stages.map((stage) => (
-                <option key={stage.id} value={stage.id}>
-                  {stage.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button
-            className="secondary-action"
-            onClick={() => selectedStage && void actions.generateHeats(currentRace.id, selectedStage.id)}
-            type="button"
-          >
-            <RotateCcw aria-hidden="true" size={18} />
-            <span>Generate</span>
-          </button>
+          {allHeats.length === 0 ? (
+            <button
+              className="secondary-action"
+              onClick={() => void actions.generateHeats(currentRace.id)}
+              type="button"
+            >
+              <RotateCcw aria-hidden="true" size={18} />
+              <span>Generate</span>
+            </button>
+          ) : null}
         </div>
 
         {currentHeat ? (
@@ -201,24 +178,30 @@ export function RaceControl({
                   <strong>{racerLabel(event.racers, assignment.racerId)}</strong>
                   {assignment.racerId ? (
                     <>
-                      <input
-                        aria-label={`Lane ${assignment.lane} time`}
-                        inputMode="decimal"
-                        placeholder="0.000s"
-                        value={resultDrafts[assignment.lane]?.timeSeconds ?? ''}
-                        onChange={(inputEvent) => updateDraft(assignment.lane, { timeSeconds: inputEvent.target.value })}
-                      />
-                      <input
-                        aria-label={`Lane ${assignment.lane} finish position`}
-                        inputMode="numeric"
-                        min={1}
-                        placeholder="Place"
-                        type="number"
-                        value={resultDrafts[assignment.lane]?.finishPosition ?? ''}
-                        onChange={(inputEvent) => updateDraft(assignment.lane, { finishPosition: inputEvent.target.value })}
-                      />
+                      {showTimeResults ? (
+                        <input
+                          aria-label={`Lane ${assignment.lane} time`}
+                          disabled={currentHeat.status === 'complete'}
+                          inputMode="decimal"
+                          placeholder="0.000s"
+                          value={resultDrafts[assignment.lane]?.timeSeconds ?? ''}
+                          onChange={(inputEvent) => updateDraft(assignment.lane, { timeSeconds: inputEvent.target.value })}
+                        />
+                      ) : (
+                        <input
+                          aria-label={`Lane ${assignment.lane} finish position`}
+                          disabled={currentHeat.status === 'complete'}
+                          inputMode="numeric"
+                          min={1}
+                          placeholder="Place"
+                          type="number"
+                          value={resultDrafts[assignment.lane]?.finishPosition ?? ''}
+                          onChange={(inputEvent) => updateDraft(assignment.lane, { finishPosition: inputEvent.target.value })}
+                        />
+                      )}
                       <select
                         aria-label={`Lane ${assignment.lane} status`}
+                        disabled={currentHeat.status === 'complete'}
                         value={resultDrafts[assignment.lane]?.status ?? 'ok'}
                         onChange={(inputEvent) => updateDraft(assignment.lane, { status: inputEvent.target.value as LaneResultStatus })}
                       >
@@ -236,13 +219,20 @@ export function RaceControl({
               ))}
             </div>
 
-            <button className="primary-action" disabled={currentHeat.status === 'invalidated'} type="submit">
-              <Play aria-hidden="true" size={18} fill="currentColor" />
-              <span>Record And Advance</span>
-            </button>
+            {currentHeat.status === 'complete' ? (
+              <button className="secondary-action" onClick={() => runHeatAgain(currentHeat.id)} type="button">
+                <RotateCcw aria-hidden="true" size={18} />
+                <span>Run Again</span>
+              </button>
+            ) : (
+              <button className="primary-action" disabled={currentHeat.status === 'invalidated'} type="submit">
+                <Play aria-hidden="true" size={18} fill="currentColor" />
+                <span>Record And Advance</span>
+              </button>
+            )}
           </form>
         ) : (
-          <p className="empty-state">Generate heats to start this stage.</p>
+          <p className="empty-state">Generate heats to start this race.</p>
         )}
 
         <div className="live-standings-panel">
@@ -295,14 +285,6 @@ export function RaceControl({
                 <strong>Heat {heat.heatNumber}</strong>
                 <span>{formatStatus(heat.status)}</span>
               </button>
-              <div className="button-row nowrap">
-                <button className="mini-action" disabled={heat.status !== 'complete'} onClick={() => clearHeat(heat.id)} type="button">
-                  Clear
-                </button>
-                <button className="danger-action" onClick={() => deleteHeat(heat.id)} type="button">
-                  Delete
-                </button>
-              </div>
             </article>
           ))}
           {allHeats.length === 0 ? <p className="empty-state">No heats scheduled yet.</p> : null}

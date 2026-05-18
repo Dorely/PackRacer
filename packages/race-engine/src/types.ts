@@ -1,8 +1,6 @@
-export const EVENT_SCHEMA_VERSION = 2
+export const EVENT_SCHEMA_VERSION = 3
 
 export type RaceFormat = 'timed-heats' | 'points-heats' | 'round-robin' | 'single-elimination'
-
-export type TournamentType = RaceFormat | 'multi-stage'
 
 export type EventStatus = 'draft' | 'ready' | 'running' | 'complete'
 
@@ -11,8 +9,6 @@ export type RaceStatus = 'draft' | 'ready' | 'running' | 'complete'
 export type RacerStatus = 'active' | 'scratched' | 'no-show'
 
 export type RaceEntryStatus = 'active' | 'scratched' | 'no-show'
-
-export type StageStatus = 'draft' | 'scheduled' | 'running' | 'complete'
 
 export type HeatStatus = 'pending' | 'running' | 'complete' | 'skipped' | 'invalidated'
 
@@ -31,7 +27,6 @@ export type RemovalResolutionStrategy = 'keep-empty-lanes' | 'regenerate-pending
 
 export type RaceSource = {
   sourceRaceId: string
-  sourceStageId?: string
   topCount: number
 }
 
@@ -65,14 +60,17 @@ export type RaceEvent = {
 export type Race = {
   id: string
   name: string
-  tournamentType: TournamentType
+  format: RaceFormat
   status: RaceStatus
   laneCount: number
+  roundsPerRacer: number
+  scoringMode: ScoringMode
+  advancementRule?: AdvancementRule
+  eligibleRacerIds?: string[]
   entries: RaceEntry[]
   source?: RaceSource
   schedulingOptions: SchedulingOptions
-  stages: Stage[]
-  currentStageId?: string
+  heats: Heat[]
   currentHeatId?: string
   createdAt: string
   updatedAt: string
@@ -103,24 +101,8 @@ export type Racer = {
   updatedAt: string
 }
 
-export type Stage = {
-  id: string
-  name: string
-  format: RaceFormat
-  status: StageStatus
-  laneCount: number
-  roundsPerRacer: number
-  scoringMode: ScoringMode
-  advancementRule?: AdvancementRule
-  eligibleRacerIds?: string[]
-  heats: Heat[]
-  createdAt: string
-  updatedAt: string
-}
-
 export type Heat = {
   id: string
-  stageId: string
   heatNumber: number
   roundNumber: number
   status: HeatStatus
@@ -171,7 +153,6 @@ export type RemovalImpact = {
   racerId: string
   racerName: string
   affectedRaceIds: string[]
-  affectedStageIds: string[]
   affectedHeatIds: string[]
   completedHeatIds: string[]
   invalidatedHeatIds: string[]
@@ -209,18 +190,24 @@ export type UpdateEventInput = Partial<Pick<RaceEvent, 'name' | 'eventDate' | 't
 
 export type CreateRaceInput = {
   name: string
-  tournamentType: TournamentType
+  format: RaceFormat
   laneCount?: number
+  roundsPerRacer?: number
+  scoringMode?: ScoringMode
+  advancementRule?: AdvancementRule
+  eligibleRacerIds?: string[]
   source?: RaceSource
   schedulingOptions?: Partial<SchedulingOptions>
 }
 
-export type UpdateRaceInput = Partial<Pick<Race, 'name' | 'tournamentType' | 'laneCount' | 'status' | 'source'>> & {
+export type UpdateRaceInput = Partial<
+  Pick<Race, 'name' | 'format' | 'laneCount' | 'roundsPerRacer' | 'scoringMode' | 'advancementRule' | 'eligibleRacerIds' | 'status' | 'source'>
+> & {
   schedulingOptions?: Partial<SchedulingOptions>
 }
 
 export type AddRacerInput = {
-  racerNumber: string
+  racerNumber?: string
   name: string
   division: string
   vehicleName?: string
@@ -257,33 +244,10 @@ export type RegisterRacerInput = AddRacerInput & {
 
 export type UpdateRaceEntryInput = Partial<Pick<RaceEntry, 'status' | 'checkedIn' | 'inspectionPassed' | 'notes'>>
 
-export type AddStageInput = {
-  name: string
-  format: RaceFormat
-  laneCount?: number
-  roundsPerRacer?: number
-  scoringMode?: ScoringMode
-  advancementRule?: AdvancementRule
-  eligibleRacerIds?: string[]
-}
-
-export type UpdateStageInput = Partial<
-  Pick<Stage, 'name' | 'format' | 'laneCount' | 'roundsPerRacer' | 'scoringMode' | 'advancementRule' | 'eligibleRacerIds'>
->
-
 export type RecordHeatResultsInput = {
   heatId: string
   results: LaneResult[]
   notes?: string
-}
-
-export type CreateFinalsStageInput = {
-  sourceStageId: string
-  name: string
-  format: RaceFormat
-  topCount: number
-  laneCount?: number
-  scoringMode?: ScoringMode
 }
 
 export type EventSessionSnapshot = {

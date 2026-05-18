@@ -6,12 +6,11 @@ import { calculateStandings } from '@packracer/race-engine'
 import { formatTime, racerLabel } from '../formatters'
 import type { SectionProps } from './types'
 
-export function DisplayMode({ event, currentRace, selectedStageId }: SectionProps) {
-  const selectedStage = currentRace?.stages.find((stage) => stage.id === selectedStageId) ?? currentRace?.stages[0]
-  const currentHeat = selectedStage?.heats.find((heat) => heat.id === currentRace?.currentHeatId) ?? selectedStage?.heats[0]
+export function DisplayMode({ event, currentRace, selectedRaceId, setSelectedRaceId }: SectionProps) {
+  const currentHeat = currentRace?.heats.find((heat) => heat.id === currentRace.currentHeatId) ?? currentRace?.heats[0]
   const standings = useMemo(
-    () => (event && currentRace && selectedStage ? calculateStandings(event, currentRace.id, selectedStage.id).slice(0, 8) : []),
-    [event, currentRace, selectedStage]
+    () => (event && currentRace ? calculateStandings(event, currentRace.id).slice(0, 8) : []),
+    [event, currentRace]
   )
 
   if (!event) {
@@ -30,6 +29,16 @@ export function DisplayMode({ event, currentRace, selectedStageId }: SectionProp
           <h3>{event.name}</h3>
           <span>{currentRace.name}</span>
         </div>
+        <label className="display-race-selector">
+          <span>Race</span>
+          <select value={selectedRaceId} onChange={(inputEvent) => setSelectedRaceId(inputEvent.target.value)}>
+            {event.races.map((race) => (
+              <option key={race.id} value={race.id}>
+                {race.name}
+              </option>
+            ))}
+          </select>
+        </label>
         <Monitor aria-hidden="true" size={30} />
       </div>
 
@@ -49,7 +58,7 @@ export function DisplayMode({ event, currentRace, selectedStageId }: SectionProp
 
         <article>
           <span>Leaders</span>
-          <strong>{selectedStage?.name ?? 'No stage'}</strong>
+          <strong>{currentRace.name}</strong>
           <ol className="leader-list">
             {standings.map((standing) => (
               <li key={standing.racerId}>

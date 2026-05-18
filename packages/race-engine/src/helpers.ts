@@ -1,4 +1,4 @@
-import type { Race, RaceEntry, Racer, RaceEvent, Stage } from './types'
+import type { Race, RaceEntry, Racer, RaceEvent } from './types'
 
 export function createId(prefix: string): string {
   if (globalThis.crypto && 'randomUUID' in globalThis.crypto) {
@@ -44,8 +44,8 @@ export function getRaceRacers(event: RaceEvent, race: Race | undefined): Racer[]
   return sortRacers(event.racers.filter((racer) => racer.status === 'active' && entryRacerIds.has(racer.id)))
 }
 
-export function getEligibleRacers(event: RaceEvent, stage: Stage, race?: Race): Racer[] {
-  const eligibleIds = stage.eligibleRacerIds ? new Set(stage.eligibleRacerIds) : null
+export function getEligibleRacers(event: RaceEvent, race?: Race): Racer[] {
+  const eligibleIds = race?.eligibleRacerIds ? new Set(race.eligibleRacerIds) : null
   const raceRacers = getRaceRacers(event, race)
 
   return sortRacers(

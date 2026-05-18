@@ -382,9 +382,12 @@ label {
   min-height: 0;
 }
 
-.registration-grid,
-.standings-grid {
+.registration-grid {
   grid-template-columns: minmax(320px, 0.65fr) minmax(620px, 1.35fr);
+}
+
+.standings-grid {
+  grid-template-columns: minmax(0, 2.4fr) minmax(240px, 0.65fr);
 }
 
 .form-panel {
@@ -564,7 +567,7 @@ label {
 }
 
 .result-row {
-  grid-template-columns: 76px minmax(160px, 1fr) 100px 86px 90px auto;
+  grid-template-columns: 76px minmax(160px, 1fr) 120px 90px auto;
   gap: 10px;
   min-height: 66px;
 }
@@ -622,6 +625,10 @@ label {
   background: #ffffff;
 }
 
+.standings-table {
+  min-width: 760px;
+}
+
 .data-table th,
 .data-table td {
   padding: 11px 12px;
@@ -673,13 +680,27 @@ label {
 }
 
 .display-heading {
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr minmax(220px, 320px) auto;
   align-items: center;
 }
 
 .display-heading h3 {
   margin: 0;
   font-size: 38px;
+}
+
+.display-race-selector {
+  color: #9fe3c2;
+}
+
+.display-race-selector span {
+  color: #9fe3c2;
+}
+
+.display-race-selector select {
+  border-color: #376557;
+  color: #ffffff;
+  background: #1c4035;
 }
 
 .display-grid {
@@ -734,9 +755,16 @@ label {
   font-size: 18px;
 }
 
+.leader-list li span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .live-standings-panel {
   display: grid;
   gap: 10px;
+  min-height: 0;
   padding: 14px;
   border: 1px solid #d9e2dd;
   border-radius: 8px;
@@ -747,10 +775,66 @@ label {
   color: #17211d;
 }
 
+.live-standings-panel .leader-list {
+  max-height: 260px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
 .live-standings-panel .leader-list li {
   border-bottom-color: #d9e2dd;
   color: #26352f;
   font-size: 14px;
+}
+
+.advancement-panel {
+  gap: 14px;
+  min-height: 0;
+  padding: 18px;
+}
+
+.advancement-summary-list,
+.advancement-summary {
+  display: grid;
+  gap: 10px;
+}
+
+.advancement-summary {
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e0e8e3;
+}
+
+.advancement-summary:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.advancement-summary span {
+  color: #607269;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.advancement-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.advancement-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: #26352f;
+  font-size: 13px;
+}
+
+.advancement-list span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .lane-row strong {
@@ -792,6 +876,10 @@ label {
   .registration-grid,
   .standings-grid,
   .display-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .display-heading {
     grid-template-columns: 1fr;
   }
 

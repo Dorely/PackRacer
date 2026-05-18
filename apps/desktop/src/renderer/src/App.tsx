@@ -2,11 +2,9 @@ import { CalendarDays, ClipboardList, Flag, Monitor, Trophy, Users } from 'lucid
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import type {
-  AddRacerInput,
   AddRaceEntryInput,
-  AddStageInput,
+  AddRacerInput,
   CreateEventInput,
-  CreateFinalsStageInput,
   CreateRaceInput,
   EventSessionSnapshot,
   RecordHeatResultsInput,
@@ -15,8 +13,7 @@ import type {
   UpdateRaceEntryInput,
   UpdateEventInput,
   UpdateRaceInput,
-  UpdateRacerInput,
-  UpdateStageInput
+  UpdateRacerInput
 } from '@packracer/race-engine'
 
 import { DisplayMode } from './sections/DisplayMode'
@@ -49,7 +46,6 @@ export function App() {
   const [appVersion, setAppVersion] = useState('0.1.0')
   const [session, setSession] = useState<EventSessionSnapshot | null>(null)
   const [selectedRaceId, setSelectedRaceId] = useState('')
-  const [selectedStageId, setSelectedStageId] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
   const [confirmationRequest, setConfirmationRequest] = useState<ConfirmationRequest | null>(null)
 
@@ -65,7 +61,6 @@ export function App() {
         setSession(currentSession)
         const race = currentSession.event.races.find((candidate) => candidate.id === currentSession.event.currentRaceId) ?? currentSession.event.races[0]
         setSelectedRaceId(race?.id ?? '')
-        setSelectedStageId(race?.currentStageId ?? race?.stages[0]?.id ?? '')
       }
     })
   }, [])
@@ -76,7 +71,6 @@ export function App() {
   useEffect(() => {
     if (!event) {
       setSelectedRaceId('')
-      setSelectedStageId('')
       return
     }
 
@@ -84,7 +78,6 @@ export function App() {
 
     if (!race) {
       setSelectedRaceId('')
-      setSelectedStageId('')
       return
     }
 
@@ -92,23 +85,18 @@ export function App() {
       setSelectedRaceId(race.id)
     }
 
-    if (!selectedStageId || !race.stages.some((stage) => stage.id === selectedStageId)) {
-      setSelectedStageId(race.currentStageId ?? race.stages[0]?.id ?? '')
-    }
-  }, [event, selectedRaceId, selectedStageId])
+  }, [event, selectedRaceId])
 
   const applySession = useCallback((nextSession: EventSessionSnapshot | null) => {
     if (!nextSession) {
       setSession(null)
       setSelectedRaceId('')
-      setSelectedStageId('')
       return
     }
 
     setSession(nextSession)
     const race = nextSession.event.races.find((candidate) => candidate.id === nextSession.event.currentRaceId) ?? nextSession.event.races[0]
     setSelectedRaceId(race?.id ?? '')
-    setSelectedStageId(race?.currentStageId ?? race?.stages[0]?.id ?? '')
   }, [])
 
   const runAction = useCallback(
@@ -132,7 +120,6 @@ export function App() {
       createRace: (input: CreateRaceInput) => runAction(() => getPackRacerApi().createRace(input)),
       updateRace: (raceId: string, input: UpdateRaceInput) => runAction(() => getPackRacerApi().updateRace(raceId, input)),
       deleteRace: (raceId: string) => runAction(() => getPackRacerApi().deleteRace(raceId)),
-      populateRaceEntriesFromSource: (raceId: string) => runAction(() => getPackRacerApi().populateRaceEntriesFromSource(raceId)),
       addRacer: (input: AddRacerInput) => runAction(() => getPackRacerApi().addRacer(input)),
       updateRacer: (racerId: string, input: UpdateRacerInput) =>
         runAction(() => getPackRacerApi().updateRacer(racerId, input)),
@@ -147,17 +134,10 @@ export function App() {
         runAction(() => getPackRacerApi().updateRaceEntry(raceId, entryId, input)),
       removeRaceEntry: (raceId: string, entryId: string) => runAction(() => getPackRacerApi().removeRaceEntry(raceId, entryId)),
       scratchRaceEntry: (raceId: string, entryId: string) => runAction(() => getPackRacerApi().scratchRaceEntry(raceId, entryId)),
-      addStage: (raceId: string, input: AddStageInput) => runAction(() => getPackRacerApi().addStage(raceId, input)),
-      updateStage: (raceId: string, stageId: string, input: UpdateStageInput) =>
-        runAction(() => getPackRacerApi().updateStage(raceId, stageId, input)),
-      deleteStage: (raceId: string, stageId: string) => runAction(() => getPackRacerApi().deleteStage(raceId, stageId)),
-      generateHeats: (raceId: string, stageId: string) => runAction(() => getPackRacerApi().generateHeats(raceId, stageId)),
-      createFinalsStage: (raceId: string, input: CreateFinalsStageInput) =>
-        runAction(() => getPackRacerApi().createFinalsStage(raceId, input)),
+      generateHeats: (raceId: string) => runAction(() => getPackRacerApi().generateHeats(raceId)),
       recordHeatResults: (raceId: string, input: RecordHeatResultsInput) =>
         runAction(() => getPackRacerApi().recordHeatResults(raceId, input)),
       clearHeatResults: (raceId: string, heatId: string) => runAction(() => getPackRacerApi().clearHeatResults(raceId, heatId)),
-      deleteHeat: (raceId: string, heatId: string) => runAction(() => getPackRacerApi().deleteHeat(raceId, heatId)),
       setCurrentHeat: (raceId: string, heatId: string) => runAction(() => getPackRacerApi().setCurrentHeat(raceId, heatId)),
       advanceHeat: (raceId: string) => runAction(() => getPackRacerApi().advanceHeat(raceId))
     }),
@@ -166,8 +146,8 @@ export function App() {
 
   const navigationItems: NavigationItem[] = useMemo(() => {
     const activeRacers = currentRace?.entries?.filter((entry) => entry.status === 'active').length ?? 0
-    const heatCount = currentRace?.stages.reduce((total, stage) => total + stage.heats.length, 0) ?? 0
-    const currentHeat = currentRace?.stages.flatMap((stage) => stage.heats).find((heat) => heat.id === currentRace.currentHeatId)
+    const heatCount = currentRace?.heats.length ?? 0
+    const currentHeat = currentRace?.heats.find((heat) => heat.id === currentRace.currentHeatId)
 
     return [
       { id: 'events', label: 'Events', meta: session?.events.length ? `${session.events.length} saved` : 'Start here', icon: CalendarDays },
@@ -182,12 +162,8 @@ export function App() {
   const workflowStats = useMemo(() => {
     const activeRacers = currentRace?.entries?.filter((entry) => entry.status === 'active').length ?? 0
     const totalRacers = currentRace?.entries?.length ?? event?.racers.length ?? 0
-    const heatCount = currentRace?.stages.reduce((total, stage) => total + stage.heats.length, 0) ?? 0
-    const completeHeats =
-      currentRace?.stages.reduce(
-        (total, stage) => total + stage.heats.filter((heat) => heat.status === 'complete').length,
-        0
-      ) ?? 0
+    const heatCount = currentRace?.heats.length ?? 0
+    const completeHeats = currentRace?.heats.filter((heat) => heat.status === 'complete').length ?? 0
 
     return [
       { label: 'Race Entries', value: `${activeRacers}`, detail: `${totalRacers} registered` },
@@ -228,8 +204,6 @@ export function App() {
     actions,
     selectedRaceId,
     setSelectedRaceId,
-    selectedStageId,
-    setSelectedStageId,
     requestConfirmation
   }
 
