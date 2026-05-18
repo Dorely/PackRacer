@@ -598,9 +598,6 @@ export function RaceControl({
               <button className="secondary-action" onClick={() => void actions.resolveRacerRemoval('regenerate-pending')} type="button">
                 Regenerate Pending
               </button>
-              <button className="secondary-action" onClick={() => void actions.resolveRacerRemoval('invalidate-pending')} type="button">
-                Leave Flagged
-              </button>
             </div>
           </div>
         ) : null}

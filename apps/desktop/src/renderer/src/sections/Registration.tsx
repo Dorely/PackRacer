@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
-import { Save, ShieldCheck, Trash2, UserMinus, UserPlus } from 'lucide-react'
+import { Save, ShieldCheck, UserPlus } from 'lucide-react'
 
 import type { RaceEntry, Racer } from '@packracer/race-engine'
 
@@ -24,30 +24,10 @@ function EntryRow({ entry, raceId, racer, actions, requestConfirmation }: EntryR
   const removeEntry = () => {
     requestConfirmation({
       title: 'Remove racer from race',
-      message: `Remove ${racer.name} from this race?`,
+      message: `Remove ${racer.name} from this race? If heats are already generated, pending heats will need a resolution.`,
       confirmLabel: 'Remove Racer',
       destructive: true,
       onConfirm: () => actions.removeRaceEntry(raceId, entry.id)
-    })
-  }
-
-  const scratchEntry = () => {
-    requestConfirmation({
-      title: 'Scratch racer',
-      message: `Scratch ${racer.name} from this race? Pending heats will need a resolution.`,
-      confirmLabel: 'Scratch Racer',
-      destructive: true,
-      onConfirm: () => actions.scratchRaceEntry(raceId, entry.id)
-    })
-  }
-
-  const deleteRacer = () => {
-    requestConfirmation({
-      title: 'Delete racer',
-      message: `Delete ${racer.name} from the event? This removes the racer from every race.`,
-      confirmLabel: 'Delete Racer',
-      destructive: true,
-      onConfirm: () => actions.deleteRacer(racer.id)
     })
   }
 
@@ -82,16 +62,8 @@ function EntryRow({ entry, raceId, racer, actions, requestConfirmation }: EntryR
             <Save aria-hidden="true" size={14} />
             <span>Save</span>
           </button>
-          <button className="danger-action" disabled={entry.status !== 'active'} onClick={scratchEntry} type="button">
-            <UserMinus aria-hidden="true" size={16} />
-            <span>Scratch</span>
-          </button>
           <button className="danger-action" onClick={removeEntry} type="button">
             <span>Remove</span>
-          </button>
-          <button className="danger-action" onClick={deleteRacer} type="button">
-            <Trash2 aria-hidden="true" size={16} />
-            <span>Delete</span>
           </button>
         </div>
       </td>
@@ -231,9 +203,6 @@ export function Registration({ event, actions, selectedRaceId, setSelectedRaceId
               </button>
               <button className="secondary-action" onClick={() => void actions.resolveRacerRemoval('regenerate-pending')} type="button">
                 Regenerate Pending
-              </button>
-              <button className="secondary-action" onClick={() => void actions.resolveRacerRemoval('invalidate-pending')} type="button">
-                Leave Flagged
               </button>
             </div>
           </div>

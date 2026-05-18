@@ -477,10 +477,21 @@ export function removeRaceEntry(event: RaceEvent, raceId: string, entryId: strin
   }
 
   const racer = findRacer(nextEvent, entry.racerId)
-  const impact = invalidateRacerHeats(nextEvent, racer, race.id, `${racer.name} was removed from ${race.name}.`)
-  race.entries = race.entries.filter((candidate) => candidate.id !== entryId)
+  const hasGeneratedHeats = race.heats.length > 0
 
-  if (impact.affectedHeatIds.length > 0 || impact.completedHeatIds.length > 0) {
+  if (!hasGeneratedHeats) {
+    race.entries = race.entries.filter((candidate) => candidate.id !== entryId)
+    race.updatedAt = nowIso()
+    nextEvent.currentRaceId = race.id
+    nextEvent.updatedAt = race.updatedAt
+    return nextEvent
+  }
+
+  entry.status = 'scratched'
+  entry.updatedAt = nowIso()
+  const impact = invalidateRacerHeats(nextEvent, racer, race.id, `${racer.name} was removed from ${race.name}.`)
+
+  if (impact.affectedHeatIds.length > 0) {
     nextEvent.activeRemovalImpact = impact
   }
 

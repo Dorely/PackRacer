@@ -44,7 +44,7 @@
 
 ## Build & Run
 - Install dependencies with `npm install` from the repo root.
-- Run the desktop app with `npm run dev`.
+- Do not Run the desktop app with `npm run dev`. It doesn't work in your sandbox
 - Type-check with `npm run typecheck`.
 - Build with `npm run build`.
 - Do not try to Preview the built app with `npm run preview`. Your sandboxed environment makes it fail
