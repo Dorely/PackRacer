@@ -10,6 +10,8 @@ export type RaceStatus = 'draft' | 'ready' | 'running' | 'complete'
 
 export type RacerStatus = 'active' | 'scratched' | 'no-show'
 
+export type RaceEntryStatus = 'active' | 'scratched' | 'no-show'
+
 export type StageStatus = 'draft' | 'scheduled' | 'running' | 'complete'
 
 export type HeatStatus = 'pending' | 'running' | 'complete' | 'skipped' | 'invalidated'
@@ -26,6 +28,17 @@ export type ScoringMode =
   | 'elimination'
 
 export type RemovalResolutionStrategy = 'keep-empty-lanes' | 'regenerate-pending' | 'invalidate-pending'
+
+export type RaceSource = {
+  sourceRaceId: string
+  sourceStageId?: string
+  topCount: number
+}
+
+export type SchedulingOptions = {
+  avoidSameLane: boolean
+  avoidSameOpponents: boolean
+}
 
 export type AdvancementRule = {
   type: 'top-overall' | 'top-per-division' | 'manual'
@@ -55,9 +68,23 @@ export type Race = {
   tournamentType: TournamentType
   status: RaceStatus
   laneCount: number
+  entries: RaceEntry[]
+  source?: RaceSource
+  schedulingOptions: SchedulingOptions
   stages: Stage[]
   currentStageId?: string
   currentHeatId?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type RaceEntry = {
+  id: string
+  racerId: string
+  status: RaceEntryStatus
+  checkedIn: boolean
+  inspectionPassed: boolean
+  notes: string
   createdAt: string
   updatedAt: string
 }
@@ -174,7 +201,7 @@ export type CreateEventInput = {
   name: string
   eventDate?: string
   trackName?: string
-  laneCount: number
+  laneCount?: number
   initialRace?: CreateRaceInput
 }
 
@@ -184,9 +211,13 @@ export type CreateRaceInput = {
   name: string
   tournamentType: TournamentType
   laneCount?: number
+  source?: RaceSource
+  schedulingOptions?: Partial<SchedulingOptions>
 }
 
-export type UpdateRaceInput = Partial<Pick<Race, 'name' | 'tournamentType' | 'laneCount' | 'status'>>
+export type UpdateRaceInput = Partial<Pick<Race, 'name' | 'tournamentType' | 'laneCount' | 'status' | 'source'>> & {
+  schedulingOptions?: Partial<SchedulingOptions>
+}
 
 export type AddRacerInput = {
   racerNumber: string
@@ -211,6 +242,20 @@ export type UpdateRacerInput = Partial<
     | 'notes'
   >
 >
+
+export type AddRaceEntryInput = {
+  racerId: string
+  checkedIn?: boolean
+  inspectionPassed?: boolean
+  notes?: string
+}
+
+export type RegisterRacerInput = AddRacerInput & {
+  checkedIn?: boolean
+  inspectionPassed?: boolean
+}
+
+export type UpdateRaceEntryInput = Partial<Pick<RaceEntry, 'status' | 'checkedIn' | 'inspectionPassed' | 'notes'>>
 
 export type AddStageInput = {
   name: string

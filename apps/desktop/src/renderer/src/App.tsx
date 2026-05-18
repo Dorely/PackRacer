@@ -1,15 +1,18 @@
-import { ClipboardList, Flag, LayoutDashboard, Monitor, Plus, Trophy, Users } from 'lucide-react'
+import { CalendarDays, ClipboardList, Flag, Monitor, Trophy, Users } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import type {
   AddRacerInput,
+  AddRaceEntryInput,
   AddStageInput,
   CreateEventInput,
   CreateFinalsStageInput,
   CreateRaceInput,
   EventSessionSnapshot,
   RecordHeatResultsInput,
+  RegisterRacerInput,
   RemovalResolutionStrategy,
+  UpdateRaceEntryInput,
   UpdateEventInput,
   UpdateRaceInput,
   UpdateRacerInput,
@@ -17,13 +20,14 @@ import type {
 } from '@packracer/race-engine'
 
 import { DisplayMode } from './sections/DisplayMode'
+import { Events } from './sections/Events'
 import { EventSetup } from './sections/EventSetup'
 import { RaceControl } from './sections/RaceControl'
 import { Registration } from './sections/Registration'
 import { Standings } from './sections/Standings'
-import type { AppActions } from './sections/types'
+import type { AppActions, ConfirmationRequest } from './sections/types'
 
-type SectionId = 'event' | 'registration' | 'race-control' | 'standings' | 'display'
+type SectionId = 'events' | 'event' | 'registration' | 'race-control' | 'standings' | 'display'
 
 type NavigationItem = {
   id: SectionId
@@ -41,12 +45,13 @@ function getPackRacerApi(): Window['packRacer'] {
 }
 
 export function App() {
-  const [activeSection, setActiveSection] = useState<SectionId>('event')
+  const [activeSection, setActiveSection] = useState<SectionId>('events')
   const [appVersion, setAppVersion] = useState('0.1.0')
   const [session, setSession] = useState<EventSessionSnapshot | null>(null)
   const [selectedRaceId, setSelectedRaceId] = useState('')
   const [selectedStageId, setSelectedStageId] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
+  const [confirmationRequest, setConfirmationRequest] = useState<ConfirmationRequest | null>(null)
 
   useEffect(() => {
     if (!window.packRacer) {
@@ -94,6 +99,9 @@ export function App() {
 
   const applySession = useCallback((nextSession: EventSessionSnapshot | null) => {
     if (!nextSession) {
+      setSession(null)
+      setSelectedRaceId('')
+      setSelectedStageId('')
       return
     }
 
@@ -120,22 +128,36 @@ export function App() {
       createEvent: (input: CreateEventInput) => runAction(() => getPackRacerApi().createEvent(input)),
       selectEvent: (eventId: string) => runAction(() => getPackRacerApi().selectEvent(eventId)),
       updateEvent: (input: UpdateEventInput) => runAction(() => getPackRacerApi().updateEvent(input)),
+      deleteEvent: (eventId: string) => runAction(() => getPackRacerApi().deleteEvent(eventId)),
       createRace: (input: CreateRaceInput) => runAction(() => getPackRacerApi().createRace(input)),
       updateRace: (raceId: string, input: UpdateRaceInput) => runAction(() => getPackRacerApi().updateRace(raceId, input)),
+      deleteRace: (raceId: string) => runAction(() => getPackRacerApi().deleteRace(raceId)),
+      populateRaceEntriesFromSource: (raceId: string) => runAction(() => getPackRacerApi().populateRaceEntriesFromSource(raceId)),
       addRacer: (input: AddRacerInput) => runAction(() => getPackRacerApi().addRacer(input)),
       updateRacer: (racerId: string, input: UpdateRacerInput) =>
         runAction(() => getPackRacerApi().updateRacer(racerId, input)),
+      deleteRacer: (racerId: string) => runAction(() => getPackRacerApi().deleteRacer(racerId)),
       scratchRacer: (racerId: string) => runAction(() => getPackRacerApi().scratchRacer(racerId)),
       resolveRacerRemoval: (strategy: RemovalResolutionStrategy) =>
         runAction(() => getPackRacerApi().resolveRacerRemoval(strategy)),
+      addRaceEntry: (raceId: string, input: AddRaceEntryInput) => runAction(() => getPackRacerApi().addRaceEntry(raceId, input)),
+      registerRacerForRace: (raceId: string, input: RegisterRacerInput) =>
+        runAction(() => getPackRacerApi().registerRacerForRace(raceId, input)),
+      updateRaceEntry: (raceId: string, entryId: string, input: UpdateRaceEntryInput) =>
+        runAction(() => getPackRacerApi().updateRaceEntry(raceId, entryId, input)),
+      removeRaceEntry: (raceId: string, entryId: string) => runAction(() => getPackRacerApi().removeRaceEntry(raceId, entryId)),
+      scratchRaceEntry: (raceId: string, entryId: string) => runAction(() => getPackRacerApi().scratchRaceEntry(raceId, entryId)),
       addStage: (raceId: string, input: AddStageInput) => runAction(() => getPackRacerApi().addStage(raceId, input)),
       updateStage: (raceId: string, stageId: string, input: UpdateStageInput) =>
         runAction(() => getPackRacerApi().updateStage(raceId, stageId, input)),
+      deleteStage: (raceId: string, stageId: string) => runAction(() => getPackRacerApi().deleteStage(raceId, stageId)),
       generateHeats: (raceId: string, stageId: string) => runAction(() => getPackRacerApi().generateHeats(raceId, stageId)),
       createFinalsStage: (raceId: string, input: CreateFinalsStageInput) =>
         runAction(() => getPackRacerApi().createFinalsStage(raceId, input)),
       recordHeatResults: (raceId: string, input: RecordHeatResultsInput) =>
         runAction(() => getPackRacerApi().recordHeatResults(raceId, input)),
+      clearHeatResults: (raceId: string, heatId: string) => runAction(() => getPackRacerApi().clearHeatResults(raceId, heatId)),
+      deleteHeat: (raceId: string, heatId: string) => runAction(() => getPackRacerApi().deleteHeat(raceId, heatId)),
       setCurrentHeat: (raceId: string, heatId: string) => runAction(() => getPackRacerApi().setCurrentHeat(raceId, heatId)),
       advanceHeat: (raceId: string) => runAction(() => getPackRacerApi().advanceHeat(raceId))
     }),
@@ -143,12 +165,13 @@ export function App() {
   )
 
   const navigationItems: NavigationItem[] = useMemo(() => {
-    const activeRacers = event?.racers.filter((racer) => racer.status === 'active').length ?? 0
+    const activeRacers = currentRace?.entries?.filter((entry) => entry.status === 'active').length ?? 0
     const heatCount = currentRace?.stages.reduce((total, stage) => total + stage.heats.length, 0) ?? 0
     const currentHeat = currentRace?.stages.flatMap((stage) => stage.heats).find((heat) => heat.id === currentRace.currentHeatId)
 
     return [
-      { id: 'event', label: 'Event Setup', meta: event?.status ?? 'No event', icon: ClipboardList },
+      { id: 'events', label: 'Events', meta: session?.events.length ? `${session.events.length} saved` : 'Start here', icon: CalendarDays },
+      { id: 'event', label: 'Race Setup', meta: event?.status ?? 'No event', icon: ClipboardList },
       { id: 'registration', label: 'Registration', meta: `${activeRacers} active`, icon: Users },
       { id: 'race-control', label: 'Race Control', meta: currentHeat ? `Heat ${currentHeat.heatNumber}` : 'Idle', icon: Flag },
       { id: 'standings', label: 'Standings', meta: heatCount > 0 ? 'Live' : 'Pending', icon: Trophy },
@@ -157,8 +180,8 @@ export function App() {
   }, [event, currentRace])
 
   const workflowStats = useMemo(() => {
-    const activeRacers = event?.racers.filter((racer) => racer.status === 'active').length ?? 0
-    const totalRacers = event?.racers.length ?? 0
+    const activeRacers = currentRace?.entries?.filter((entry) => entry.status === 'active').length ?? 0
+    const totalRacers = currentRace?.entries?.length ?? event?.racers.length ?? 0
     const heatCount = currentRace?.stages.reduce((total, stage) => total + stage.heats.length, 0) ?? 0
     const completeHeats =
       currentRace?.stages.reduce(
@@ -167,7 +190,7 @@ export function App() {
       ) ?? 0
 
     return [
-      { label: 'Competitors', value: `${activeRacers}`, detail: `${totalRacers} registered` },
+      { label: 'Race Entries', value: `${activeRacers}`, detail: `${totalRacers} registered` },
       { label: 'Races', value: `${event?.races.length ?? 0}`, detail: currentRace?.name ?? 'Not configured' },
       { label: 'Heats', value: `${completeHeats}/${heatCount}`, detail: heatCount > 0 ? 'Recorded / scheduled' : 'Not scheduled' },
       { label: 'Lanes', value: `${currentRace?.laneCount ?? event?.laneCount ?? 4}`, detail: event?.trackName ?? 'Default track' }
@@ -179,6 +202,25 @@ export function App() {
     [activeSection, navigationItems]
   )
 
+  const requestConfirmation = useCallback((request: ConfirmationRequest) => {
+    setConfirmationRequest(request)
+  }, [])
+
+  const cancelConfirmation = useCallback(() => {
+    setConfirmationRequest(null)
+  }, [])
+
+  const confirmPendingAction = useCallback(() => {
+    const request = confirmationRequest
+
+    if (!request) {
+      return
+    }
+
+    setConfirmationRequest(null)
+    void request.onConfirm()
+  }, [confirmationRequest])
+
   const sectionProps = {
     session,
     event,
@@ -187,7 +229,8 @@ export function App() {
     selectedRaceId,
     setSelectedRaceId,
     selectedStageId,
-    setSelectedStageId
+    setSelectedStageId,
+    requestConfirmation
   }
 
   return (
@@ -236,16 +279,6 @@ export function App() {
             <p className="eyebrow">{activeNavigationItem.meta}</p>
             <h2 id="workspace-title">{activeNavigationItem.label}</h2>
           </div>
-          <div className="topbar-actions">
-            <button className="secondary-action" onClick={() => setActiveSection('event')} type="button">
-              <LayoutDashboard aria-hidden="true" size={18} />
-              <span>Events</span>
-            </button>
-            <button className="primary-action" onClick={() => setActiveSection('event')} type="button">
-              <Plus aria-hidden="true" size={18} />
-              <span>New Event</span>
-            </button>
-          </div>
         </header>
 
         {errorMessage ? <div className="notice-banner" role="alert">{errorMessage}</div> : null}
@@ -267,11 +300,36 @@ export function App() {
           ))}
         </div>
 
+        {activeSection === 'events' ? <Events {...sectionProps} /> : null}
         {activeSection === 'event' ? <EventSetup {...sectionProps} /> : null}
         {activeSection === 'registration' ? <Registration {...sectionProps} /> : null}
         {activeSection === 'race-control' ? <RaceControl {...sectionProps} /> : null}
         {activeSection === 'standings' ? <Standings {...sectionProps} /> : null}
         {activeSection === 'display' ? <DisplayMode {...sectionProps} /> : null}
+
+        {confirmationRequest ? (
+          <div className="modal-backdrop" role="presentation">
+            <section aria-labelledby="confirmation-title" aria-modal="true" className="confirmation-dialog" role="dialog">
+              <div>
+                <p className="eyebrow">Confirm</p>
+                <h3 id="confirmation-title">{confirmationRequest.title}</h3>
+              </div>
+              <p>{confirmationRequest.message}</p>
+              <div className="dialog-actions">
+                <button className="secondary-action" onClick={cancelConfirmation} type="button">
+                  {confirmationRequest.cancelLabel ?? 'Cancel'}
+                </button>
+                <button
+                  className={confirmationRequest.destructive ? 'danger-action' : 'primary-action'}
+                  onClick={confirmPendingAction}
+                  type="button"
+                >
+                  {confirmationRequest.confirmLabel ?? 'Confirm'}
+                </button>
+              </div>
+            </section>
+          </div>
+        ) : null}
       </section>
     </main>
   )

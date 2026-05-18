@@ -27,7 +27,9 @@ export function stageSummary(stage: Stage): string {
 
 export function raceSummary(race: Race): string {
   const heatCount = race.stages.reduce((total, stage) => total + stage.heats.length, 0)
-  return `${formatStatus(race.tournamentType)} - ${race.stages.length} stages - ${heatCount} heats`
+  const entryCount = race.entries?.length ?? 0
+  const sourceLabel = race.source ? ` - top ${race.source.topCount} from source` : ''
+  return `${formatStatus(race.tournamentType)} - ${entryCount} entries - ${race.stages.length} stages - ${heatCount} heats${sourceLabel}`
 }
 
 export function heatLabel(heat: Heat): string {

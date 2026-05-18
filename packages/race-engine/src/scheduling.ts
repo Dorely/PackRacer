@@ -6,6 +6,7 @@ import {
   type LaneAssignment,
   type LaneResult,
   type Race,
+  type RaceEntry,
   type RaceEvent,
   type Racer,
   type RecordHeatResultsInput,
@@ -21,7 +22,19 @@ function findRace(event: RaceEvent, raceId: string): Race {
     throw new Error('Race was not found.')
   }
 
+  race.entries ??= []
+  race.schedulingOptions ??= { avoidSameLane: true, avoidSameOpponents: true }
   return race
+}
+
+function findStage(race: Race, stageId: string): Stage {
+  const stage = race.stages.find((candidate) => candidate.id === stageId)
+
+  if (!stage) {
+    throw new Error('Stage was not found.')
+  }
+
+  return stage
 }
 
 function makeHeat(stage: Stage, heatNumber: number, roundNumber: number, assignments: LaneAssignment[]): Heat {
@@ -53,22 +66,92 @@ function fillOpenLanes(assignments: LaneAssignment[], laneCount: number): LaneAs
   return nextAssignments.sort((first, second) => first.lane - second.lane)
 }
 
-function timedOrPointsHeats(stage: Stage, racers: Racer[]): Heat[] {
+function pairKey(firstRacerId: string, secondRacerId: string): string {
+  return [firstRacerId, secondRacerId].sort().join(':')
+}
+
+function recordHeatHistory(
+  heat: Heat,
+  laneHistory: Map<string, Set<number>>,
+  opponentCounts: Map<string, number>,
+  runCounts: Map<string, number>
+): void {
+  const racerAssignments = heat.laneAssignments.filter(
+    (assignment): assignment is LaneAssignment & { racerId: string } => Boolean(assignment.racerId)
+  )
+
+  for (const assignment of racerAssignments) {
+    laneHistory.get(assignment.racerId)?.add(assignment.lane) ?? laneHistory.set(assignment.racerId, new Set([assignment.lane]))
+    runCounts.set(assignment.racerId, (runCounts.get(assignment.racerId) ?? 0) + 1)
+  }
+
+  for (let firstIndex = 0; firstIndex < racerAssignments.length; firstIndex += 1) {
+    for (let secondIndex = firstIndex + 1; secondIndex < racerAssignments.length; secondIndex += 1) {
+      const key = pairKey(racerAssignments[firstIndex].racerId, racerAssignments[secondIndex].racerId)
+      opponentCounts.set(key, (opponentCounts.get(key) ?? 0) + 1)
+    }
+  }
+}
+
+function timedOrPointsHeats(stage: Stage, race: Race, racers: Racer[], preservedHeats: Heat[]): Heat[] {
   const heats: Heat[] = []
   const laneCount = normalizeLaneCount(stage.laneCount)
+  const laneHistory = new Map<string, Set<number>>()
+  const opponentCounts = new Map<string, number>()
+  const runCounts = new Map<string, number>()
+  const schedulingOptions = {
+    avoidSameLane: race.schedulingOptions?.avoidSameLane ?? true,
+    avoidSameOpponents: race.schedulingOptions?.avoidSameOpponents ?? true
+  }
+
+  for (const heat of preservedHeats) {
+    recordHeatHistory(heat, laneHistory, opponentCounts, runCounts)
+  }
+
   let heatNumber = 1
 
   for (let roundIndex = 0; roundIndex < stage.roundsPerRacer; roundIndex += 1) {
     const rotatedRacers = racers.slice(roundIndex).concat(racers.slice(0, roundIndex))
+    let remainingRacers = rotatedRacers.filter((racer) => (runCounts.get(racer.id) ?? 0) < stage.roundsPerRacer)
 
-    for (let startIndex = 0; startIndex < rotatedRacers.length; startIndex += laneCount) {
-      const heatRacers = rotatedRacers.slice(startIndex, startIndex + laneCount)
-      const assignments = heatRacers.map((racer, racerIndex) => ({
-        lane: ((racerIndex + roundIndex) % laneCount) + 1,
-        racerId: racer.id
-      }))
+    while (remainingRacers.length > 0) {
+      const assignments: LaneAssignment[] = []
+      const selectedRacerIds: string[] = []
 
-      heats.push(makeHeat(stage, heatNumber, roundIndex + 1, fillOpenLanes(assignments, laneCount)))
+      for (let lane = 1; lane <= laneCount && remainingRacers.length > 0; lane += 1) {
+        const bestCandidate = remainingRacers
+          .map((racer, index) => {
+            const repeatedLane = laneHistory.get(racer.id)?.has(lane) ? 1 : 0
+            const repeatedOpponents = selectedRacerIds.reduce(
+              (total, selectedRacerId) => total + (opponentCounts.get(pairKey(racer.id, selectedRacerId)) ?? 0),
+              0
+            )
+            const runBalance = runCounts.get(racer.id) ?? 0
+
+            return {
+              racer,
+              index,
+              penalty:
+                (schedulingOptions.avoidSameLane ? repeatedLane * 1000 : 0) +
+                (schedulingOptions.avoidSameOpponents ? repeatedOpponents * 100 : 0) +
+                runBalance * 10 +
+                index
+            }
+          })
+          .sort((first, second) => first.penalty - second.penalty || first.racer.racerNumber.localeCompare(second.racer.racerNumber, undefined, { numeric: true }))[0]
+
+        if (!bestCandidate) {
+          break
+        }
+
+        assignments.push({ lane, racerId: bestCandidate.racer.id })
+        selectedRacerIds.push(bestCandidate.racer.id)
+        remainingRacers = remainingRacers.filter((_, index) => index !== bestCandidate.index)
+      }
+
+      const heat = makeHeat(stage, heatNumber, roundIndex + 1, fillOpenLanes(assignments, laneCount))
+      recordHeatHistory(heat, laneHistory, opponentCounts, runCounts)
+      heats.push(heat)
       heatNumber += 1
     }
   }
@@ -245,32 +328,80 @@ function advanceEliminationRounds(event: RaceEvent, raceId: string, stageId: str
   return nextEvent
 }
 
+export function populateRaceEntriesFromSource(event: RaceEvent, raceId: string): RaceEvent {
+  const nextEvent = copyEvent(event)
+  const targetRace = findRace(nextEvent, raceId)
+
+  if (!targetRace.source) {
+    throw new Error('This race does not have a source race configured.')
+  }
+
+  if (targetRace.stages.some((stage) => stage.heats.some((heat) => heat.status === 'complete'))) {
+    throw new Error('Clear completed heats before replacing this race roster from a source race.')
+  }
+
+  const sourceStandings = calculateStandings(nextEvent, targetRace.source.sourceRaceId, targetRace.source.sourceStageId)
+  const existingEntries = new Map((targetRace.entries ?? []).map((entry) => [entry.racerId, entry]))
+  const createdAt = nowIso()
+  const entries: RaceEntry[] = sourceStandings
+    .filter((standing) => standing.score !== null && standing.racerStatus === 'active')
+    .slice(0, Math.max(1, targetRace.source.topCount))
+    .map((standing) => {
+      const existingEntry = existingEntries.get(standing.racerId)
+
+      return {
+        id: existingEntry?.id ?? createId('entry'),
+        racerId: standing.racerId,
+        status: 'active',
+        checkedIn: existingEntry?.checkedIn ?? true,
+        inspectionPassed: existingEntry?.inspectionPassed ?? true,
+        notes: existingEntry?.notes ?? '',
+        createdAt: existingEntry?.createdAt ?? createdAt,
+        updatedAt: createdAt
+      }
+    })
+
+  if (entries.length === 0) {
+    throw new Error('No source standings are ready to populate this race.')
+  }
+
+  targetRace.entries = entries
+  targetRace.currentHeatId = undefined
+  targetRace.status = 'draft'
+
+  for (const stage of targetRace.stages) {
+    stage.heats = []
+    stage.status = 'draft'
+    stage.updatedAt = createdAt
+  }
+
+  targetRace.updatedAt = createdAt
+  nextEvent.currentRaceId = targetRace.id
+  nextEvent.updatedAt = createdAt
+  return nextEvent
+}
+
 export function generateStageHeats(event: RaceEvent, raceId: string, stageId: string): RaceEvent {
   let nextEvent = copyEvent(event)
   const race = findRace(nextEvent, raceId)
-  const stage = race.stages.find((candidate) => candidate.id === stageId)
-
-  if (!stage) {
-    throw new Error('Stage was not found.')
-  }
-
-  const racers = getEligibleRacers(nextEvent, stage)
+  const stage = findStage(race, stageId)
+  const racers = getEligibleRacers(nextEvent, stage, race)
 
   if (racers.length === 0) {
-    throw new Error('Add at least one active racer before generating heats.')
+    throw new Error('Add at least one active racer to this race before generating heats.')
   }
 
   const preservedHeats = stage.heats.filter((heat) => heat.status === 'complete')
   const generatedHeats = (() => {
     switch (stage.format) {
       case 'round-robin':
-        return roundRobinHeats(stage, racers)
+        return preservedHeats.length > 0 ? [] : roundRobinHeats(stage, racers)
       case 'single-elimination':
-        return singleEliminationHeats(stage, racers)
+        return preservedHeats.length > 0 ? [] : singleEliminationHeats(stage, racers)
       case 'points-heats':
       case 'timed-heats':
       default:
-        return timedOrPointsHeats(stage, racers)
+        return timedOrPointsHeats(stage, race, racers, preservedHeats)
     }
   })()
 
@@ -342,6 +473,48 @@ export function recordHeatResults(event: RaceEvent, raceId: string, input: Recor
 
   const nextRace = findRace(nextEvent, race.id)
   nextRace.currentHeatId = nextPendingHeat(nextRace)?.id
+  return nextEvent
+}
+
+export function clearHeatResults(event: RaceEvent, raceId: string, heatId: string): RaceEvent {
+  const nextEvent = copyEvent(event)
+  const race = findRace(nextEvent, raceId)
+  const stage = race.stages.find((candidate) => candidate.heats.some((heat) => heat.id === heatId))
+  const heat = stage?.heats.find((candidate) => candidate.id === heatId)
+
+  if (!stage || !heat) {
+    throw new Error('Heat was not found.')
+  }
+
+  heat.results = []
+  heat.notes = undefined
+  heat.status = 'pending'
+  heat.updatedAt = nowIso()
+  stage.status = 'scheduled'
+  stage.updatedAt = heat.updatedAt
+  race.currentStageId = stage.id
+  race.currentHeatId = heat.id
+  race.updatedAt = heat.updatedAt
+  nextEvent.currentRaceId = race.id
+  nextEvent.updatedAt = heat.updatedAt
+  return nextEvent
+}
+
+export function deleteHeat(event: RaceEvent, raceId: string, heatId: string): RaceEvent {
+  const nextEvent = copyEvent(event)
+  const race = findRace(nextEvent, raceId)
+  const stage = race.stages.find((candidate) => candidate.heats.some((heat) => heat.id === heatId))
+
+  if (!stage) {
+    throw new Error('Heat was not found.')
+  }
+
+  stage.heats = renumberHeats(stage.heats.filter((heat) => heat.id !== heatId))
+  stage.updatedAt = nowIso()
+  race.currentHeatId = race.currentHeatId === heatId ? nextPendingHeat(race)?.id : race.currentHeatId
+  race.updatedAt = stage.updatedAt
+  nextEvent.currentRaceId = race.id
+  nextEvent.updatedAt = stage.updatedAt
   return nextEvent
 }
 

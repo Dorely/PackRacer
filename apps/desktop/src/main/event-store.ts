@@ -106,6 +106,10 @@ function setActiveEventId(database: SqlDatabase, eventId: string): void {
   database.run('INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)', ['activeEventId', eventId])
 }
 
+function clearActiveEventId(database: SqlDatabase): void {
+  database.run('DELETE FROM metadata WHERE key = ?', ['activeEventId'])
+}
+
 function eventSummaries(database: SqlDatabase): EventSummary[] {
   return queryAll<{
     id: string
@@ -284,4 +288,46 @@ export function closeEventStore(): void {
   activeDatabase = null
   databasePromise = null
   activeEvent = null
+}
+
+export async function deleteEventSession(eventId: string): Promise<EventSessionSnapshot | null> {
+  const database = await openDatabase()
+
+  database.run('BEGIN TRANSACTION')
+
+  try {
+    database.run('DELETE FROM event_state WHERE id = ?', [eventId])
+    database.run('DELETE FROM audit_log WHERE event_id = ?', [eventId])
+
+    if (activeEvent?.id === eventId || activeEventId(database) === eventId) {
+      activeEvent = null
+      clearActiveEventId(database)
+    }
+
+    database.run('COMMIT')
+    persistDatabase(database)
+  } catch (error) {
+    database.run('ROLLBACK')
+    throw error
+  }
+
+  if (!activeEvent) {
+    const nextEventId = eventSummaries(database)[0]?.id
+
+    if (!nextEventId) {
+      return null
+    }
+
+    const nextEvent = loadEvent(nextEventId, database)
+
+    if (!nextEvent) {
+      return null
+    }
+
+    activeEvent = nextEvent
+    setActiveEventId(database, nextEvent.id)
+    persistDatabase(database)
+  }
+
+  return snapshot(database)
 }

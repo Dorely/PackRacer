@@ -1,9 +1,9 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { ChevronRight, Flag, Play, RotateCcw } from 'lucide-react'
 
-import type { Heat, LaneResultStatus } from '@packracer/race-engine'
+import { calculateStandings, type Heat, type LaneResultStatus } from '@packracer/race-engine'
 
-import { formatStatus, heatLabel, racerLabel } from '../formatters'
+import { formatStatus, formatTime, heatLabel, racerLabel } from '../formatters'
 import type { SectionProps } from './types'
 
 type ResultDraft = {
@@ -16,17 +16,27 @@ function initialDraft(heat: Heat | undefined): Record<number, ResultDraft> {
   const draft: Record<number, ResultDraft> = {}
 
   for (const assignment of heat?.laneAssignments ?? []) {
+    const result = heat?.results.find((candidate) => candidate.lane === assignment.lane)
     draft[assignment.lane] = {
-      status: 'ok',
-      timeSeconds: '',
-      finishPosition: assignment.racerId ? `${assignment.lane}` : ''
+      status: result?.status ?? 'ok',
+      timeSeconds: typeof result?.timeMs === 'number' ? `${result.timeMs / 1000}` : '',
+      finishPosition: typeof result?.finishPosition === 'number' ? `${result.finishPosition}` : assignment.racerId ? `${assignment.lane}` : ''
     }
   }
 
   return draft
 }
 
-export function RaceControl({ event, currentRace, actions, selectedRaceId, setSelectedRaceId, selectedStageId, setSelectedStageId }: SectionProps) {
+export function RaceControl({
+  event,
+  currentRace,
+  actions,
+  selectedRaceId,
+  setSelectedRaceId,
+  selectedStageId,
+  setSelectedStageId,
+  requestConfirmation
+}: SectionProps) {
   const selectedStage = currentRace?.stages.find((stage) => stage.id === selectedStageId) ?? currentRace?.stages[0]
   const allHeats = selectedStage?.heats ?? []
   const currentHeat =
@@ -38,6 +48,14 @@ export function RaceControl({ event, currentRace, actions, selectedRaceId, setSe
   }, [currentHeat?.id])
 
   const completedHeats = useMemo(() => allHeats.filter((heat) => heat.status === 'complete').length, [allHeats])
+  const entryByRacerId = useMemo(
+    () => new Map(currentRace?.entries?.map((entry) => [entry.racerId, entry]) ?? []),
+    [currentRace]
+  )
+  const liveStandings = useMemo(
+    () => (event && currentRace && selectedStage ? calculateStandings(event, currentRace.id, selectedStage.id).slice(0, 6) : []),
+    [event, currentRace, selectedStage]
+  )
 
   const updateDraft = (lane: number, patch: Partial<ResultDraft>) => {
     setResultDrafts((previous) => ({
@@ -73,6 +91,44 @@ export function RaceControl({ event, currentRace, actions, selectedRaceId, setSe
       })
 
     void actions.recordHeatResults(currentRace.id, { heatId: currentHeat.id, results })
+  }
+
+  const scratchLaneRacer = (racerId: string) => {
+    const entry = entryByRacerId.get(racerId)
+
+    if (currentRace && entry) {
+      requestConfirmation({
+        title: 'Scratch racer',
+        message: 'Scratch this racer from the selected race?',
+        confirmLabel: 'Scratch Racer',
+        destructive: true,
+        onConfirm: () => actions.scratchRaceEntry(currentRace.id, entry.id)
+      })
+    }
+  }
+
+  const clearHeat = (heatId: string) => {
+    if (currentRace) {
+      requestConfirmation({
+        title: 'Clear heat result',
+        message: 'Clear this heat result and mark it pending again?',
+        confirmLabel: 'Clear Result',
+        destructive: true,
+        onConfirm: () => actions.clearHeatResults(currentRace.id, heatId)
+      })
+    }
+  }
+
+  const deleteHeat = (heatId: string) => {
+    if (currentRace) {
+      requestConfirmation({
+        title: 'Delete heat',
+        message: 'Delete this heat from the schedule?',
+        confirmLabel: 'Delete Heat',
+        destructive: true,
+        onConfirm: () => actions.deleteHeat(currentRace.id, heatId)
+      })
+    }
   }
 
   if (!event) {
@@ -171,6 +227,9 @@ export function RaceControl({ event, currentRace, actions, selectedRaceId, setSe
                         <option value="dnf">DNF</option>
                         <option value="dq">DQ</option>
                       </select>
+                      <button className="danger-action" onClick={() => scratchLaneRacer(assignment.racerId as string)} type="button">
+                        Scratch
+                      </button>
                     </>
                   ) : null}
                 </div>
@@ -185,6 +244,21 @@ export function RaceControl({ event, currentRace, actions, selectedRaceId, setSe
         ) : (
           <p className="empty-state">Generate heats to start this stage.</p>
         )}
+
+        <div className="live-standings-panel">
+          <strong>Live stats</strong>
+          <ol className="leader-list compact">
+            {liveStandings.map((standing) => (
+              <li key={standing.racerId}>
+                <span>
+                  {standing.rank}. #{standing.racerNumber} {standing.racerName}
+                </span>
+                <strong>{standing.bestTimeMs ? formatTime(standing.bestTimeMs) : standing.scoreLabel}</strong>
+              </li>
+            ))}
+          </ol>
+          {liveStandings.length === 0 ? <p className="empty-state">Record a heat to start live stats.</p> : null}
+        </div>
       </div>
 
       <div className="race-panel next-actions">
@@ -196,18 +270,40 @@ export function RaceControl({ event, currentRace, actions, selectedRaceId, setSe
           <Flag aria-hidden="true" size={24} />
         </div>
 
+        {event.activeRemovalImpact ? (
+          <div className="decision-panel">
+            <strong>Resolve scratched racer schedule</strong>
+            <span>{event.activeRemovalImpact.affectedHeatIds.length} pending heat(s) need an operator decision.</span>
+            <div className="button-row">
+              <button className="secondary-action" onClick={() => void actions.resolveRacerRemoval('keep-empty-lanes')} type="button">
+                Keep Empty Lanes
+              </button>
+              <button className="secondary-action" onClick={() => void actions.resolveRacerRemoval('regenerate-pending')} type="button">
+                Regenerate Pending
+              </button>
+              <button className="secondary-action" onClick={() => void actions.resolveRacerRemoval('invalidate-pending')} type="button">
+                Leave Flagged
+              </button>
+            </div>
+          </div>
+        ) : null}
+
         <div className="heat-list">
           {allHeats.map((heat) => (
-            <button
-              className="heat-list-item"
-              data-active={heat.id === currentHeat?.id}
-              key={heat.id}
-              onClick={() => void actions.setCurrentHeat(currentRace.id, heat.id)}
-              type="button"
-            >
-              <strong>Heat {heat.heatNumber}</strong>
-              <span>{formatStatus(heat.status)}</span>
-            </button>
+            <article className="heat-list-item" data-active={heat.id === currentHeat?.id} key={heat.id}>
+              <button className="bare-select" onClick={() => void actions.setCurrentHeat(currentRace.id, heat.id)} type="button">
+                <strong>Heat {heat.heatNumber}</strong>
+                <span>{formatStatus(heat.status)}</span>
+              </button>
+              <div className="button-row nowrap">
+                <button className="mini-action" disabled={heat.status !== 'complete'} onClick={() => clearHeat(heat.id)} type="button">
+                  Clear
+                </button>
+                <button className="danger-action" onClick={() => deleteHeat(heat.id)} type="button">
+                  Delete
+                </button>
+              </div>
+            </article>
           ))}
           {allHeats.length === 0 ? <p className="empty-state">No heats scheduled yet.</p> : null}
         </div>

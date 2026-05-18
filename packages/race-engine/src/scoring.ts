@@ -1,5 +1,5 @@
-import type { Heat, LaneResult, RaceEvent, ScoringMode, Stage, Standing } from './types'
-import { formatMilliseconds } from './helpers'
+import type { Heat, LaneResult, Race, RaceEvent, ScoringMode, Stage, Standing } from './types'
+import { formatMilliseconds, sortRacers } from './helpers'
 
 type StandingDraft = Omit<Standing, 'rank' | 'scoreLabel'> & {
   rank: number
@@ -37,14 +37,23 @@ function scorePoints(result: LaneResult, laneCount: number, scoringMode: Scoring
   return Math.max(0, laneCount - position + 1)
 }
 
-function createDrafts(event: RaceEvent, stage: Stage): Map<string, StandingDraft> {
+function createDrafts(event: RaceEvent, race: Race, stage: Stage): Map<string, StandingDraft> {
   const eligibleIds = stage.eligibleRacerIds ? new Set(stage.eligibleRacerIds) : null
+  const entries = race.entries ?? []
+  const entryByRacerId = new Map(entries.map((entry) => [entry.racerId, entry]))
+  const registeredRacerIds = entries.length > 0 ? new Set(entries.map((entry) => entry.racerId)) : null
   const drafts = new Map<string, StandingDraft>()
 
-  for (const racer of event.racers) {
+  for (const racer of sortRacers(event.racers)) {
+    if (registeredRacerIds && !registeredRacerIds.has(racer.id)) {
+      continue
+    }
+
     if (eligibleIds && !eligibleIds.has(racer.id)) {
       continue
     }
+
+    const entry = entryByRacerId.get(racer.id)
 
     drafts.set(racer.id, {
       rank: 0,
@@ -52,7 +61,7 @@ function createDrafts(event: RaceEvent, stage: Stage): Map<string, StandingDraft
       racerNumber: racer.racerNumber,
       racerName: racer.name,
       division: racer.division,
-      racerStatus: racer.status,
+      racerStatus: entry?.status ?? racer.status,
       completedHeats: 0,
       score: null,
       resultTimes: [],
@@ -124,11 +133,11 @@ export function calculateStandings(event: RaceEvent, raceId?: string, stageId?: 
   const race = event.races.find((candidate) => candidate.id === (raceId ?? event.currentRaceId)) ?? event.races[0]
   const stage = race?.stages.find((candidate) => candidate.id === (stageId ?? race.currentStageId)) ?? race?.stages[0]
 
-  if (!stage) {
+  if (!race || !stage) {
     return []
   }
 
-  const drafts = createDrafts(event, stage)
+  const drafts = createDrafts(event, race, stage)
   const heats = activeHeats(stage)
 
   for (const heat of heats) {

@@ -42,8 +42,24 @@ textarea {
   border-radius: 8px;
   padding: 8px 10px;
   color: #17211d;
+  caret-color: #17211d;
   background: #ffffff;
   font: inherit;
+  user-select: text;
+}
+
+input,
+textarea {
+  cursor: text;
+}
+
+select {
+  cursor: pointer;
+}
+
+input[type="checkbox"] {
+  width: auto;
+  min-height: 0;
 }
 
 input:focus,
@@ -272,6 +288,44 @@ label {
   background: #fff3d8;
 }
 
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(23, 33, 29, 0.42);
+}
+
+.confirmation-dialog {
+  display: grid;
+  gap: 18px;
+  width: min(460px, 100%);
+  padding: 22px;
+  border: 1px solid #d5ded8;
+  border-radius: 8px;
+  color: #26352f;
+  background: #ffffff;
+  box-shadow: 0 22px 48px rgba(22, 53, 44, 0.22);
+}
+
+.confirmation-dialog h3,
+.confirmation-dialog p {
+  margin: 0;
+}
+
+.confirmation-dialog h3 {
+  color: #17211d;
+  font-size: 22px;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
 .status-strip {
   display: grid;
   grid-template-columns: repeat(4, minmax(150px, 1fr));
@@ -352,7 +406,7 @@ label {
 
 .compact-form {
   display: grid;
-  grid-template-columns: minmax(160px, 1.2fr) minmax(150px, 1fr) 120px auto;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   align-items: end;
   gap: 12px;
 }
@@ -391,6 +445,23 @@ label {
   background: #f8fbf9;
 }
 
+.list-card[data-active="true"] {
+  border-color: #2d6f7a;
+  background: #e8f3f1;
+}
+
+.bare-select {
+  display: grid;
+  flex: 1;
+  gap: 4px;
+  min-width: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
 .selectable-card {
   width: 100%;
   cursor: pointer;
@@ -423,7 +494,6 @@ label {
 
 .heat-list-item {
   width: 100%;
-  cursor: pointer;
   grid-template-columns: 1fr auto;
   text-align: left;
 }
@@ -494,9 +564,41 @@ label {
 }
 
 .result-row {
-  grid-template-columns: 76px minmax(160px, 1fr) 100px 86px 90px;
+  grid-template-columns: 76px minmax(160px, 1fr) 100px 86px 90px auto;
   gap: 10px;
   min-height: 66px;
+}
+
+.toggle-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.inline-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 10px 12px;
+  border: 1px solid #d9e2dd;
+  border-radius: 8px;
+  color: #26352f;
+  background: #f8fbf9;
+}
+
+.button-row.nowrap {
+  flex-wrap: nowrap;
+}
+
+.stage-form {
+  border-top: 1px solid #e0e8e3;
+  padding-top: 18px;
+}
+
+.registration-table input {
+  min-width: 92px;
+  margin: 2px 0;
 }
 
 .race-control-layout {
@@ -632,6 +734,25 @@ label {
   font-size: 18px;
 }
 
+.live-standings-panel {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #d9e2dd;
+  border-radius: 8px;
+  background: #f8fbf9;
+}
+
+.live-standings-panel > strong {
+  color: #17211d;
+}
+
+.live-standings-panel .leader-list li {
+  border-bottom-color: #d9e2dd;
+  color: #26352f;
+  font-size: 14px;
+}
+
 .lane-row strong {
   color: #1f2723;
 }
@@ -675,7 +796,8 @@ label {
   }
 
   .compact-form,
-  .result-row {
+  .result-row,
+  .toggle-grid {
     grid-template-columns: 1fr;
   }
 }

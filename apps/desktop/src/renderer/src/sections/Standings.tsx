@@ -113,10 +113,20 @@ export function Standings({ event, currentRace, actions, selectedRaceId, setSele
         <div className="panel-heading">
           <div>
             <p className="eyebrow">Advancement</p>
-            <h3>Create finals</h3>
+            <h3>{currentRace.source ? 'Source race' : 'Create finals'}</h3>
           </div>
           <Award aria-hidden="true" size={24} />
         </div>
+
+        {currentRace.source ? (
+          <div className="decision-panel">
+            <strong>Populate this race from its source</strong>
+            <span>Top {currentRace.source.topCount} eligible racers will replace the current roster before heats are generated.</span>
+            <button className="secondary-action" onClick={() => void actions.populateRaceEntriesFromSource(currentRace.id)} type="button">
+              Populate Entries
+            </button>
+          </div>
+        ) : null}
 
         <div className="form-grid">
           <label>

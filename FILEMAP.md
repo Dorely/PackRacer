@@ -70,9 +70,10 @@
 | File | Description |
 |------|-------------|
 | `apps/desktop/src/renderer/src/sections/DisplayMode.tsx` | In-app display board for current heat lane assignments and leader standings. |
-| `apps/desktop/src/renderer/src/sections/EventSetup.tsx` | Event settings, event selection, race creation, and race stage setup workflow. |
+| `apps/desktop/src/renderer/src/sections/Events.tsx` | Event create, select, edit, and delete screen shown at app startup. |
+| `apps/desktop/src/renderer/src/sections/EventSetup.tsx` | Race creation, race dependency configuration, scheduling options, and race stage setup workflow. |
 | `apps/desktop/src/renderer/src/sections/RaceControl.tsx` | Race-scoped heat selection, result entry, status marking, and heat cycling workflow. |
-| `apps/desktop/src/renderer/src/sections/Registration.tsx` | Racer registration, check-in/inspection toggles, scratching, and removal resolution controls. |
+| `apps/desktop/src/renderer/src/sections/Registration.tsx` | Race-scoped racer registration, roster edits, check-in/inspection toggles, scratching, and removal controls. |
 | `apps/desktop/src/renderer/src/sections/Standings.tsx` | Race-scoped live standings table and finals-stage advancement workflow. |
 | `apps/desktop/src/renderer/src/sections/types.ts` | Shared renderer section prop and action types. |
 

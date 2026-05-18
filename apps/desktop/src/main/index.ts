@@ -2,30 +2,44 @@ import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { join } from 'node:path'
 
 import {
+  addRaceEntry,
   addRacer,
   addRace,
   addStageToRace,
+  deleteRace,
+  deleteRacer,
+  deleteStageFromRace,
+  registerRacerForRace,
+  removeRaceEntry,
+  scratchRaceEntry,
   scratchRacer,
   updateEventSettings,
   updateRace,
+  updateRaceEntry,
   updateRacer,
   updateStageInRace,
+  type AddRaceEntryInput,
   type AddRacerInput,
   type AddStageInput,
   type CreateEventInput,
   type CreateFinalsStageInput,
   type CreateRaceInput,
   type RecordHeatResultsInput,
+  type RegisterRacerInput,
   type RemovalResolutionStrategy,
   type UpdateEventInput,
+  type UpdateRaceEntryInput,
   type UpdateRaceInput,
   type UpdateRacerInput,
   type UpdateStageInput
 } from '@packracer/race-engine'
 import {
   advanceToNextHeat,
+  clearHeatResults,
   createFinalsStage,
+  deleteHeat,
   generateStageHeats,
+  populateRaceEntriesFromSource,
   recordHeatResults,
   resolveRacerRemoval,
   setCurrentHeat
@@ -34,6 +48,7 @@ import {
 import {
   closeEventStore,
   createEventSession,
+  deleteEventSession,
   getCurrentEventSession,
   listEventSessions,
   mutateEvent,
@@ -41,6 +56,7 @@ import {
 } from './event-store.ts'
 
 const isDevelopment = Boolean(process.env.ELECTRON_RENDERER_URL)
+const shouldOpenDevTools = process.env.PACKRACER_OPEN_DEVTOOLS === '1'
 
 function createMainWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -67,7 +83,14 @@ function createMainWindow(): void {
 
   if (isDevelopment && process.env.ELECTRON_RENDERER_URL) {
     void mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL)
-    mainWindow.webContents.openDevTools({ mode: 'detach' })
+
+    if (shouldOpenDevTools) {
+      mainWindow.webContents.openDevTools({ mode: 'detach' })
+    }
+
+    mainWindow.once('ready-to-show', () => {
+      mainWindow.focus()
+    })
     return
   }
 
@@ -90,6 +113,8 @@ ipcMain.handle('event:update', (_event, input: UpdateEventInput) =>
   mutateEvent('event:update', (raceEvent) => updateEventSettings(raceEvent, input), input)
 )
 
+ipcMain.handle('event:delete', (_event, eventId: string) => deleteEventSession(eventId))
+
 ipcMain.handle('race:create', (_event, input: CreateRaceInput) =>
   mutateEvent('race:create', (raceEvent) => addRace(raceEvent, input), { name: input.name, tournamentType: input.tournamentType })
 )
@@ -98,12 +123,24 @@ ipcMain.handle('race:update', (_event, raceId: string, input: UpdateRaceInput) =
   mutateEvent('race:update', (raceEvent) => updateRace(raceEvent, raceId, input), { raceId, input }, raceId)
 )
 
+ipcMain.handle('race:delete', (_event, raceId: string) =>
+  mutateEvent('race:delete', (raceEvent) => deleteRace(raceEvent, raceId), { raceId }, raceId)
+)
+
+ipcMain.handle('race:populate-from-source', (_event, raceId: string) =>
+  mutateEvent('race:populate-from-source', (raceEvent) => populateRaceEntriesFromSource(raceEvent, raceId), { raceId }, raceId)
+)
+
 ipcMain.handle('racer:add', (_event, input: AddRacerInput) =>
   mutateEvent('racer:add', (raceEvent) => addRacer(raceEvent, input), { name: input.name, number: input.racerNumber })
 )
 
 ipcMain.handle('racer:update', (_event, racerId: string, input: UpdateRacerInput) =>
   mutateEvent('racer:update', (raceEvent) => updateRacer(raceEvent, racerId, input), { racerId, input })
+)
+
+ipcMain.handle('racer:delete', (_event, racerId: string) =>
+  mutateEvent('racer:delete', (raceEvent) => deleteRacer(raceEvent, racerId), { racerId })
 )
 
 ipcMain.handle('racer:scratch', (_event, racerId: string) =>
@@ -118,12 +155,36 @@ ipcMain.handle('racer:resolve-removal', (_event, strategy: RemovalResolutionStra
   mutateEvent('racer:resolve-removal', (raceEvent) => resolveRacerRemoval(raceEvent, strategy), { strategy })
 )
 
+ipcMain.handle('race-entry:add', (_event, raceId: string, input: AddRaceEntryInput) =>
+  mutateEvent('race-entry:add', (raceEvent) => addRaceEntry(raceEvent, raceId, input), { raceId, input }, raceId)
+)
+
+ipcMain.handle('race-entry:register-racer', (_event, raceId: string, input: RegisterRacerInput) =>
+  mutateEvent('race-entry:register-racer', (raceEvent) => registerRacerForRace(raceEvent, raceId, input), { raceId, input }, raceId)
+)
+
+ipcMain.handle('race-entry:update', (_event, raceId: string, entryId: string, input: UpdateRaceEntryInput) =>
+  mutateEvent('race-entry:update', (raceEvent) => updateRaceEntry(raceEvent, raceId, entryId, input), { raceId, entryId, input }, raceId)
+)
+
+ipcMain.handle('race-entry:remove', (_event, raceId: string, entryId: string) =>
+  mutateEvent('race-entry:remove', (raceEvent) => removeRaceEntry(raceEvent, raceId, entryId), { raceId, entryId }, raceId)
+)
+
+ipcMain.handle('race-entry:scratch', (_event, raceId: string, entryId: string) =>
+  mutateEvent('race-entry:scratch', (raceEvent) => scratchRaceEntry(raceEvent, raceId, entryId).event, { raceId, entryId }, raceId)
+)
+
 ipcMain.handle('stage:add', (_event, raceId: string, input: AddStageInput) =>
   mutateEvent('stage:add', (raceEvent) => addStageToRace(raceEvent, raceId, input), { raceId, name: input.name, format: input.format }, raceId)
 )
 
 ipcMain.handle('stage:update', (_event, raceId: string, stageId: string, input: UpdateStageInput) =>
   mutateEvent('stage:update', (raceEvent) => updateStageInRace(raceEvent, raceId, stageId, input), { raceId, stageId, input }, raceId)
+)
+
+ipcMain.handle('stage:delete', (_event, raceId: string, stageId: string) =>
+  mutateEvent('stage:delete', (raceEvent) => deleteStageFromRace(raceEvent, raceId, stageId), { raceId, stageId }, raceId)
 )
 
 ipcMain.handle('stage:generate-heats', (_event, raceId: string, stageId: string) =>
@@ -136,6 +197,14 @@ ipcMain.handle('stage:create-finals', (_event, raceId: string, input: CreateFina
 
 ipcMain.handle('heat:record-results', (_event, raceId: string, input: RecordHeatResultsInput) =>
   mutateEvent('heat:record-results', (raceEvent) => recordHeatResults(raceEvent, raceId, input), { raceId, heatId: input.heatId }, raceId)
+)
+
+ipcMain.handle('heat:clear-results', (_event, raceId: string, heatId: string) =>
+  mutateEvent('heat:clear-results', (raceEvent) => clearHeatResults(raceEvent, raceId, heatId), { raceId, heatId }, raceId)
+)
+
+ipcMain.handle('heat:delete', (_event, raceId: string, heatId: string) =>
+  mutateEvent('heat:delete', (raceEvent) => deleteHeat(raceEvent, raceId, heatId), { raceId, heatId }, raceId)
 )
 
 ipcMain.handle('heat:set-current', (_event, raceId: string, heatId: string) =>
