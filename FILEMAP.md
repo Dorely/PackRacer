@@ -73,7 +73,7 @@
 | `apps/desktop/src/renderer/src/sections/Events.tsx` | Event create, select, edit, and delete screen shown at app startup. |
 | `apps/desktop/src/renderer/src/sections/EventSetup.tsx` | Race creation, format-specific setup, source-race configuration, and scheduling options. |
 | `apps/desktop/src/renderer/src/sections/RaceControl.tsx` | Race-scoped heat selection, scoring-mode result entry, rerun control, status marking, and heat cycling workflow. |
-| `apps/desktop/src/renderer/src/sections/Registration.tsx` | Manual race registration with auto-numbered racers, roster edits, check-in/inspection toggles, and removal controls. |
+| `apps/desktop/src/renderer/src/sections/Registration.tsx` | Manual and bulk race registration with roster edits, check-in/inspection toggles, and removal controls. |
 | `apps/desktop/src/renderer/src/sections/Standings.tsx` | Race-scoped live standings table and compact source/dependent advancement summaries. |
 | `apps/desktop/src/renderer/src/sections/types.ts` | Shared renderer section prop and action types. |
 

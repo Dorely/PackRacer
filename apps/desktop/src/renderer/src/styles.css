@@ -676,6 +676,36 @@ label {
   margin: 2px 0;
 }
 
+.registration-bulk-panel,
+.existing-racer-list {
+  display: grid;
+  gap: 10px;
+}
+
+.registration-existing-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #536860;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.existing-racer-list {
+  max-height: 220px;
+  overflow: auto;
+  padding: 8px;
+  border: 1px solid #d9e2dd;
+  border-radius: 8px;
+  background: #f8fbf9;
+}
+
+.existing-racer-list .inline-toggle {
+  min-height: 38px;
+  background: #ffffff;
+}
+
 .race-control-layout {
   grid-template-columns: minmax(620px, 1.45fr) minmax(280px, 0.75fr);
 }
