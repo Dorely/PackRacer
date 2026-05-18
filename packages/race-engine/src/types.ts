@@ -1,4 +1,4 @@
-export const EVENT_SCHEMA_VERSION = 4
+export const EVENT_SCHEMA_VERSION = 5
 
 export type RaceFormat = 'timed-heats' | 'points-heats' | 'round-robin' | 'single-elimination'
 
@@ -34,6 +34,13 @@ export type MakeupHeatSource = {
 export type MakeupLaneSource = {
   originalLane: number
   racerId: string
+  resultStatus: Extract<LaneResultStatus, 'dns' | 'dnf'>
+}
+
+export type MakeupAssignmentSource = {
+  originalHeatId: string
+  originalHeatNumber: number
+  originalLane: number
   resultStatus: Extract<LaneResultStatus, 'dns' | 'dnf'>
 }
 
@@ -134,6 +141,7 @@ export type LaneAssignment = {
   lane: number
   racerId: string | null
   seed?: number
+  makeupSource?: MakeupAssignmentSource
 }
 
 export type LaneResult = {

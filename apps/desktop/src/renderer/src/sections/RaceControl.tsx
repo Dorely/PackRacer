@@ -218,7 +218,7 @@ export function RaceControl({
             <div className="lane-grid" aria-label="Lane assignments and results">
               {currentHeat.laneAssignments.map((assignment) => (
                 <div className="lane-row result-row" key={assignment.lane} data-muted={!assignment.racerId}>
-                  <span>Lane {assignment.lane}</span>
+                  <span>{assignment.makeupSource ? `Lane ${assignment.lane} makeup` : `Lane ${assignment.lane}`}</span>
                   <strong>{racerLabel(event.racers, assignment.racerId)}</strong>
                   {assignment.racerId ? (
                     <>

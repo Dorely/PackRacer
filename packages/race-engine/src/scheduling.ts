@@ -358,7 +358,11 @@ function hasUnfinishedHeats(race: Race): boolean {
 }
 
 function linkedMakeupHeats(race: Race, originalHeatId: string): Heat[] {
-  return race.heats.filter((heat) => heat.makeupSource?.originalHeatId === originalHeatId)
+  return race.heats.filter(
+    (heat) =>
+      heat.makeupSource?.originalHeatId === originalHeatId ||
+      heat.laneAssignments.some((assignment) => assignment.makeupSource?.originalHeatId === originalHeatId)
+  )
 }
 
 function removeReplaceableMakeupHeats(race: Race, originalHeatId: string): void {
@@ -373,8 +377,22 @@ function removeReplaceableMakeupHeats(race: Race, originalHeatId: string): void 
     return
   }
 
-  const linkedHeatIds = new Set(linkedHeats.map((heat) => heat.id))
-  race.heats = race.heats.filter((heat) => !linkedHeatIds.has(heat.id))
+  const linkedHeatIds = new Set(
+    linkedHeats
+      .filter((heat) => heat.makeupSource?.originalHeatId === originalHeatId)
+      .map((heat) => heat.id)
+  )
+
+  race.heats = race.heats
+    .filter((heat) => !linkedHeatIds.has(heat.id))
+    .map((heat) => ({
+      ...heat,
+      laneAssignments: heat.laneAssignments.map((assignment) =>
+        assignment.makeupSource?.originalHeatId === originalHeatId
+          ? { ...assignment, racerId: null, makeupSource: undefined }
+          : assignment
+      )
+    }))
 }
 
 function hasPopulatableSourceStandings(event: RaceEvent, race: Race): boolean {
@@ -429,6 +447,75 @@ function clearUnstartedDependentRacesFromSource(event: RaceEvent, sourceRaceId: 
   }
 
   return nextEvent
+}
+
+function placeMakeupResultInExistingGap(
+  race: Race,
+  originalHeat: Heat,
+  result: LaneResult & { status: 'dns' | 'dnf' }
+): string | undefined {
+  const makeupSource = {
+    originalHeatId: originalHeat.id,
+    originalHeatNumber: originalHeat.heatNumber,
+    originalLane: result.lane,
+    resultStatus: result.status
+  }
+  const openSlotHeat = race.heats
+    .filter(
+      (heat) =>
+        heat.id !== originalHeat.id &&
+        heat.status === 'pending' &&
+        heat.heatNumber > originalHeat.heatNumber &&
+        !heat.makeupSource
+    )
+    .find((heat) => heat.laneAssignments.some((assignment) => !assignment.racerId) && !heat.laneAssignments.some((assignment) => assignment.racerId === result.racerId))
+  const openSlot = openSlotHeat?.laneAssignments.find((assignment) => !assignment.racerId)
+
+  if (openSlotHeat && openSlot) {
+    openSlot.racerId = result.racerId
+    openSlot.makeupSource = makeupSource
+    openSlotHeat.updatedAt = nowIso()
+    return openSlotHeat.id
+  }
+
+  return undefined
+}
+
+function appendMakeupHeat(
+  race: Race,
+  originalHeat: Heat,
+  results: Array<LaneResult & { status: 'dns' | 'dnf' }>
+): string {
+  const makeupHeat = makeHeat(
+    race.heats.length + 1,
+    originalHeat.roundNumber,
+    fillOpenLanes(
+      results.map((result) => ({
+        lane: result.lane,
+        racerId: result.racerId,
+        makeupSource: {
+          originalHeatId: originalHeat.id,
+          originalHeatNumber: originalHeat.heatNumber,
+          originalLane: result.lane,
+          resultStatus: result.status
+        }
+      })),
+      race.laneCount
+    )
+  )
+
+  makeupHeat.makeupSource = {
+    originalHeatId: originalHeat.id,
+    originalHeatNumber: originalHeat.heatNumber,
+    lanes: results.map((result) => ({
+      originalLane: result.lane,
+      racerId: result.racerId,
+      resultStatus: result.status
+    }))
+  }
+
+  race.heats.push(makeupHeat)
+  return makeupHeat.id
 }
 
 function advanceEliminationRounds(event: RaceEvent, raceId: string): RaceEvent {
@@ -648,31 +735,35 @@ export function recordHeatResults(event: RaceEvent, raceId: string, input: Recor
     : []
 
   if (makeupResults.length > 0) {
-    const makeupHeat = makeHeat(
-      race.heats.length + 1,
-      heat.roundNumber,
-      fillOpenLanes(
-        makeupResults.map((result) => ({ lane: result.lane, racerId: result.racerId })),
-        race.laneCount
-      )
-    )
-
-    makeupHeat.makeupSource = {
-      originalHeatId: heat.id,
-      originalHeatNumber: heat.heatNumber,
-      lanes: makeupResults.map((result) => ({
-        originalLane: result.lane,
-        racerId: result.racerId,
-        resultStatus: result.status
-      }))
-    }
-
-    race.heats.push(makeupHeat)
+    const appendedMakeupResults: Array<{
+      result: LaneResult
+      makeupResult: LaneResult & { status: 'dns' | 'dnf' }
+    }> = []
 
     for (const result of normalizedResults) {
-      if (makeupResults.some((makeupResult) => makeupResult.lane === result.lane && makeupResult.racerId === result.racerId)) {
+      const makeupResult = makeupResults.find(
+        (candidate) => candidate.lane === result.lane && candidate.racerId === result.racerId
+      )
+
+      if (makeupResult) {
         result.excludedFromScoring = true
-        result.makeupHeatId = makeupHeat.id
+        result.makeupHeatId = placeMakeupResultInExistingGap(race, heat, makeupResult)
+
+        if (!result.makeupHeatId) {
+          appendedMakeupResults.push({ result, makeupResult })
+        }
+      }
+    }
+
+    if (appendedMakeupResults.length > 0) {
+      const makeupHeatId = appendMakeupHeat(
+        race,
+        heat,
+        appendedMakeupResults.map((entry) => entry.makeupResult)
+      )
+
+      for (const entry of appendedMakeupResults) {
+        entry.result.makeupHeatId = makeupHeatId
       }
     }
   }
