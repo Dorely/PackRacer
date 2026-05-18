@@ -7,7 +7,14 @@ import { formatTime, racerLabel } from '../formatters'
 import type { SectionProps } from './types'
 
 export function DisplayMode({ event, currentRace, selectedRaceId, setSelectedRaceId }: SectionProps) {
-  const currentHeat = currentRace?.heats.find((heat) => heat.id === currentRace.currentHeatId) ?? currentRace?.heats[0]
+  const pendingHeat = currentRace?.heats.find((heat) => heat.status === 'pending')
+  const currentHeat = currentRace?.heats.find((heat) => heat.id === currentRace.currentHeatId) ?? pendingHeat
+  const raceFinished = Boolean(
+    currentRace &&
+      currentRace.heats.length > 0 &&
+      !currentRace.heats.some((heat) => heat.status === 'pending' || heat.status === 'running' || heat.status === 'invalidated') &&
+      !currentHeat
+  )
   const standings = useMemo(
     () => (event && currentRace ? calculateStandings(event, currentRace.id).slice(0, 8) : []),
     [event, currentRace]
@@ -44,20 +51,24 @@ export function DisplayMode({ event, currentRace, selectedRaceId, setSelectedRac
 
       <div className="display-grid">
         <article>
-          <span>Current Heat</span>
-          <strong>{currentHeat ? `Heat ${currentHeat.heatNumber}` : 'No heat'}</strong>
-          <div className="lane-grid">
-            {currentHeat?.laneAssignments.map((assignment) => (
-              <div className="lane-row" key={assignment.lane}>
-                <span>Lane {assignment.lane}</span>
-                <strong>{racerLabel(event.racers, assignment.racerId)}</strong>
-              </div>
-            )) ?? null}
-          </div>
+          <span>{raceFinished ? 'Race Finished' : 'Current Heat'}</span>
+          <strong>{raceFinished ? currentRace.name : currentHeat ? `Heat ${currentHeat.heatNumber}` : 'No heat'}</strong>
+          {raceFinished ? (
+            <p className="empty-state">All heats are complete.</p>
+          ) : (
+            <div className="lane-grid">
+              {currentHeat?.laneAssignments.map((assignment) => (
+                <div className="lane-row" key={assignment.lane}>
+                  <span>Lane {assignment.lane}</span>
+                  <strong>{racerLabel(event.racers, assignment.racerId)}</strong>
+                </div>
+              )) ?? null}
+            </div>
+          )}
         </article>
 
         <article>
-          <span>Leaders</span>
+          <span>{raceFinished ? 'Final Results' : 'Leaders'}</span>
           <strong>{currentRace.name}</strong>
           <ol className="leader-list">
             {standings.map((standing) => (

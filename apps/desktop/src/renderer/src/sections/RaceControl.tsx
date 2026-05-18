@@ -56,8 +56,8 @@ export function RaceControl({
   requestConfirmation
 }: SectionProps) {
   const allHeats = currentRace?.heats ?? []
-  const currentHeat =
-    allHeats.find((heat) => heat.id === currentRace?.currentHeatId) ?? allHeats.find((heat) => heat.status === 'pending') ?? allHeats[0]
+  const pendingHeat = allHeats.find((heat) => heat.status === 'pending')
+  const currentHeat = allHeats.find((heat) => heat.id === currentRace?.currentHeatId) ?? pendingHeat
   const [resultDrafts, setResultDrafts] = useState<Record<number, ResultDraft>>(() => initialDraft(currentHeat))
 
   useEffect(() => {
@@ -65,6 +65,11 @@ export function RaceControl({
   }, [currentHeat?.id, currentHeat?.updatedAt])
 
   const completedHeats = useMemo(() => allHeats.filter((heat) => heat.status === 'complete').length, [allHeats])
+  const hasUnfinishedHeats = useMemo(
+    () => allHeats.some((heat) => heat.status === 'pending' || heat.status === 'running' || heat.status === 'invalidated'),
+    [allHeats]
+  )
+  const raceFinished = allHeats.length > 0 && !hasUnfinishedHeats && !currentHeat
   const startedDependentRaces = useMemo(
     () => event?.races.filter((race) => race.source?.sourceRaceId === currentRace?.id && race.heats.length > 0) ?? [],
     [event, currentRace]
@@ -178,16 +183,18 @@ export function RaceControl({
         <div className="panel-heading">
           <div>
             <p className="eyebrow">Current Heat</p>
-            <h3>{currentHeat ? heatLabel(currentHeat) : 'No heat selected'}</h3>
+            <h3>{raceFinished ? 'Race Finished' : currentHeat ? heatLabel(currentHeat) : 'No heat selected'}</h3>
           </div>
-          <button
-            className="icon-action"
-            onClick={() => void actions.advanceHeat(currentRace.id)}
-            aria-label="Jump to next pending heat"
-            type="button"
-          >
-            <ChevronRight aria-hidden="true" size={24} />
-          </button>
+          {pendingHeat ? (
+            <button
+              className="icon-action"
+              onClick={() => void actions.advanceHeat(currentRace.id)}
+              aria-label="Jump to next pending heat"
+              type="button"
+            >
+              <ChevronRight aria-hidden="true" size={24} />
+            </button>
+          ) : null}
         </div>
 
         <div className="toolbar-row">
@@ -305,6 +312,21 @@ export function RaceControl({
               </button>
             </div>
           </form>
+        ) : raceFinished ? (
+          <div className="live-standings-panel">
+            <strong>Final results</strong>
+            <p className="empty-state">All heats are complete. Select any heat from the heat sheet to edit results or run it again.</p>
+            <ol className="leader-list compact">
+              {liveStandings.map((standing) => (
+                <li key={standing.racerId}>
+                  <span>
+                    {standing.rank}. #{standing.racerNumber} {standing.racerName}
+                  </span>
+                  <strong>{standing.bestTimeMs ? formatTime(standing.bestTimeMs) : standing.scoreLabel}</strong>
+                </li>
+              ))}
+            </ol>
+          </div>
         ) : (
           <p className="empty-state">Generate heats to start this race.</p>
         )}
@@ -321,7 +343,7 @@ export function RaceControl({
               </li>
             ))}
           </ol>
-          {liveStandings.length === 0 ? <p className="empty-state">Record a heat to start live stats.</p> : null}
+          {liveStandings.length === 0 ? <p className="empty-state">{raceFinished ? 'No final results available.' : 'Record a heat to start live stats.'}</p> : null}
         </div>
       </div>
 

@@ -756,6 +756,10 @@ label {
   color: #ffffff;
 }
 
+.display-board .empty-state {
+  color: #cde0d7;
+}
+
 .leader-list {
   display: grid;
   gap: 10px;
