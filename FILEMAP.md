@@ -69,7 +69,7 @@
 
 | File | Description |
 |------|-------------|
-| `apps/desktop/src/renderer/src/sections/DisplayMode.tsx` | In-app display board with race selection, current heat lane assignments, and leader standings. |
+| `apps/desktop/src/renderer/src/sections/DisplayMode.tsx` | In-app display board with race-specific layouts for heat, round-robin, and elimination formats. |
 | `apps/desktop/src/renderer/src/sections/Events.tsx` | Event create, select, edit, and delete screen shown at app startup. |
 | `apps/desktop/src/renderer/src/sections/EventSetup.tsx` | Race creation, format-specific setup, source-race configuration, and scheduling options. |
 | `apps/desktop/src/renderer/src/sections/RaceControl.tsx` | Race-scoped heat selection, lane availability controls, result entry, rerun control, status marking, and heat cycling workflow. |
