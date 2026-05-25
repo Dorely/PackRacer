@@ -18,7 +18,7 @@ import {
   type UpdateRaceInput,
   type UpdateRacerInput
 } from './types'
-import { copyEvent, createId, normalizeLaneCount, normalizeLaneNumbers, normalizeRounds, nowIso } from './helpers'
+import { copyEvent, createId, isEliminationFormat, normalizeLaneCount, normalizeLaneNumbers, normalizeRounds, nowIso } from './helpers'
 import { regenerateRaceHeatsAfterRosterChange } from './scheduling'
 
 const defaultSchedulingOptions: SchedulingOptions = {
@@ -33,11 +33,9 @@ function defaultScoringMode(format: RaceFormat): ScoringMode {
       return 'points-high'
     case 'round-robin':
       return 'round-robin-record'
-    case 'single-elimination':
-      return 'elimination'
     case 'timed-heats':
     default:
-      return 'average-time'
+      return isEliminationFormat(format) ? 'elimination' : 'average-time'
   }
 }
 
@@ -220,6 +218,7 @@ export function addRace(event: RaceEvent, input: CreateRaceInput): RaceEvent {
   const createdAt = nowIso()
   const raceNumber = nextEvent.races.length + 1
   const laneCount = normalizeLaneCount(input.laneCount ?? nextEvent.laneCount)
+  nextEvent.schemaVersion = EVENT_SCHEMA_VERSION
   const race: Race = {
     id: createId('race'),
     name: input.name.trim() || `Race ${raceNumber}`,
@@ -247,6 +246,7 @@ export function addRace(event: RaceEvent, input: CreateRaceInput): RaceEvent {
 
 export function updateRace(event: RaceEvent, raceId: string, input: UpdateRaceInput): RaceEvent {
   const nextEvent = copyEvent(event)
+  nextEvent.schemaVersion = EVENT_SCHEMA_VERSION
   const race = findRace(nextEvent, raceId)
 
   if (typeof input.name === 'string') {

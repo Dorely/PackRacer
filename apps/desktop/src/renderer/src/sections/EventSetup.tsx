@@ -1,12 +1,19 @@
 import { Flag, ListPlus, Save, Trash2 } from 'lucide-react'
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 
-import type { RaceFormat, ScoringMode } from '@packracer/race-engine'
+import { isEliminationFormat, type RaceFormat, type ScoringMode } from '@packracer/race-engine'
 
 import { formatStatus, raceSummary } from '../formatters'
 import type { SectionProps } from './types'
 
-const raceFormats: RaceFormat[] = ['timed-heats', 'points-heats', 'round-robin', 'single-elimination']
+const raceFormats: RaceFormat[] = [
+  'timed-heats',
+  'points-heats',
+  'round-robin',
+  'single-elimination',
+  'double-elimination',
+  'triple-elimination'
+]
 const timedScoringModes: ScoringMode[] = ['average-time', 'best-time', 'total-time']
 const pointsScoringModes: ScoringMode[] = ['points-high', 'points-low']
 
@@ -19,7 +26,7 @@ function defaultScoringMode(format: RaceFormat): ScoringMode {
     return 'round-robin-record'
   }
 
-  if (format === 'single-elimination') {
+  if (isEliminationFormat(format)) {
     return 'elimination'
   }
 

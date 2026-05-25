@@ -581,7 +581,7 @@ export function RaceControl({
                         {status.unresolvedContestedSlots} slot(s).
                       </span>
                       {status.pendingHeatIds.length > 0 ? (
-                        <span>Complete the generated tie-breaker heat before advancing this race.</span>
+                        <span>Complete the generated tie-breaker heat(s) before advancing this race.</span>
                       ) : status.canGenerateTieBreaker ? (
                         <div className="button-row">
                           <button

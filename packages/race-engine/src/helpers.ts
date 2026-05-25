@@ -1,4 +1,4 @@
-import type { Race, RaceEntry, Racer, RaceEvent } from './types'
+import type { Race, RaceEntry, RaceFormat, Racer, RaceEvent } from './types'
 
 export function createId(prefix: string): string {
   if (globalThis.crypto && 'randomUUID' in globalThis.crypto) {
@@ -114,4 +114,24 @@ export function nextPowerOfTwo(value: number): number {
   }
 
   return bracketSize
+}
+
+export function isEliminationFormat(format: RaceFormat | undefined): boolean {
+  return format === 'single-elimination' || format === 'double-elimination' || format === 'triple-elimination'
+}
+
+export function eliminationLossLimit(format: RaceFormat): number {
+  switch (format) {
+    case 'single-elimination':
+      return 1
+    case 'double-elimination':
+      return 2
+    case 'triple-elimination':
+      return 3
+    case 'timed-heats':
+    case 'points-heats':
+    case 'round-robin':
+    default:
+      return 0
+  }
 }

@@ -180,7 +180,7 @@ export function Standings({ event, currentRace, selectedRaceId, setSelectedRaceI
                       are still contested.
                     </span>
                     {advancementStatus.pendingHeatIds.length > 0 ? (
-                      <span>Complete the generated tie-breaker heat before advancing.</span>
+                      <span>Complete the generated tie-breaker heat(s) before advancing.</span>
                     ) : advancementStatus.canGenerateTieBreaker ? (
                       <div className="button-row">
                         <button

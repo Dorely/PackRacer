@@ -1,10 +1,11 @@
 import type { Heat, LaneResult, Race, RaceEvent, ScoringMode, Standing } from './types'
-import { formatMilliseconds, sortRacers } from './helpers'
+import { eliminationLossLimit, formatMilliseconds, isEliminationFormat, sortRacers } from './helpers'
 
 type StandingDraft = Omit<Standing, 'rank' | 'scoreLabel'> & {
   rank: number
   scoreLabel?: string
   resultTimes: number[]
+  seedOrder: number
 }
 
 function activeHeats(race: Race): Heat[] {
@@ -44,7 +45,7 @@ function createDrafts(event: RaceEvent, race: Race): Map<string, StandingDraft> 
   const registeredRacerIds = entries.length > 0 || race.source ? new Set(entries.map((entry) => entry.racerId)) : null
   const drafts = new Map<string, StandingDraft>()
 
-  for (const racer of sortRacers(event.racers)) {
+  for (const [seedIndex, racer] of sortRacers(event.racers).entries()) {
     if (registeredRacerIds && !registeredRacerIds.has(racer.id)) {
       continue
     }
@@ -65,6 +66,7 @@ function createDrafts(event: RaceEvent, race: Race): Map<string, StandingDraft> 
       completedHeats: 0,
       score: null,
       resultTimes: [],
+      seedOrder: seedIndex + 1,
       totalPoints: 0,
       wins: 0,
       losses: 0
@@ -94,7 +96,23 @@ function rankDrafts(drafts: StandingDraft[], scoringMode: ScoringMode): Standing
       return -1
     }
 
-    if (scoringMode === 'points-high' || scoringMode === 'round-robin-record' || scoringMode === 'elimination') {
+    if (scoringMode === 'elimination') {
+      const lossDifference = (first.losses ?? 0) - (second.losses ?? 0)
+
+      if (lossDifference !== 0) {
+        return lossDifference
+      }
+
+      const winDifference = (second.wins ?? 0) - (first.wins ?? 0)
+
+      if (winDifference !== 0) {
+        return winDifference
+      }
+
+      return first.seedOrder - second.seedOrder
+    }
+
+    if (scoringMode === 'points-high' || scoringMode === 'round-robin-record') {
       return second.score - first.score
     }
 
@@ -172,7 +190,7 @@ export function calculateStandings(event: RaceEvent, raceId?: string): Standing[
       continue
     }
 
-    if (race.format === 'single-elimination') {
+    if (isEliminationFormat(race.format)) {
       const winner = getWinner(heat.results)
 
       for (const result of heat.results) {
@@ -221,6 +239,9 @@ export function calculateStandings(event: RaceEvent, raceId?: string): Standing[
     }
   }
 
+  const raceStarted = race.heats.length > 0
+  const eliminationLossLimitValue = eliminationLossLimit(race.format)
+
   for (const draft of drafts.values()) {
     if (draft.resultTimes.length > 0) {
       const totalTimeMs = draft.resultTimes.reduce((sum, timeMs) => sum + timeMs, 0)
@@ -250,8 +271,10 @@ export function calculateStandings(event: RaceEvent, raceId?: string): Standing[
         draft.scoreLabel = draft.score === null ? 'No matches' : `${draft.wins ?? 0}-${draft.losses ?? 0}`
         break
       case 'elimination':
-        draft.score = draft.completedHeats > 0 ? draft.wins ?? 0 : null
-        draft.scoreLabel = draft.score === null ? 'No matches' : `${draft.wins ?? 0} wins`
+        draft.score = raceStarted
+          ? Math.max(0, eliminationLossLimitValue - (draft.losses ?? 0)) * 100000 + (draft.wins ?? 0) * 100 - draft.seedOrder
+          : null
+        draft.scoreLabel = draft.score === null ? 'No matches' : `${draft.wins ?? 0}-${draft.losses ?? 0}`
         break
       case 'average-time':
       default:

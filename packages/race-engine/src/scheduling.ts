@@ -2,6 +2,7 @@ import { calculateStandings } from './scoring'
 import {
   EVENT_SCHEMA_VERSION,
   type AdvancementTieBreakerResolution,
+  type EliminationBracketMetadata,
   type Heat,
   type LaneAssignment,
   type LaneResult,
@@ -14,7 +15,18 @@ import {
   type Standing,
   type UpdateRaceLaneAvailabilityInput
 } from './types'
-import { activeLaneNumbers, copyEvent, createId, getEligibleRacers, nextPowerOfTwo, normalizeLaneCount, normalizeLaneNumbers, nowIso } from './helpers'
+import {
+  activeLaneNumbers,
+  copyEvent,
+  createId,
+  eliminationLossLimit,
+  getEligibleRacers,
+  isEliminationFormat,
+  nextPowerOfTwo,
+  normalizeLaneCount,
+  normalizeLaneNumbers,
+  nowIso
+} from './helpers'
 
 function findRace(event: RaceEvent, raceId: string): Race {
   const race = event.races.find((candidate) => candidate.id === raceId)
@@ -365,6 +377,128 @@ function getHeatWinner(heat: Heat): string | undefined {
     .sort((first, second) => resultRankValue(first) - resultRankValue(second))[0]?.racerId
 }
 
+type EliminationRecord = {
+  racerId: string
+  seed: number
+  wins: number
+  losses: number
+}
+
+type EliminationMatchSpec = {
+  racerIds: [string, string]
+  lossCount: number
+  isCrossLoss: boolean
+  isFinal: boolean
+}
+
+function bracketMetadata(
+  lossCount: number,
+  roundNumber: number,
+  sequence: number,
+  options: Pick<EliminationBracketMetadata, 'isFinal' | 'isCrossLoss'> = {}
+): EliminationBracketMetadata {
+  return {
+    lossCount,
+    roundNumber,
+    sequence,
+    isFinal: options.isFinal || undefined,
+    isCrossLoss: options.isCrossLoss || undefined
+  }
+}
+
+function completedEliminationHeats(race: Race): Heat[] {
+  return race.heats.filter((heat) => heat.status === 'complete' && !heat.tieBreakerSource)
+}
+
+function eliminationRecords(race: Race, racers: Racer[]): EliminationRecord[] {
+  const records = new Map<string, EliminationRecord>()
+
+  racers.forEach((racer, index) => {
+    records.set(racer.id, {
+      racerId: racer.id,
+      seed: index + 1,
+      wins: 0,
+      losses: 0
+    })
+  })
+
+  for (const heat of completedEliminationHeats(race)) {
+    const winnerId = getHeatWinner(heat)
+
+    for (const result of heat.results) {
+      if (result.excludedFromScoring) {
+        continue
+      }
+
+      const record = records.get(result.racerId)
+
+      if (!record) {
+        continue
+      }
+
+      if (winnerId && result.racerId === winnerId) {
+        record.wins += 1
+      } else {
+        record.losses += 1
+      }
+    }
+  }
+
+  return [...records.values()]
+}
+
+function nextMultiLossMatchSpecs(race: Race, racers: Racer[]): EliminationMatchSpec[] {
+  const lossLimit = eliminationLossLimit(race.format)
+  const activeRecords = eliminationRecords(race, racers)
+    .filter((record) => record.losses < lossLimit)
+    .sort((first, second) => first.seed - second.seed)
+
+  if (activeRecords.length <= 1) {
+    return []
+  }
+
+  const matches: EliminationMatchSpec[] = []
+
+  for (let lossCount = 0; lossCount < lossLimit; lossCount += 1) {
+    const bucket = activeRecords.filter((record) => record.losses === lossCount)
+
+    while (bucket.length >= 2) {
+      const first = bucket.shift()
+      const second = bucket.pop()
+
+      if (!first || !second) {
+        break
+      }
+
+      matches.push({
+        racerIds: [first.racerId, second.racerId],
+        lossCount,
+        isCrossLoss: false,
+        isFinal: activeRecords.length === 2
+      })
+    }
+  }
+
+  if (matches.length > 0) {
+    return matches
+  }
+
+  const crossLossRacers = [...activeRecords].sort((first, second) => second.losses - first.losses || first.seed - second.seed)
+
+  if (crossLossRacers.length < 2) {
+    return []
+  }
+
+  return [
+    {
+      racerIds: [crossLossRacers[0].racerId, crossLossRacers[1].racerId],
+      lossCount: Math.max(crossLossRacers[0].losses, crossLossRacers[1].losses),
+      isCrossLoss: true,
+      isFinal: activeRecords.length === 2
+    }
+  ]
+}
+
 function singleEliminationHeats(race: Race, racers: Racer[]): Heat[] {
   const bracketSize = nextPowerOfTwo(racers.length)
   const seededRacers: Array<Racer | null> = [...racers]
@@ -388,6 +522,7 @@ function singleEliminationHeats(race: Race, racers: Racer[]): Heat[] {
       race.laneCount
     )
     const heat = makeHeat(heatNumber, 1, assignments)
+    heat.eliminationBracket = bracketMetadata(0, 1, seedIndex + 1, { isFinal: bracketSize === 2 })
     const byeRacer = firstRacer && !secondRacer ? firstRacer : secondRacer && !firstRacer ? secondRacer : null
 
     if (byeRacer) {
@@ -400,6 +535,31 @@ function singleEliminationHeats(race: Race, racers: Racer[]): Heat[] {
   }
 
   return heats
+}
+
+function multiLossEliminationHeats(race: Race, racers: Racer[]): Heat[] {
+  const matchLanes = activeLaneNumbers(race).slice(0, 2)
+  const roundNumber = Math.max(...race.heats.map((heat) => heat.roundNumber), 0) + 1
+
+  return nextMultiLossMatchSpecs(race, racers).map((match, index) => {
+    const heat = makeHeat(
+      race.heats.length + index + 1,
+      roundNumber,
+      fillOpenLanes(
+        [
+          { lane: matchLanes[0], racerId: match.racerIds[0] },
+          { lane: matchLanes[1], racerId: match.racerIds[1] }
+        ],
+        race.laneCount
+      )
+    )
+
+    heat.eliminationBracket = bracketMetadata(match.lossCount, roundNumber, index + 1, {
+      isCrossLoss: match.isCrossLoss,
+      isFinal: match.isFinal
+    })
+    return heat
+  })
 }
 
 function renumberHeats(heats: Heat[]): Heat[] {
@@ -629,18 +789,36 @@ function resolveTieBreakerScores(
   }
 }
 
+function balancedPointsTieBreakerGroups(tiedRacerIds: string[], activeLaneCount: number): string[][] {
+  if (activeLaneCount <= 0 || tiedRacerIds.length === 0) {
+    return []
+  }
+
+  const heatCount = Math.ceil(tiedRacerIds.length / activeLaneCount)
+  const baseGroupSize = Math.floor(tiedRacerIds.length / heatCount)
+  const extraRacerGroups = tiedRacerIds.length % heatCount
+  const groups: string[][] = []
+  let nextRacerIndex = 0
+
+  for (let groupIndex = 0; groupIndex < heatCount; groupIndex += 1) {
+    const groupSize = baseGroupSize + (groupIndex < extraRacerGroups ? 1 : 0)
+    groups.push(tiedRacerIds.slice(nextRacerIndex, nextRacerIndex + groupSize))
+    nextRacerIndex += groupSize
+  }
+
+  return groups
+}
+
 function unresolvedTieBreakerMessage(sourceRace: Race, unresolvedRacerCount: number, contestedSlots: number): string {
   if (sourceRace.format !== 'timed-heats' && sourceRace.format !== 'points-heats') {
     return 'Automated advancement tie-breakers are only available for timed and points heat races.'
   }
 
-  const laneCount = normalizeLaneCount(sourceRace.laneCount)
-
-  if (sourceRace.format === 'points-heats' && unresolvedRacerCount > laneCount) {
-    return `The tied cutoff group has ${unresolvedRacerCount} racers, which does not fit on a ${laneCount}-lane track. Resolve this advancement tie manually.`
+  if (sourceRace.format === 'points-heats' && activeLaneNumbers(sourceRace).length < 2) {
+    return 'Automated placement tie-breakers require at least 2 active lanes. Enable another lane or resolve this advancement tie manually.'
   }
 
-  return `Run a tie-breaker for ${unresolvedRacerCount} tied racer(s) to resolve ${contestedSlots} finalist slot(s).`
+  return `Run tie-breaker heat(s) for ${unresolvedRacerCount} tied racer(s) to resolve ${contestedSlots} finalist slot(s).`
 }
 
 function resolveAdvancementForTarget(event: RaceEvent, targetRace: Race): AdvancementTieBreakerResolution {
@@ -830,7 +1008,7 @@ function resolveAdvancementForTarget(event: RaceEvent, targetRace: Race): Advanc
   const canGenerateTieBreaker =
     qualifierComplete &&
     (sourceRace.format === 'timed-heats' ||
-      (sourceRace.format === 'points-heats' && unresolvedRacerIds.length <= normalizeLaneCount(sourceRace.laneCount)))
+      (sourceRace.format === 'points-heats' && activeLaneNumbers(sourceRace).length >= 2))
 
   return {
     ...baseResolution,
@@ -1029,7 +1207,39 @@ function advanceEliminationRounds(event: RaceEvent, raceId: string): RaceEvent {
   const nextEvent = copyEvent(event)
   const race = findRace(nextEvent, raceId)
 
+  if (!isEliminationFormat(race.format)) {
+    return nextEvent
+  }
+
   if (race.format !== 'single-elimination') {
+    if (hasUnfinishedHeats(race)) {
+      return nextEvent
+    }
+
+    const racers = getEligibleRacers(nextEvent, race)
+    const lossLimit = eliminationLossLimit(race.format)
+    const activeRecords = eliminationRecords(race, racers).filter((record) => record.losses < lossLimit)
+
+    if (activeRecords.length <= 1) {
+      race.status = 'complete'
+      race.currentHeatId = undefined
+      race.heats = renumberHeats(race.heats)
+      race.updatedAt = nowIso()
+      nextEvent.updatedAt = race.updatedAt
+      return nextEvent
+    }
+
+    const nextHeats = multiLossEliminationHeats(race, racers)
+
+    if (nextHeats.length > 0) {
+      race.heats.push(...nextHeats)
+      race.status = 'running'
+      race.currentHeatId = nextPendingHeat(race)?.id
+    }
+
+    race.heats = renumberHeats(race.heats)
+    race.updatedAt = nowIso()
+    nextEvent.updatedAt = race.updatedAt
     return nextEvent
   }
 
@@ -1073,6 +1283,7 @@ function advanceEliminationRounds(event: RaceEvent, raceId: string): RaceEvent {
         )
       )
       heat.sourceHeatIds = currentRoundHeats.slice(index, index + 2).map((sourceHeat) => sourceHeat.id)
+      heat.eliminationBracket = bracketMetadata(0, maxRound + 1, index / 2 + 1, { isFinal: winners.length <= 2 })
 
       if (!secondWinnerId) {
         heat.status = 'complete'
@@ -1088,6 +1299,58 @@ function advanceEliminationRounds(event: RaceEvent, raceId: string): RaceEvent {
   race.updatedAt = nowIso()
   nextEvent.updatedAt = race.updatedAt
   return nextEvent
+}
+
+function downstreamEliminationHeats(race: Race, heat: Heat): Heat[] {
+  if (!isEliminationFormat(race.format)) {
+    return []
+  }
+
+  return race.heats.filter((candidate) => candidate.id !== heat.id && candidate.roundNumber > heat.roundNumber)
+}
+
+function removeReplaceableEliminationDownstreamHeats(race: Race, heat: Heat): void {
+  const downstreamHeats = downstreamEliminationHeats(race, heat)
+
+  if (downstreamHeats.length === 0) {
+    return
+  }
+
+  if (downstreamHeats.some((candidate) => candidate.status === 'complete')) {
+    throw new Error('Clear later elimination match results before changing this result.')
+  }
+
+  const downstreamHeatIds = new Set(downstreamHeats.map((candidate) => candidate.id))
+  race.heats = race.heats.filter((candidate) => !downstreamHeatIds.has(candidate.id))
+
+  if (race.currentHeatId && downstreamHeatIds.has(race.currentHeatId)) {
+    race.currentHeatId = heat.id
+  }
+}
+
+function validateEliminationMatchResults(race: Race, heat: Heat, results: LaneResult[]): void {
+  if (!isEliminationFormat(race.format)) {
+    return
+  }
+
+  const assignedRacerIds = new Set(
+    heat.laneAssignments.map((assignment) => assignment.racerId).filter((racerId): racerId is string => Boolean(racerId))
+  )
+  const resultRacerIds = new Set(results.map((result) => result.racerId))
+
+  if ([...assignedRacerIds].some((racerId) => !resultRacerIds.has(racerId))) {
+    throw new Error('Record a result for each racer in this elimination match.')
+  }
+
+  const okResults = results.filter((result) => result.status === 'ok')
+
+  if (okResults.length === 0) {
+    throw new Error('Elimination matches need one OK racer to advance.')
+  }
+
+  if (okResults.length > 1 && okResults.some((result) => typeof result.finishPosition !== 'number')) {
+    throw new Error('Place each OK racer in this elimination match.')
+  }
 }
 
 export function populateRaceEntriesFromSource(event: RaceEvent, raceId: string): RaceEvent {
@@ -1213,25 +1476,21 @@ export function generateAdvancementTieBreakerHeats(
   const nextHeats: Heat[] = []
 
   if (sourceRace.format === 'points-heats') {
-    if (tiedRacerIds.length > availableLaneNumbers.length) {
-      throw new Error(
-        `The tied cutoff group has ${tiedRacerIds.length} racers, which does not fit on the active lanes. Resolve this advancement tie manually.`
+    for (const group of balancedPointsTieBreakerGroups(tiedRacerIds, availableLaneNumbers.length)) {
+      const heat = makeHeat(
+        sourceRace.heats.length + nextHeats.length + 1,
+        advancementResolution.nextRoundNumber,
+        fillOpenLanes(
+          group.map((racerId, index) => ({
+            lane: availableLaneNumbers[index],
+            racerId
+          })),
+          laneCount
+        )
       )
+      heat.tieBreakerSource = tieBreakerSource
+      nextHeats.push(heat)
     }
-
-    const heat = makeHeat(
-      sourceRace.heats.length + 1,
-      advancementResolution.nextRoundNumber,
-      fillOpenLanes(
-        tiedRacerIds.map((racerId, index) => ({
-          lane: availableLaneNumbers[index],
-          racerId
-        })),
-        laneCount
-      )
-    )
-    heat.tieBreakerSource = tieBreakerSource
-    nextHeats.push(heat)
   } else {
     for (let index = 0; index < tiedRacerIds.length; index += availableLaneNumbers.length) {
       const heat = makeHeat(
@@ -1310,6 +1569,7 @@ function reassignUnfinishedMatchHeatsToActiveLanes(race: Race): void {
 
 function generateRaceHeatsInternal(event: RaceEvent, raceId: string, options: { allowCompletedHeats: boolean }): RaceEvent {
   let nextEvent = copyEvent(event)
+  nextEvent.schemaVersion = EVENT_SCHEMA_VERSION
   let race = findRace(nextEvent, raceId)
 
   if (!options.allowCompletedHeats && race.heats.some((heat) => heat.status === 'complete')) {
@@ -1336,6 +1596,9 @@ function generateRaceHeatsInternal(event: RaceEvent, raceId: string, options: { 
         return preservedHeats.length > 0 ? [] : roundRobinHeats(race, racers)
       case 'single-elimination':
         return preservedHeats.length > 0 ? [] : singleEliminationHeats(race, racers)
+      case 'double-elimination':
+      case 'triple-elimination':
+        return preservedHeats.length > 0 ? [] : multiLossEliminationHeats(race, racers)
       case 'points-heats':
       case 'timed-heats':
       default:
@@ -1351,7 +1614,7 @@ function generateRaceHeatsInternal(event: RaceEvent, raceId: string, options: { 
   nextEvent.status = race.status === 'running' ? 'running' : 'ready'
   nextEvent.updatedAt = race.updatedAt
 
-  if (race.format === 'single-elimination') {
+  if (isEliminationFormat(race.format)) {
     nextEvent = advanceEliminationRounds(nextEvent, race.id)
   }
 
@@ -1484,6 +1747,8 @@ export function recordHeatResults(event: RaceEvent, raceId: string, input: Recor
   }
 
   validateUniqueFinishPositions(race, normalizedResults)
+  validateEliminationMatchResults(race, heat, normalizedResults)
+  removeReplaceableEliminationDownstreamHeats(race, heat)
 
   const makeupResults = supportsMakeupRescheduling(race) && !heat.tieBreakerSource
     ? normalizedResults.filter(
@@ -1512,7 +1777,7 @@ export function recordHeatResults(event: RaceEvent, raceId: string, input: Recor
   nextEvent.currentRaceId = race.id
   nextEvent.updatedAt = heat.updatedAt
 
-  if (race.format === 'single-elimination') {
+  if (isEliminationFormat(race.format)) {
     nextEvent = advanceEliminationRounds(nextEvent, race.id)
   }
 
@@ -1545,6 +1810,7 @@ export function clearHeatResults(event: RaceEvent, raceId: string, heatId: strin
   }
 
   removeReplaceableMakeupHeats(race, heat.id)
+  removeReplaceableEliminationDownstreamHeats(race, heat)
 
   heat.results = []
   heat.notes = undefined

@@ -1,6 +1,12 @@
-export const EVENT_SCHEMA_VERSION = 7
+export const EVENT_SCHEMA_VERSION = 8
 
-export type RaceFormat = 'timed-heats' | 'points-heats' | 'round-robin' | 'single-elimination'
+export type RaceFormat =
+  | 'timed-heats'
+  | 'points-heats'
+  | 'round-robin'
+  | 'single-elimination'
+  | 'double-elimination'
+  | 'triple-elimination'
 
 export type EventStatus = 'draft' | 'ready' | 'running' | 'complete'
 
@@ -52,6 +58,14 @@ export type AdvancementTieBreakerSource = {
   mainScore: number
   roundNumber: number
   tiedRacerIds: string[]
+}
+
+export type EliminationBracketMetadata = {
+  lossCount: number
+  roundNumber: number
+  sequence: number
+  isFinal?: boolean
+  isCrossLoss?: boolean
 }
 
 export type AdvancementTieBreakerResolution = {
@@ -163,6 +177,7 @@ export type Heat = {
   laneAssignments: LaneAssignment[]
   results: LaneResult[]
   bracketSlot?: number
+  eliminationBracket?: EliminationBracketMetadata
   sourceHeatIds?: string[]
   makeupSource?: MakeupHeatSource
   tieBreakerSource?: AdvancementTieBreakerSource
