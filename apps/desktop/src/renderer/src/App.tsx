@@ -376,15 +376,17 @@ export function App() {
 
         {notices}
 
-        <div className="status-strip" aria-label="Event readiness">
-          {workflowStats.map((stat) => (
-            <article className="stat-card" key={stat.label}>
-              <span>{stat.label}</span>
-              <strong>{stat.value}</strong>
-              <small>{stat.detail}</small>
-            </article>
-          ))}
-        </div>
+        {activeSection !== 'display' ? (
+          <div className="status-strip" aria-label="Event readiness">
+            {workflowStats.map((stat) => (
+              <article className="stat-card" key={stat.label}>
+                <span>{stat.label}</span>
+                <strong>{stat.value}</strong>
+                <small>{stat.detail}</small>
+              </article>
+            ))}
+          </div>
+        ) : null}
 
         {renderedSection}
         {confirmationDialog}

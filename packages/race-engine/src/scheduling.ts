@@ -22,7 +22,6 @@ import {
   eliminationLossLimit,
   getEligibleRacers,
   isEliminationFormat,
-  nextPowerOfTwo,
   normalizeLaneCount,
   normalizeLaneNumbers,
   nowIso
@@ -500,38 +499,47 @@ function nextMultiLossMatchSpecs(race: Race, racers: Racer[]): EliminationMatchS
 }
 
 function singleEliminationHeats(race: Race, racers: Racer[]): Heat[] {
-  const bracketSize = nextPowerOfTwo(racers.length)
-  const seededRacers: Array<Racer | null> = [...racers]
   const matchLanes = activeLaneNumbers(race).slice(0, 2)
-
-  while (seededRacers.length < bracketSize) {
-    seededRacers.push(null)
-  }
-
   const heats: Heat[] = []
   let heatNumber = 1
 
-  for (let seedIndex = 0; seedIndex < bracketSize / 2; seedIndex += 1) {
-    const firstRacer = seededRacers[seedIndex]
-    const secondRacer = seededRacers[bracketSize - seedIndex - 1]
+  const appendHeat = (firstRacer: Racer, firstSeed: number, secondRacer: Racer | null, secondSeed?: number): void => {
     const assignments = fillOpenLanes(
       [
-        { lane: matchLanes[0], racerId: firstRacer?.id ?? null, seed: seedIndex + 1 },
-        { lane: matchLanes[1], racerId: secondRacer?.id ?? null, seed: bracketSize - seedIndex }
+        { lane: matchLanes[0], racerId: firstRacer.id, seed: firstSeed },
+        { lane: matchLanes[1], racerId: secondRacer?.id ?? null, seed: secondSeed }
       ],
       race.laneCount
     )
     const heat = makeHeat(heatNumber, 1, assignments)
-    heat.eliminationBracket = bracketMetadata(0, 1, seedIndex + 1, { isFinal: bracketSize === 2 })
-    const byeRacer = firstRacer && !secondRacer ? firstRacer : secondRacer && !firstRacer ? secondRacer : null
+    heat.eliminationBracket = bracketMetadata(0, 1, heats.length + 1, { isFinal: racers.length <= 2 })
 
-    if (byeRacer) {
+    if (!secondRacer) {
       heat.status = 'complete'
-      heat.results = [{ lane: firstRacer ? matchLanes[0] : matchLanes[1], racerId: byeRacer.id, status: 'ok', finishPosition: 1 }]
+      heat.results = [{ lane: matchLanes[0], racerId: firstRacer.id, status: 'ok', finishPosition: 1 }]
     }
 
     heats.push(heat)
     heatNumber += 1
+  }
+
+  if (racers.length === 1) {
+    appendHeat(racers[0], 1, null)
+    return heats
+  }
+
+  const firstPairedSeedIndex = racers.length % 2 === 1 ? 1 : 0
+
+  if (firstPairedSeedIndex === 1) {
+    appendHeat(racers[0], 1, null)
+  }
+
+  for (
+    let lowerSeedIndex = firstPairedSeedIndex, upperSeedIndex = racers.length - 1;
+    lowerSeedIndex < upperSeedIndex;
+    lowerSeedIndex += 1, upperSeedIndex -= 1
+  ) {
+    appendHeat(racers[lowerSeedIndex], lowerSeedIndex + 1, racers[upperSeedIndex], upperSeedIndex + 1)
   }
 
   return heats

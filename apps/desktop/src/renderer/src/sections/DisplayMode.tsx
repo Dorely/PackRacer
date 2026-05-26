@@ -1,5 +1,14 @@
-import { Monitor } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { Monitor, Pin, PinOff, RotateCcw, Trophy } from 'lucide-react'
+import {
+  type CSSProperties,
+  type MutableRefObject,
+  type ReactNode,
+  type RefObject,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
 
 import {
   calculateStandings,
@@ -34,11 +43,15 @@ type TournamentParticipant = {
   seed?: number
   placeholder: string
   sourceMatchNumber?: number
+  sourceLabel?: string
+  lossCount?: number
 }
 
 type TournamentMatch = {
   id: string
   heat?: Heat
+  displayCode?: string
+  supportingLabel?: string
   matchNumber: number
   roundNumber: number
   matchIndex: number
@@ -49,6 +62,7 @@ type TournamentMatch = {
   resultSummary: string
   isCurrent: boolean
   isChampion: boolean
+  isReset?: boolean
 }
 
 type TournamentRound = {
@@ -58,6 +72,63 @@ type TournamentRound = {
   matches: TournamentMatch[]
   isChampion: boolean
 }
+
+type BracketPage = {
+  id: string
+  label: string
+  mode: 'full' | 'focused' | 'section' | 'status'
+  roundIds?: string[]
+  sectionIds?: string[]
+}
+
+type BracketConnectorVariant = 'winner' | 'drop' | 'progression'
+
+type BracketConnector = {
+  id: string
+  fromId: string
+  toId: string
+  variant: BracketConnectorVariant
+  label?: string
+}
+
+type BracketSectionKind =
+  | 'single'
+  | 'winners'
+  | 'losers'
+  | 'grand-final'
+  | 'loss-lane'
+  | 'status'
+
+type BracketSection = {
+  id: string
+  title: string
+  subtitle?: string
+  kind: BracketSectionKind
+  columns: TournamentRound[]
+  connectors: BracketConnector[]
+}
+
+type ConnectorPath = {
+  id: string
+  d: string
+  variant: BracketConnectorVariant
+  label?: string
+  labelX: number
+  labelY: number
+}
+
+type CardRefMap = MutableRefObject<Map<string, HTMLElement>>
+
+type BracketStatusGroup = {
+  id: string
+  label: string
+  racerIds: string[]
+  eliminated: boolean
+}
+
+const fullBracketPageId = 'full'
+const bracketRowsPerSlot = 12
+const bracketCardRowSpan = 11
 
 function displayViewsForRace(race: Race): DisplayView[] {
   switch (race.format) {
@@ -124,41 +195,6 @@ function currentHeatLabel(heat: Heat | undefined): string {
   return `Heat ${heat.heatNumber}`
 }
 
-function nextPowerOfTwo(value: number): number {
-  let size = 1
-
-  while (size < value) {
-    size *= 2
-  }
-
-  return size
-}
-
-function tournamentBracketSize(race: Race): number {
-  const firstRoundHeats = race.heats.filter((heat) => heat.roundNumber === 1)
-  const maxSeed = Math.max(
-    ...firstRoundHeats.flatMap((heat) => heat.laneAssignments.map((assignment) => assignment.seed ?? 0)),
-    0
-  )
-  const activeEntries = race.entries.filter((entry) => entry.status === 'active').length
-  const seededSlots = Math.max(maxSeed, firstRoundHeats.length * 2, activeEntries, 2)
-  const bracketSize = nextPowerOfTwo(seededSlots)
-
-  if (bracketSize <= 4) {
-    return 4
-  }
-
-  if (bracketSize <= 8) {
-    return 8
-  }
-
-  if (bracketSize <= 16) {
-    return 16
-  }
-
-  return 32
-}
-
 function tournamentRoundLabel(roundIndex: number, roundCount: number): string {
   if (roundIndex === roundCount - 1) {
     return 'Finals'
@@ -169,6 +205,41 @@ function tournamentRoundLabel(roundIndex: number, roundCount: number): string {
   }
 
   return `Round ${roundIndex + 1}`
+}
+
+function firstRoundParticipantCount(race: Race): number {
+  const activeEntries = race.entries.filter((entry) => entry.status === 'active').length
+  const firstRoundHeats = race.heats.filter((heat) => heat.roundNumber === 1)
+  const firstRoundAssignments = firstRoundHeats.flatMap((heat) =>
+    heat.laneAssignments.filter((assignment) => assignment.racerId || assignment.seed)
+  )
+  const maxSeed = Math.max(...firstRoundAssignments.map((assignment) => assignment.seed ?? 0), 0)
+
+  return Math.max(activeEntries, firstRoundAssignments.length, maxSeed, 1)
+}
+
+function tournamentRoundMatchCounts(race: Race): number[] {
+  const firstRoundHeats = race.heats.filter((heat) => heat.roundNumber === 1)
+  const actualMaxRoundNumber = Math.max(...race.heats.map((heat) => heat.roundNumber), 0)
+  const counts: number[] = []
+  let matchCount = Math.max(Math.ceil(firstRoundParticipantCount(race) / 2), firstRoundHeats.length, 1)
+  let roundNumber = 1
+
+  while (roundNumber <= actualMaxRoundNumber || matchCount >= 1) {
+    const actualRoundCount = race.heats.filter((heat) => heat.roundNumber === roundNumber).length
+    const resolvedMatchCount = Math.max(matchCount, actualRoundCount, 1)
+
+    counts.push(resolvedMatchCount)
+
+    if (resolvedMatchCount <= 1 && roundNumber >= actualMaxRoundNumber) {
+      break
+    }
+
+    matchCount = Math.ceil(resolvedMatchCount / 2)
+    roundNumber += 1
+  }
+
+  return counts
 }
 
 function heatResultSummary(context: DisplayContext, heat: Heat | undefined): string {
@@ -208,15 +279,24 @@ function tournamentResultText(context: DisplayContext, match: TournamentMatch): 
   return `Winner: ${racerLabel(context.event.racers, match.winnerId)}${detail}`
 }
 
+function participantSourceMatch(
+  heat: Heat | undefined,
+  sourceMatches: TournamentMatch[],
+  participantIndex: number
+): TournamentMatch | undefined {
+  const sourceHeatId = heat?.sourceHeatIds?.[participantIndex]
+
+  return sourceHeatId
+    ? sourceMatches.find((match) => match.heat?.id === sourceHeatId)
+    : sourceMatches[participantIndex]
+}
+
 function participantLabel(
   heat: Heat | undefined,
   sourceMatches: TournamentMatch[],
   participantIndex: number
 ): string {
-  const sourceHeatId = heat?.sourceHeatIds?.[participantIndex]
-  const sourceMatch = sourceHeatId
-    ? sourceMatches.find((match) => match.heat?.id === sourceHeatId)
-    : sourceMatches[participantIndex]
+  const sourceMatch = participantSourceMatch(heat, sourceMatches, participantIndex)
 
   if (sourceMatch) {
     return `Winner of Match ${sourceMatch.matchNumber}`
@@ -229,12 +309,26 @@ function heatParticipants(heat: Heat | undefined, sourceMatches: TournamentMatch
   const assignments = heat?.laneAssignments.filter((assignment) => assignment.racerId || assignment.seed).slice(0, 2) ?? []
 
   if (assignments.length > 0) {
-    return assignments.map((assignment, index) => ({
-      racerId: assignment.racerId,
-      seed: assignment.seed,
-      placeholder: assignment.racerId ? '' : participantLabel(heat, sourceMatches, index),
-      sourceMatchNumber: sourceMatches[index]?.matchNumber
-    }))
+    const participants: TournamentParticipant[] = assignments.map((assignment, index) => {
+      const sourceMatch = participantSourceMatch(heat, sourceMatches, index)
+
+      return {
+        racerId: assignment.racerId,
+        seed: assignment.seed,
+        placeholder: assignment.racerId ? '' : participantLabel(heat, sourceMatches, index),
+        sourceMatchNumber: sourceMatch?.matchNumber
+      }
+    })
+
+    while (participants.length < 2) {
+      participants.push({
+        racerId: null,
+        placeholder: participantLabel(heat, sourceMatches, participants.length),
+        sourceMatchNumber: participantSourceMatch(heat, sourceMatches, participants.length)?.matchNumber
+      })
+    }
+
+    return participants
   }
 
   const participants: TournamentParticipant[] = sourceMatches.slice(0, 2).map((match) => ({
@@ -244,15 +338,15 @@ function heatParticipants(heat: Heat | undefined, sourceMatches: TournamentMatch
   }))
 
   while (participants.length < 2) {
-    participants.push({ racerId: null, placeholder: heat ? 'Bye' : 'TBD' })
+    participants.push({ racerId: null, placeholder: heat || sourceMatches.length === 1 ? 'Bye' : 'TBD' })
   }
 
   return participants
 }
 
 function buildTournamentRounds(context: DisplayContext): TournamentRound[] {
-  const bracketSize = tournamentBracketSize(context.race)
-  const bracketRoundCount = Math.max(1, Math.log2(bracketSize))
+  const matchCounts = tournamentRoundMatchCounts(context.race)
+  const bracketRoundCount = matchCounts.length
   const heatsByRound = new Map<number, Heat[]>()
 
   for (const heat of context.race.heats) {
@@ -271,7 +365,7 @@ function buildTournamentRounds(context: DisplayContext): TournamentRound[] {
 
   for (let roundIndex = 0; roundIndex < bracketRoundCount; roundIndex += 1) {
     const roundNumber = roundIndex + 1
-    const matchCount = Math.max(1, bracketSize / 2 ** (roundIndex + 1))
+    const matchCount = matchCounts[roundIndex]
     const roundHeats = heatsByRound.get(roundNumber) ?? []
     const matches: TournamentMatch[] = []
 
@@ -360,6 +454,75 @@ function matchFromHeat(context: DisplayContext, heat: Heat, matchIndex: number):
     isCurrent: heat.id === context.currentHeat?.id,
     isChampion: false
   }
+}
+
+function bracketMatchStatusLabel(match: TournamentMatch): string {
+  if (match.isChampion) {
+    return match.winnerId ? 'Complete' : 'Pending'
+  }
+
+  return match.isCurrent ? 'Current' : formatStatus(match.status)
+}
+
+function participantDisplayLabel(context: DisplayContext, participant: TournamentParticipant): string {
+  return participant.racerId ? racerLabel(context.event.racers, participant.racerId) : participant.placeholder
+}
+
+function buildSingleEliminationPages(rounds: TournamentRound[]): BracketPage[] {
+  const competitionRounds = rounds.filter((round) => !round.isChampion)
+  const pages: BracketPage[] = [
+    {
+      id: fullBracketPageId,
+      label: 'Full Bracket',
+      mode: 'full',
+      roundIds: rounds.map((round) => round.id)
+    }
+  ]
+
+  competitionRounds.forEach((round, roundIndex) => {
+    const bracketRoundIds = rounds.slice(roundIndex).map((visibleRound) => visibleRound.id)
+
+    pages.push({
+      id: `round-${round.roundNumber}-bracket`,
+      label: `${round.label} Bracket`,
+      mode: 'focused',
+      roundIds: bracketRoundIds
+    })
+  })
+
+  return pages
+}
+
+function autoSingleEliminationPageId(context: DisplayContext, pages: BracketPage[], rounds: TournamentRound[]): string {
+  if (context.raceFinished) {
+    const finalRound = [...rounds].reverse().find((round) => !round.isChampion)
+
+    return pages.find((page) => finalRound && page.id === `round-${finalRound.roundNumber}-bracket`)?.id ?? fullBracketPageId
+  }
+
+  if (!context.currentHeat) {
+    return fullBracketPageId
+  }
+
+  const currentRound = rounds.find((round) => round.roundNumber === context.currentHeat?.roundNumber)
+
+  return pages.find((page) => currentRound && page.id === `round-${currentRound.roundNumber}-bracket`)?.id ?? fullBracketPageId
+}
+
+function selectedBracketPage(pages: BracketPage[], selectedPageId: string): BracketPage {
+  return pages.find((page) => page.id === selectedPageId) ?? pages[0]
+}
+
+function currentBracketDetail(context: DisplayContext, page: BracketPage | undefined, locationLabel: string): string {
+  if (context.raceFinished) {
+    return page ? `${page.label} - Complete` : 'Complete'
+  }
+
+  if (!context.currentHeat) {
+    return page ? `${page.label} - No active match` : 'No active match'
+  }
+
+  return page ? `${page.label} - ${locationLabel}` : locationLabel
 }
 
 function eliminationRecordGroups(context: DisplayContext): Array<{ lossCount: number; label: string; standings: Standing[] }> {
@@ -602,202 +765,1181 @@ function EliminationCurrentDisplay({ context }: { context: DisplayContext }) {
   )
 }
 
-function TournamentParticipantRow({
+function currentMatchDisplayCode(context: DisplayContext): string {
+  const heat = context.currentHeat
+
+  if (!heat) {
+    return 'No match'
+  }
+
+  const bracket = heat.eliminationBracket
+
+  if (context.race.format === 'double-elimination') {
+    if (bracket?.isFinal) {
+      return `GF${bracket.sequence}`
+    }
+
+    if ((bracket?.lossCount ?? 0) > 0 || bracket?.isCrossLoss) {
+      return `L${heat.heatNumber}`
+    }
+
+    return `W${heat.heatNumber}`
+  }
+
+  return `M${heat.heatNumber}`
+}
+
+function heatParticipantSummary(context: DisplayContext, heat: Heat | undefined): string {
+  if (!heat) {
+    return 'No active match'
+  }
+
+  const participants = heat.laneAssignments
+    .filter((assignment) => assignment.racerId || assignment.seed)
+    .slice(0, 2)
+    .map((assignment) =>
+      assignment.racerId
+        ? racerLabel(context.event.racers, assignment.racerId)
+        : assignment.seed
+          ? `Seed ${assignment.seed}`
+          : 'Bye'
+    )
+
+  return participants.length > 0 ? participants.join(' vs ') : heatResultSummary(context, heat)
+}
+
+function matchStatusKey(match: TournamentMatch): Heat['status'] | 'current' | 'pending' {
+  return match.isCurrent ? 'current' : match.status
+}
+
+function participantMetaLabel(participant: TournamentParticipant, isChampion: boolean): string {
+  if (participant.sourceLabel) {
+    return participant.sourceLabel
+  }
+
+  if (typeof participant.lossCount === 'number') {
+    return participant.lossCount === 1 ? '1 loss' : `${participant.lossCount} losses`
+  }
+
+  if (participant.seed) {
+    return `Seed ${participant.seed}`
+  }
+
+  if (participant.sourceMatchNumber) {
+    return `From M${participant.sourceMatchNumber}`
+  }
+
+  return isChampion ? 'Champion' : 'Entry'
+}
+
+function participantResultLabel(match: TournamentMatch, participant: TournamentParticipant): string {
+  if (!participant.racerId) {
+    return participant.placeholder === 'Bye' ? 'Bye' : '-'
+  }
+
+  const result = match.heat?.results.find((candidate) => candidate.racerId === participant.racerId)
+
+  if (!result || result.excludedFromScoring) {
+    return '-'
+  }
+
+  if (typeof result.timeMs === 'number' && result.status === 'ok') {
+    return formatTime(result.timeMs)
+  }
+
+  if (typeof result.finishPosition === 'number' && result.status === 'ok') {
+    return `#${result.finishPosition}`
+  }
+
+  return result.status.toUpperCase()
+}
+
+function withParticipantDetails(
+  match: TournamentMatch,
+  details: (participant: TournamentParticipant) => Partial<TournamentParticipant>
+): TournamentMatch {
+  return {
+    ...match,
+    participants: match.participants.map((participant) => ({
+      ...participant,
+      ...details(participant)
+    }))
+  }
+}
+
+function matchCardGridStyle(matchIndex: number, matchCount: number, totalSlots: number): CSSProperties {
+  const safeMatchCount = Math.max(matchCount, 1)
+  const safeTotalSlots = Math.max(totalSlots, 1)
+  const centerRow = ((matchIndex + 0.5) * safeTotalSlots * bracketRowsPerSlot) / safeMatchCount
+  const rowStart = Math.max(1, Math.round(centerRow - bracketCardRowSpan / 2) + 1)
+
+  return { gridRow: `${rowStart} / span ${bracketCardRowSpan}` }
+}
+
+function setCardRef(cardRefs: CardRefMap, cardId: string) {
+  return (element: HTMLElement | null) => {
+    if (element) {
+      cardRefs.current.set(cardId, element)
+    } else {
+      cardRefs.current.delete(cardId)
+    }
+  }
+}
+
+function MatchCard({
+  cardRefs,
   context,
-  participant,
-  winnerId,
-  isChampion
+  match,
+  style
 }: {
+  cardRefs: CardRefMap
   context: DisplayContext
-  participant: TournamentParticipant
-  winnerId?: string
-  isChampion: boolean
+  match: TournamentMatch
+  style?: CSSProperties
 }) {
-  const isWinner = Boolean(participant.racerId && participant.racerId === winnerId)
-  const seedLabel = participant.seed
-    ? `Seed ${participant.seed}`
-    : participant.sourceMatchNumber
-      ? `From Match ${participant.sourceMatchNumber}`
-      : isChampion
-        ? 'Champion'
-        : 'Entry'
+  const statusLabel = bracketMatchStatusLabel(match)
+  const displayCode = match.displayCode ?? `M${match.matchNumber}`
 
   return (
-    <div className="tournament-participant" data-empty={!participant.racerId} data-winner={isWinner}>
-      <span>{seedLabel}</span>
-      <strong>{participant.racerId ? racerLabel(context.event.racers, participant.racerId) : participant.placeholder}</strong>
+    <div className="bracket-match-slot" style={style}>
+      <article
+        className="bracket-match-card"
+        data-current={match.isCurrent}
+        data-reset={match.isReset}
+        data-status={matchStatusKey(match)}
+        ref={setCardRef(cardRefs, match.id)}
+      >
+        <div className="bracket-match-heading">
+          <span>{match.isReset ? <RotateCcw aria-hidden="true" size={15} /> : null}{displayCode}</span>
+          <strong>{statusLabel}</strong>
+        </div>
+
+        {match.supportingLabel ? <span className="bracket-match-supporting">{match.supportingLabel}</span> : null}
+
+        <div className="bracket-entrant-list">
+          {match.participants.map((participant, index) => {
+            const isWinner = Boolean(participant.racerId && participant.racerId === match.winnerId)
+            const isBye = participant.placeholder === 'Bye'
+
+            return (
+              <div
+                className="bracket-entrant-row"
+                data-bye={isBye}
+                data-empty={!participant.racerId}
+                data-winner={isWinner}
+                key={`${match.id}:participant:${participant.racerId ?? participant.placeholder}:${index}`}
+              >
+                <span>{participantMetaLabel(participant, false)}</span>
+                <strong>{participantDisplayLabel(context, participant)}</strong>
+                <small>{participantResultLabel(match, participant)}</small>
+              </div>
+            )
+          })}
+        </div>
+
+        <div className="bracket-match-result">{tournamentResultText(context, match)}</div>
+      </article>
     </div>
   )
 }
 
-function TournamentMatchCard({
+function ChampionCard({
+  cardRefs,
   context,
-  hasPairConnector,
   match,
-  isFirstRound,
-  isLastRound
+  style
 }: {
+  cardRefs: CardRefMap
   context: DisplayContext
-  hasPairConnector: boolean
   match: TournamentMatch
-  isFirstRound: boolean
-  isLastRound: boolean
+  style?: CSSProperties
 }) {
-  const statusLabel = match.isChampion
-    ? match.winnerId
-      ? 'Complete'
-      : 'Pending'
-    : match.isCurrent
-      ? 'Current'
-      : formatStatus(match.status)
+  const participant = match.participants[0]
+  const championLabel = participant ? participantDisplayLabel(context, participant) : 'Champion'
 
   return (
-    <div
-      className="tournament-match-shell"
-      data-current={match.isCurrent}
-      data-first-round={isFirstRound}
-      data-has-pair={hasPairConnector}
-      data-last-round={isLastRound}
-      data-pair-position={match.matchIndex % 2 === 0 ? 'top' : 'bottom'}
-      data-status={match.isCurrent ? 'current' : match.status}
-    >
-      <article className="tournament-match-card" data-champion={match.isChampion}>
-        <div className="tournament-match-heading">
-          <span>{match.isChampion ? 'Champion' : `Match ${match.matchNumber}`}</span>
-          <strong>{statusLabel}</strong>
+    <div className="bracket-match-slot" style={style}>
+      <article
+        className="bracket-champion-card"
+        data-status={matchStatusKey(match)}
+        ref={setCardRef(cardRefs, match.id)}
+      >
+        <div className="bracket-champion-icon" aria-hidden="true">
+          <Trophy size={28} />
         </div>
-
-        <div className="tournament-participants">
-          {match.participants.map((participant, index) => (
-            <TournamentParticipantRow
-              context={context}
-              isChampion={match.isChampion}
-              key={`${match.id}:${participant.racerId ?? participant.placeholder}:${index}`}
-              participant={participant}
-              winnerId={match.winnerId}
-            />
-          ))}
-        </div>
-
-        <div className="tournament-result">
-          <span>{tournamentResultText(context, match)}</span>
-          {match.sourceMatchNumbers.length > 0 && !match.isChampion ? (
-            <small>{match.sourceMatchNumbers.map((matchNumber) => `M${matchNumber}`).join(' + ')}</small>
-          ) : null}
+        <div>
+          <span>Champion</span>
+          <strong>{championLabel}</strong>
+          <small>{match.resultSummary}</small>
         </div>
       </article>
     </div>
   )
 }
 
+function RoundColumn({
+  cardRefs,
+  context,
+  round,
+  totalSlots
+}: {
+  cardRefs: CardRefMap
+  context: DisplayContext
+  round: TournamentRound
+  totalSlots: number
+}) {
+  const rowCount = Math.max(bracketCardRowSpan, Math.max(totalSlots, 1) * bracketRowsPerSlot)
+  const trackStyle = { '--bracket-rows': rowCount } as CSSProperties
+
+  return (
+    <div className="bracket-round-column" data-champion={round.isChampion}>
+      <div className="bracket-round-heading">
+        <span>{round.label}</span>
+        <strong>
+          {round.isChampion
+            ? '1 winner'
+            : `${round.matches.length} match${round.matches.length === 1 ? '' : 'es'}`}
+        </strong>
+      </div>
+      <div className="bracket-round-track" style={trackStyle}>
+        {round.matches.map((match) => {
+          const cardStyle = matchCardGridStyle(match.matchIndex, round.matches.length, totalSlots)
+
+          return match.isChampion ? (
+            <ChampionCard cardRefs={cardRefs} context={context} key={match.id} match={match} style={cardStyle} />
+          ) : (
+            <MatchCard cardRefs={cardRefs} context={context} key={match.id} match={match} style={cardStyle} />
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function BracketConnectorLayer({
+  cardRefs,
+  connectors,
+  containerRef,
+  refreshKey
+}: {
+  cardRefs: CardRefMap
+  connectors: BracketConnector[]
+  containerRef: RefObject<HTMLDivElement | null>
+  refreshKey: string
+}) {
+  const [paths, setPaths] = useState<{ height: number; paths: ConnectorPath[]; width: number }>({
+    height: 0,
+    paths: [],
+    width: 0
+  })
+
+  useEffect(() => {
+    let animationFrameId = 0
+
+    const measure = () => {
+      animationFrameId = 0
+      const container = containerRef.current
+
+      if (!container) {
+        setPaths({ height: 0, paths: [], width: 0 })
+        return
+      }
+
+      const containerBounds = container.getBoundingClientRect()
+      const nextPaths: ConnectorPath[] = []
+
+      for (const connector of connectors) {
+        const fromElement = cardRefs.current.get(connector.fromId)
+        const toElement = cardRefs.current.get(connector.toId)
+
+        if (!fromElement || !toElement) {
+          continue
+        }
+
+        const fromBounds = fromElement.getBoundingClientRect()
+        const toBounds = toElement.getBoundingClientRect()
+        const startX = fromBounds.right - containerBounds.left
+        const startY = fromBounds.top - containerBounds.top + fromBounds.height / 2
+        const endX = toBounds.left - containerBounds.left
+        const endY = toBounds.top - containerBounds.top + toBounds.height / 2
+        const distance = Math.max(32, Math.abs(endX - startX))
+        const direction = endX >= startX ? 1 : -1
+        const midX = startX + direction * Math.max(32, distance / 2)
+        const d = `M ${startX} ${startY} H ${midX} V ${endY} H ${endX}`
+
+        nextPaths.push({
+          id: connector.id,
+          d,
+          variant: connector.variant,
+          label: connector.label,
+          labelX: midX,
+          labelY: startY + (endY - startY) / 2 - 8
+        })
+      }
+
+      setPaths({
+        height: Math.max(container.scrollHeight, containerBounds.height),
+        paths: nextPaths,
+        width: Math.max(container.scrollWidth, containerBounds.width)
+      })
+    }
+
+    const scheduleMeasure = () => {
+      if (animationFrameId) {
+        window.cancelAnimationFrame(animationFrameId)
+      }
+
+      animationFrameId = window.requestAnimationFrame(measure)
+    }
+
+    const resizeObserver = new ResizeObserver(scheduleMeasure)
+    const container = containerRef.current
+
+    if (container) {
+      resizeObserver.observe(container)
+    }
+
+    for (const connector of connectors) {
+      const fromElement = cardRefs.current.get(connector.fromId)
+      const toElement = cardRefs.current.get(connector.toId)
+
+      if (fromElement) {
+        resizeObserver.observe(fromElement)
+      }
+
+      if (toElement) {
+        resizeObserver.observe(toElement)
+      }
+    }
+
+    window.addEventListener('resize', scheduleMeasure)
+    scheduleMeasure()
+
+    return () => {
+      if (animationFrameId) {
+        window.cancelAnimationFrame(animationFrameId)
+      }
+
+      resizeObserver.disconnect()
+      window.removeEventListener('resize', scheduleMeasure)
+    }
+  }, [cardRefs, connectors, containerRef, refreshKey])
+
+  if (paths.paths.length === 0 || paths.width === 0 || paths.height === 0) {
+    return null
+  }
+
+  return (
+    <svg
+      aria-hidden="true"
+      className="bracket-connector-layer"
+      height={paths.height}
+      viewBox={`0 0 ${paths.width} ${paths.height}`}
+      width={paths.width}
+    >
+      <defs>
+        <marker id="bracket-arrow" markerHeight="8" markerWidth="8" orient="auto" refX="7" refY="4">
+          <path d="M 0 0 L 8 4 L 0 8 z" />
+        </marker>
+      </defs>
+      {paths.paths.map((path) => (
+        <g data-variant={path.variant} key={path.id}>
+          <path d={path.d} markerEnd="url(#bracket-arrow)" />
+          {path.label ? (
+            <text x={path.labelX} y={path.labelY}>
+              {path.label}
+            </text>
+          ) : null}
+        </g>
+      ))}
+    </svg>
+  )
+}
+
+function BracketSectionView({
+  cardRefs,
+  context,
+  section
+}: {
+  cardRefs: CardRefMap
+  context: DisplayContext
+  section: BracketSection
+}) {
+  const totalSlots = Math.max(...section.columns.map((round) => round.matches.length), 1)
+
+  return (
+    <section className="bracket-section" data-kind={section.kind}>
+      <div className="bracket-section-heading">
+        <div>
+          <span>{section.title}</span>
+          {section.subtitle ? <strong>{section.subtitle}</strong> : null}
+        </div>
+        {section.kind === 'grand-final' || section.kind === 'single' ? <Trophy aria-hidden="true" size={22} /> : null}
+      </div>
+      <div className="bracket-column-grid">
+        {section.columns.map((round) => (
+          <RoundColumn cardRefs={cardRefs} context={context} key={round.id} round={round} totalSlots={totalSlots} />
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function BracketCanvas({
+  context,
+  layout,
+  refreshKey,
+  sections
+}: {
+  context: DisplayContext
+  layout: 'single' | 'double' | 'triple'
+  refreshKey: string
+  sections: BracketSection[]
+}) {
+  const canvasRef = useRef<HTMLDivElement | null>(null)
+  const cardRefs = useRef(new Map<string, HTMLElement>())
+  const connectors = sections.flatMap((section) => section.connectors)
+
+  return (
+    <div className="bracket-scroll">
+      <div className="bracket-canvas" data-layout={layout} ref={canvasRef}>
+        <BracketConnectorLayer
+          cardRefs={cardRefs}
+          connectors={connectors}
+          containerRef={canvasRef}
+          refreshKey={refreshKey}
+        />
+        {sections.map((section) => (
+          <BracketSectionView cardRefs={cardRefs} context={context} key={section.id} section={section} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function BracketLegend() {
+  return (
+    <div className="bracket-legend" aria-label="Bracket legend">
+      <span data-legend="current">Current Match</span>
+      <span data-legend="pending">Pending</span>
+      <span data-legend="complete">Complete</span>
+      <span data-legend="bye">Bye</span>
+    </div>
+  )
+}
+
+function BracketDisplay({
+  activePage,
+  children,
+  context,
+  isPagePinned,
+  locationLabel,
+  pages,
+  setIsPagePinned,
+  setSelectedPageId
+}: {
+  activePage: BracketPage
+  children: ReactNode
+  context: DisplayContext
+  isPagePinned: boolean
+  locationLabel: string
+  pages: BracketPage[]
+  setIsPagePinned: (isPinned: boolean) => void
+  setSelectedPageId: (pageId: string) => void
+}) {
+  return (
+    <div className="elimination-display" data-page-mode={activePage.mode}>
+      <BracketStatusBar
+        activePage={activePage}
+        context={context}
+        isPagePinned={isPagePinned}
+        locationLabel={locationLabel}
+        pages={pages}
+        setIsPagePinned={setIsPagePinned}
+        setSelectedPageId={setSelectedPageId}
+      />
+      <div className="bracket-stage">{children}</div>
+      <BracketLegend />
+    </div>
+  )
+}
+
+function BracketStatusBar({
+  activePage,
+  context,
+  isPagePinned,
+  locationLabel,
+  pages,
+  setIsPagePinned,
+  setSelectedPageId
+}: {
+  activePage: BracketPage
+  context: DisplayContext
+  isPagePinned: boolean
+  locationLabel: string
+  pages: BracketPage[]
+  setIsPagePinned: (isPinned: boolean) => void
+  setSelectedPageId: (pageId: string) => void
+}) {
+  const currentLabel = context.raceFinished ? 'Final Result' : currentMatchDisplayCode(context)
+  const PinIcon = isPagePinned ? PinOff : Pin
+
+  return (
+    <section className="bracket-status-bar" aria-label="Bracket display controls">
+      <div className="bracket-status-primary">
+        <span>{context.raceFinished ? 'Bracket Complete' : 'Current Match'}</span>
+        <strong>{currentLabel}</strong>
+        <small>{heatParticipantSummary(context, context.currentHeat)}</small>
+        <small>{currentBracketDetail(context, activePage, locationLabel)}</small>
+      </div>
+
+      <label className="bracket-page-selector">
+        <span>Page</span>
+        <select value={activePage.id} onChange={(inputEvent) => setSelectedPageId(inputEvent.target.value)}>
+          {pages.map((page) => (
+            <option key={page.id} value={page.id}>
+              {page.label}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <button
+        aria-label={isPagePinned ? 'Resume following current match' : 'Pin selected bracket page'}
+        aria-pressed={isPagePinned}
+        className="bracket-pin-button"
+        data-active={isPagePinned}
+        onClick={() => setIsPagePinned(!isPagePinned)}
+        type="button"
+      >
+        <PinIcon aria-hidden="true" size={18} />
+        <span>{isPagePinned ? 'Pinned' : 'Follow'}</span>
+      </button>
+    </section>
+  )
+}
+
+function visibleRoundsForPage(rounds: TournamentRound[], activePage: BracketPage): TournamentRound[] {
+  return activePage.roundIds ? rounds.filter((round) => activePage.roundIds?.includes(round.id)) : rounds
+}
+
+function allRoundMatches(rounds: TournamentRound[]): TournamentMatch[] {
+  return rounds.flatMap((round) => round.matches)
+}
+
+function filterConnectorsToVisibleMatches(connectors: BracketConnector[], rounds: TournamentRound[]): BracketConnector[] {
+  const visibleMatchIds = new Set(allRoundMatches(rounds).map((match) => match.id))
+
+  return connectors.filter((connector) => visibleMatchIds.has(connector.fromId) && visibleMatchIds.has(connector.toId))
+}
+
+function buildSingleEliminationConnectors(rounds: TournamentRound[]): BracketConnector[] {
+  const connectors: BracketConnector[] = []
+
+  rounds.forEach((round, roundIndex) => {
+    const nextRound = rounds[roundIndex + 1]
+
+    if (!nextRound) {
+      return
+    }
+
+    round.matches.forEach((match) => {
+      const targetMatch =
+        nextRound.matches.find((candidate) => candidate.sourceMatchNumbers.includes(match.matchNumber)) ??
+        nextRound.matches[Math.min(nextRound.matches.length - 1, Math.floor(match.matchIndex / 2))]
+
+      if (!targetMatch) {
+        return
+      }
+
+      connectors.push({
+        id: `single:${match.id}:${targetMatch.id}`,
+        fromId: match.id,
+        toId: targetMatch.id,
+        variant: 'winner'
+      })
+    })
+  })
+
+  return connectors
+}
+
+function buildSingleEliminationSections(rounds: TournamentRound[], activePage: BracketPage): BracketSection[] {
+  const visibleRounds = visibleRoundsForPage(rounds, activePage)
+
+  return [
+    {
+      id: 'single-winners',
+      title: 'Winners Bracket',
+      subtitle: activePage.mode === 'full' ? 'Full tournament path' : activePage.label,
+      kind: 'single',
+      columns: visibleRounds,
+      connectors: filterConnectorsToVisibleMatches(buildSingleEliminationConnectors(rounds), visibleRounds)
+    }
+  ]
+}
+
+function buildRacerLossCounts(context: DisplayContext): Map<string, number> {
+  const lossesByRacerId = new Map<string, number>()
+
+  for (const standing of context.standings) {
+    lossesByRacerId.set(standing.racerId, standing.losses ?? 0)
+  }
+
+  for (const entry of context.race.entries) {
+    if (!lossesByRacerId.has(entry.racerId)) {
+      lossesByRacerId.set(entry.racerId, 0)
+    }
+  }
+
+  return lossesByRacerId
+}
+
+function buildLossSourceHeatByRacerId(race: Race): Map<string, Heat> {
+  const sourceHeatByRacerId = new Map<string, Heat>()
+
+  for (const heat of race.heats.filter((candidate) => candidate.status === 'complete')) {
+    const winnerId = heatWinnerId(heat)
+
+    for (const result of heat.results) {
+      if (result.excludedFromScoring || result.racerId === winnerId) {
+        continue
+      }
+
+      sourceHeatByRacerId.set(result.racerId, heat)
+    }
+  }
+
+  return sourceHeatByRacerId
+}
+
+function heatCodeFromMap(heat: Heat | undefined, heatCodeById: Map<string, string>): string {
+  if (!heat) {
+    return 'M?'
+  }
+
+  return heatCodeById.get(heat.id) ?? `M${heat.heatNumber}`
+}
+
+function codedMatchFromHeat(
+  context: DisplayContext,
+  heat: Heat,
+  matchIndex: number,
+  displayCode: string,
+  details: (participant: TournamentParticipant) => Partial<TournamentParticipant> = () => ({})
+): TournamentMatch {
+  return {
+    ...withParticipantDetails(matchFromHeat(context, heat, matchIndex), details),
+    displayCode
+  }
+}
+
+function groupMatchesByRound(idPrefix: string, labelPrefix: string, matches: TournamentMatch[]): TournamentRound[] {
+  const roundNumbers = [...new Set(matches.map((match) => match.roundNumber))].sort((first, second) => first - second)
+
+  return roundNumbers.map((roundNumber, roundIndex) => {
+    const roundMatches = matches
+      .filter((match) => match.roundNumber === roundNumber)
+      .sort((first, second) => first.matchNumber - second.matchNumber)
+      .map((match, matchIndex) => ({ ...match, matchIndex }))
+
+    return {
+      id: `${idPrefix}-round-${roundNumber}`,
+      roundNumber,
+      label: `${labelPrefix} ${roundIndex + 1}`,
+      matches: roundMatches,
+      isChampion: false
+    }
+  })
+}
+
+function buildRoundProgressionConnectors(
+  idPrefix: string,
+  rounds: TournamentRound[],
+  variant: BracketConnectorVariant = 'winner'
+): BracketConnector[] {
+  const connectors: BracketConnector[] = []
+
+  rounds.forEach((round, roundIndex) => {
+    const nextRound = rounds[roundIndex + 1]
+
+    if (!nextRound || nextRound.matches.length === 0) {
+      return
+    }
+
+    round.matches.forEach((match) => {
+      const targetMatch = nextRound.matches[Math.min(nextRound.matches.length - 1, Math.floor(match.matchIndex / 2))]
+
+      if (!targetMatch) {
+        return
+      }
+
+      connectors.push({
+        id: `${idPrefix}:${match.id}:${targetMatch.id}`,
+        fromId: match.id,
+        toId: targetMatch.id,
+        variant
+      })
+    })
+  })
+
+  return connectors
+}
+
+function finalRoundFromMatches(idPrefix: string, label: string, matches: TournamentMatch[]): TournamentRound {
+  return {
+    id: `${idPrefix}-round`,
+    roundNumber: Math.max(1, ...matches.map((match) => match.roundNumber)),
+    label,
+    matches: matches.map((match, matchIndex) => ({ ...match, matchIndex })),
+    isChampion: false
+  }
+}
+
+function resetFinalMatch(context: DisplayContext, finalMatch: TournamentMatch | undefined): TournamentMatch {
+  return {
+    id: 'double-reset-final',
+    displayCode: 'GF2',
+    supportingLabel: 'If necessary',
+    matchNumber: (finalMatch?.matchNumber ?? 0) + 1,
+    roundNumber: (finalMatch?.roundNumber ?? 0) + 1,
+    matchIndex: 1,
+    participants: [
+      { racerId: null, placeholder: 'If Necessary', sourceLabel: 'Bracket reset' },
+      { racerId: null, placeholder: 'If Necessary', sourceLabel: 'First final loser' }
+    ],
+    sourceMatchNumbers: finalMatch ? [finalMatch.matchNumber] : [],
+    status: 'pending',
+    resultSummary: 'First to 1 win',
+    isCurrent: false,
+    isChampion: false,
+    isReset: true,
+    winnerId: undefined,
+    heat: undefined
+  }
+}
+
+function buildDoubleEliminationModel(context: DisplayContext): { pages: BracketPage[]; sections: BracketSection[] } {
+  const winnersHeats = context.race.heats
+    .filter(
+      (heat) =>
+        (heat.eliminationBracket?.lossCount ?? 0) === 0 &&
+        !heat.eliminationBracket?.isFinal &&
+        !heat.eliminationBracket?.isCrossLoss
+    )
+    .sort((first, second) => first.roundNumber - second.roundNumber || first.heatNumber - second.heatNumber)
+  const losersHeats = context.race.heats
+    .filter(
+      (heat) =>
+        !heat.eliminationBracket?.isFinal &&
+        ((heat.eliminationBracket?.lossCount ?? 0) > 0 || heat.eliminationBracket?.isCrossLoss)
+    )
+    .sort((first, second) => first.roundNumber - second.roundNumber || first.heatNumber - second.heatNumber)
+  const finalHeats = context.race.heats
+    .filter((heat) => heat.eliminationBracket?.isFinal)
+    .sort((first, second) => first.roundNumber - second.roundNumber || first.heatNumber - second.heatNumber)
+  const heatCodeById = new Map<string, string>()
+
+  winnersHeats.forEach((heat, index) => heatCodeById.set(heat.id, `W${index + 1}`))
+  losersHeats.forEach((heat, index) => heatCodeById.set(heat.id, `L${index + 1}`))
+  finalHeats.forEach((heat, index) => heatCodeById.set(heat.id, `GF${index + 1}`))
+
+  const lossesByRacerId = buildRacerLossCounts(context)
+  const lossSourceHeatByRacerId = buildLossSourceHeatByRacerId(context.race)
+  const participantLossDetails = (participant: TournamentParticipant): Partial<TournamentParticipant> => ({
+    lossCount: participant.racerId ? lossesByRacerId.get(participant.racerId) ?? 0 : participant.lossCount
+  })
+  const loserParticipantDetails = (participant: TournamentParticipant): Partial<TournamentParticipant> => {
+    if (!participant.racerId) {
+      return { lossCount: 1 }
+    }
+
+    const sourceHeat = lossSourceHeatByRacerId.get(participant.racerId)
+
+    return {
+      lossCount: lossesByRacerId.get(participant.racerId) ?? 1,
+      sourceLabel: `Loser of ${heatCodeFromMap(sourceHeat, heatCodeById)}`
+    }
+  }
+  const finalParticipantDetails = (participant: TournamentParticipant): Partial<TournamentParticipant> => {
+    const lossCount = participant.racerId ? lossesByRacerId.get(participant.racerId) ?? 0 : participant.lossCount
+
+    return {
+      lossCount,
+      sourceLabel: lossCount === 0 ? 'Winners Bracket' : 'Losers Bracket'
+    }
+  }
+  const winnerMatches = winnersHeats.map((heat, matchIndex) =>
+    codedMatchFromHeat(context, heat, matchIndex, heatCodeFromMap(heat, heatCodeById), participantLossDetails)
+  )
+  const loserMatches = losersHeats.map((heat, matchIndex) =>
+    codedMatchFromHeat(context, heat, matchIndex, heatCodeFromMap(heat, heatCodeById), loserParticipantDetails)
+  )
+  const finalMatches = finalHeats.map((heat, matchIndex) =>
+    codedMatchFromHeat(context, heat, matchIndex, heatCodeFromMap(heat, heatCodeById), finalParticipantDetails)
+  )
+  const resetMatch = resetFinalMatch(context, finalMatches[0])
+  const winnersRounds = groupMatchesByRound('double-winners', 'Round', winnerMatches)
+  const losersRounds = groupMatchesByRound('double-losers', 'Round', loserMatches)
+  const grandFinalRounds = [
+    finalRoundFromMatches('double-grand-final', 'Grand Final', finalMatches.length > 0 ? [finalMatches[0]] : []),
+    finalRoundFromMatches('double-reset-final', 'Bracket Reset', [finalMatches[1] ?? resetMatch])
+  ].filter((round) => round.matches.length > 0)
+  const winnersConnectors = buildRoundProgressionConnectors('double-winners', winnersRounds, 'winner')
+  const losersConnectors = buildRoundProgressionConnectors('double-losers', losersRounds, 'progression')
+  const dropConnectors: BracketConnector[] = []
+
+  winnerMatches.forEach((winnerMatch) => {
+    const targetMatch = loserMatches.find((loserMatch) =>
+      loserMatch.participants.some((participant) => participant.sourceLabel === `Loser of ${winnerMatch.displayCode}`)
+    )
+
+    if (!targetMatch) {
+      return
+    }
+
+    dropConnectors.push({
+      id: `drop:${winnerMatch.id}:${targetMatch.id}`,
+      fromId: winnerMatch.id,
+      toId: targetMatch.id,
+      variant: 'drop',
+      label: `Loser of ${winnerMatch.displayCode}`
+    })
+  })
+
+  const lastWinnerMatch = winnerMatches[winnerMatches.length - 1]
+  const lastLoserMatch = loserMatches[loserMatches.length - 1]
+  const firstFinalMatch = finalMatches[0]
+  const finalConnectors: BracketConnector[] = []
+  const grandFinalConnectors: BracketConnector[] = []
+
+  if (lastWinnerMatch && firstFinalMatch) {
+    finalConnectors.push({
+      id: `final-winner:${lastWinnerMatch.id}:${firstFinalMatch.id}`,
+      fromId: lastWinnerMatch.id,
+      toId: firstFinalMatch.id,
+      variant: 'winner',
+      label: `Winner of ${lastWinnerMatch.displayCode}`
+    })
+  }
+
+  if (lastLoserMatch && firstFinalMatch) {
+    finalConnectors.push({
+      id: `final-loser:${lastLoserMatch.id}:${firstFinalMatch.id}`,
+      fromId: lastLoserMatch.id,
+      toId: firstFinalMatch.id,
+      variant: 'winner',
+      label: `Winner of ${lastLoserMatch.displayCode}`
+    })
+  }
+
+  if (firstFinalMatch) {
+    grandFinalConnectors.push({
+      id: `final-reset:${firstFinalMatch.id}:${(finalMatches[1] ?? resetMatch).id}`,
+      fromId: firstFinalMatch.id,
+      toId: (finalMatches[1] ?? resetMatch).id,
+      variant: 'drop',
+      label: 'Reset if necessary'
+    })
+  }
+
+  return {
+    pages: [
+      { id: fullBracketPageId, label: 'Double Elimination', mode: 'full' },
+      { id: 'winners', label: 'Winners Bracket', mode: 'section', sectionIds: ['double-winners'] },
+      { id: 'losers', label: 'Losers Bracket', mode: 'section', sectionIds: ['double-losers'] },
+      { id: 'grand-final', label: 'Grand Final', mode: 'section', sectionIds: ['double-grand-final'] }
+    ],
+    sections: [
+      {
+        id: 'double-winners',
+        title: 'Winners Bracket',
+        subtitle: `${winnerMatches.length} match${winnerMatches.length === 1 ? '' : 'es'}`,
+        kind: 'winners',
+        columns: winnersRounds,
+        connectors: [...winnersConnectors, ...dropConnectors, ...finalConnectors]
+      },
+      {
+        id: 'double-losers',
+        title: 'Losers Bracket',
+        subtitle: `${loserMatches.length} match${loserMatches.length === 1 ? '' : 'es'}`,
+        kind: 'losers',
+        columns: losersRounds,
+        connectors: losersConnectors
+      },
+      {
+        id: 'double-grand-final',
+        title: 'Grand Final',
+        subtitle: 'Final destination',
+        kind: 'grand-final',
+        columns: grandFinalRounds,
+        connectors: grandFinalConnectors
+      }
+    ]
+  }
+}
+
+function activeDoublePageId(context: DisplayContext): string {
+  const currentHeat = context.currentHeat
+
+  if (context.raceFinished) {
+    return 'grand-final'
+  }
+
+  if (!currentHeat) {
+    return fullBracketPageId
+  }
+
+  if (currentHeat.eliminationBracket?.isFinal) {
+    return 'grand-final'
+  }
+
+  if ((currentHeat.eliminationBracket?.lossCount ?? 0) > 0 || currentHeat.eliminationBracket?.isCrossLoss) {
+    return 'losers'
+  }
+
+  return 'winners'
+}
+
+function buildTripleEliminationStatusGroups(context: DisplayContext): BracketStatusGroup[] {
+  const lossLimit = eliminationLossLimit(context.race.format)
+  const lossesByRacerId = buildRacerLossCounts(context)
+  const activeEntryIds = new Set(context.race.entries.filter((entry) => entry.status === 'active').map((entry) => entry.racerId))
+  const groups: BracketStatusGroup[] = []
+
+  for (let lossCount = 0; lossCount < lossLimit; lossCount += 1) {
+    groups.push({
+      id: `loss-${lossCount}`,
+      label: lossCount === 1 ? '1 Loss' : `${lossCount} Losses`,
+      racerIds: [...activeEntryIds].filter((racerId) => (lossesByRacerId.get(racerId) ?? 0) === lossCount),
+      eliminated: false
+    })
+  }
+
+  groups.push({
+    id: 'eliminated',
+    label: 'Eliminated',
+    racerIds: [...activeEntryIds].filter((racerId) => (lossesByRacerId.get(racerId) ?? 0) >= lossLimit),
+    eliminated: true
+  })
+
+  return groups
+}
+
+function TripleEliminationStatusPanel({ context }: { context: DisplayContext }) {
+  const groups = buildTripleEliminationStatusGroups(context)
+
+  return (
+    <aside className="elimination-status-panel">
+      <div className="bracket-section-heading">
+        <div>
+          <span>Status</span>
+          <strong>Racers by loss count</strong>
+        </div>
+      </div>
+      <div className="elimination-status-grid">
+        {groups.map((group) => (
+          <section className="elimination-status-group" data-eliminated={group.eliminated} key={group.id}>
+            <span>{group.label}</span>
+            <strong>{group.racerIds.length}</strong>
+            <ol>
+              {group.racerIds.slice(0, 8).map((racerId) => (
+                <li key={racerId}>{racerLabel(context.event.racers, racerId)}</li>
+              ))}
+            </ol>
+            {group.racerIds.length > 8 ? <small>+{group.racerIds.length - 8} more</small> : null}
+          </section>
+        ))}
+      </div>
+    </aside>
+  )
+}
+
+function buildTripleEliminationModel(context: DisplayContext): { pages: BracketPage[]; sections: BracketSection[] } {
+  const lossesByRacerId = buildRacerLossCounts(context)
+  const sections: BracketSection[] = []
+
+  for (let lossCount = 0; lossCount < 3; lossCount += 1) {
+    const laneHeats = context.race.heats
+      .filter((heat) => (heat.eliminationBracket?.lossCount ?? 0) === lossCount)
+      .sort((first, second) => first.roundNumber - second.roundNumber || first.heatNumber - second.heatNumber)
+    const laneMatches = laneHeats.map((heat, matchIndex) =>
+      codedMatchFromHeat(context, heat, matchIndex, `M${heat.heatNumber}`, (participant) => ({
+        lossCount: participant.racerId ? lossesByRacerId.get(participant.racerId) ?? lossCount : lossCount
+      }))
+    )
+    const laneRounds = groupMatchesByRound(
+      `triple-loss-${lossCount}`,
+      'Round',
+      laneMatches
+    )
+
+    sections.push({
+      id: `triple-loss-${lossCount}`,
+      title: lossCount === 1 ? '1-Loss Lane' : `${lossCount}-Loss Lane`,
+      subtitle: `${laneMatches.length} match${laneMatches.length === 1 ? '' : 'es'}`,
+      kind: 'loss-lane',
+      columns: laneRounds,
+      connectors: buildRoundProgressionConnectors(`triple-loss-${lossCount}`, laneRounds, 'progression')
+    })
+  }
+
+  return {
+    pages: [
+      { id: fullBracketPageId, label: 'Triple Elimination', mode: 'full' },
+      { id: 'loss-0', label: '0-Loss Lane', mode: 'section', sectionIds: ['triple-loss-0'] },
+      { id: 'loss-1', label: '1-Loss Lane', mode: 'section', sectionIds: ['triple-loss-1'] },
+      { id: 'loss-2', label: '2-Loss Lane', mode: 'section', sectionIds: ['triple-loss-2'] },
+      { id: 'status', label: 'Status Panel', mode: 'status' }
+    ],
+    sections
+  }
+}
+
+function activeTriplePageId(context: DisplayContext): string {
+  const currentHeat = context.currentHeat
+
+  if (!currentHeat) {
+    return fullBracketPageId
+  }
+
+  return `loss-${Math.min(currentHeat.eliminationBracket?.lossCount ?? 0, 2)}`
+}
+
 function SingleEliminationDisplay({ context }: { context: DisplayContext }) {
+  const [selectedPageId, setSelectedPageId] = useState(fullBracketPageId)
+  const [isPagePinned, setIsPagePinned] = useState(false)
   const rounds = buildTournamentRounds(context)
   const currentRound = context.currentHeat
     ? rounds.find((round) => round.roundNumber === context.currentHeat?.roundNumber)
     : undefined
-  const championMatch = rounds.find((round) => round.isChampion)?.matches[0]
-  const championId = championMatch?.winnerId
+  const pages = buildSingleEliminationPages(rounds)
+  const autoPageId = autoSingleEliminationPageId(context, pages, rounds)
+  const activePage = selectedBracketPage(pages, selectedPageId)
+  const locationLabel = context.raceFinished ? 'Champion' : currentRound?.label ?? 'Current Match'
+  const sections = buildSingleEliminationSections(rounds, activePage)
+
+  useEffect(() => {
+    setIsPagePinned(false)
+    setSelectedPageId(fullBracketPageId)
+  }, [context.race.id])
+
+  useEffect(() => {
+    if (!isPagePinned) {
+      setSelectedPageId(autoPageId)
+    }
+  }, [autoPageId, context.currentHeat?.id, context.raceFinished, isPagePinned])
 
   return (
-    <div className="elimination-display">
-      <article className="match-focus elimination-current">
-        <span>{context.raceFinished ? 'Champion' : currentRound?.label ?? 'Current Match'}</span>
-        <strong>{context.raceFinished ? 'Final Result' : currentHeatLabel(context.currentHeat)}</strong>
-        {context.raceFinished && championId ? (
-          <div className="champion-callout">
-            <span>Champion</span>
-            <strong>{racerLabel(context.event.racers, championId)}</strong>
-          </div>
-        ) : (
-          renderLaneAssignments(context, context.currentHeat)
-        )}
-      </article>
-
-      <section className="tournament-bracket" aria-label="Single elimination tournament bracket">
-        {rounds.map((round, roundIndex) => (
-          <div className="tournament-round" data-champion={round.isChampion} key={round.id}>
-            <div className="tournament-round-heading">
-              <span>{round.label}</span>
-              <strong>
-                {round.isChampion
-                  ? '1 winner'
-                  : `${round.matches.length} match${round.matches.length === 1 ? '' : 'es'}`}
-              </strong>
-            </div>
-            <div className="tournament-match-list">
-              {round.matches.map((match) => (
-                <TournamentMatchCard
-                  context={context}
-                  hasPairConnector={round.matches.length > 1 && !round.isChampion}
-                  isFirstRound={roundIndex === 0}
-                  isLastRound={roundIndex === rounds.length - 1}
-                  key={match.id}
-                  match={match}
-                />
-              ))}
-            </div>
-          </div>
-        ))}
-      </section>
-    </div>
+    <BracketDisplay
+      activePage={activePage}
+      context={context}
+      isPagePinned={isPagePinned}
+      locationLabel={locationLabel}
+      pages={pages}
+      setIsPagePinned={setIsPagePinned}
+      setSelectedPageId={setSelectedPageId}
+    >
+      <BracketCanvas
+        context={context}
+        layout="single"
+        refreshKey={`${context.race.id}:${context.race.updatedAt}:${activePage.id}:${context.currentHeat?.id ?? ''}`}
+        sections={sections}
+      />
+    </BracketDisplay>
   )
 }
 
-function MultiLossEliminationBracketDisplay({ context }: { context: DisplayContext }) {
-  const lossLimit = eliminationLossLimit(context.race.format)
-  const columns: Array<{ id: string; label: string; heats: Heat[] }> = []
-  const finalHeats = context.race.heats.filter(
-    (heat) => heat.eliminationBracket?.isFinal || heat.eliminationBracket?.isCrossLoss
-  )
+function DoubleEliminationBracketDisplay({ context }: { context: DisplayContext }) {
+  const [selectedPageId, setSelectedPageId] = useState(fullBracketPageId)
+  const [isPagePinned, setIsPagePinned] = useState(false)
+  const model = buildDoubleEliminationModel(context)
+  const pages = model.pages
+  const autoPageId = activeDoublePageId(context)
+  const activePage = selectedBracketPage(pages, selectedPageId)
+  const locationLabel = context.raceFinished ? 'Grand Final' : activePage.label
+  const sections = activePage.sectionIds
+    ? model.sections.filter((section) => activePage.sectionIds?.includes(section.id))
+    : model.sections
 
-  for (let lossCount = 0; lossCount < lossLimit; lossCount += 1) {
-    columns.push({
-      id: `loss-${lossCount}`,
-      label: lossCount === 1 ? '1 Loss' : `${lossCount} Losses`,
-      heats: context.race.heats
-        .filter(
-          (heat) =>
-            heat.eliminationBracket?.lossCount === lossCount &&
-            !heat.eliminationBracket.isFinal &&
-            !heat.eliminationBracket.isCrossLoss
-        )
-        .sort((first, second) => first.roundNumber - second.roundNumber || first.heatNumber - second.heatNumber)
-    })
-  }
+  useEffect(() => {
+    setIsPagePinned(false)
+    setSelectedPageId(fullBracketPageId)
+  }, [context.race.id])
 
-  columns.push({
-    id: 'finals',
-    label: 'Finals',
-    heats: finalHeats.sort((first, second) => first.roundNumber - second.roundNumber || first.heatNumber - second.heatNumber)
-  })
+  useEffect(() => {
+    if (!isPagePinned) {
+      setSelectedPageId(autoPageId)
+    }
+  }, [autoPageId, context.currentHeat?.id, context.raceFinished, isPagePinned])
 
   return (
-    <div className="elimination-display multi-loss-display">
-      <EliminationCurrentDisplay context={context} />
-      <section className="tournament-bracket multi-loss-bracket" aria-label={`${formatStatus(context.race.format)} bracket`}>
-        {columns.map((column) => (
-          <div className="tournament-round" data-empty={column.heats.length === 0} key={column.id}>
-            <div className="tournament-round-heading">
-              <span>{column.label}</span>
-              <strong>{column.heats.length} match{column.heats.length === 1 ? '' : 'es'}</strong>
-            </div>
-            <div className="tournament-match-list">
-              {column.heats.map((heat, matchIndex) => (
-                <TournamentMatchCard
-                  context={context}
-                  hasPairConnector={false}
-                  isFirstRound={column.id === 'loss-0'}
-                  isLastRound={column.id === 'finals'}
-                  key={heat.id}
-                  match={matchFromHeat(context, heat, matchIndex)}
-                />
-              ))}
-              {column.heats.length === 0 ? <p className="empty-state">No matches yet.</p> : null}
-            </div>
-          </div>
-        ))}
-      </section>
-    </div>
+    <BracketDisplay
+      activePage={activePage}
+      context={context}
+      isPagePinned={isPagePinned}
+      locationLabel={locationLabel}
+      pages={pages}
+      setIsPagePinned={setIsPagePinned}
+      setSelectedPageId={setSelectedPageId}
+    >
+      <BracketCanvas
+        context={context}
+        layout="double"
+        refreshKey={`${context.race.id}:${context.race.updatedAt}:${activePage.id}:${context.currentHeat?.id ?? ''}`}
+        sections={sections}
+      />
+    </BracketDisplay>
+  )
+}
+
+function TripleEliminationBracketDisplay({ context }: { context: DisplayContext }) {
+  const [selectedPageId, setSelectedPageId] = useState(fullBracketPageId)
+  const [isPagePinned, setIsPagePinned] = useState(false)
+  const model = buildTripleEliminationModel(context)
+  const pages = model.pages
+  const autoPageId = activeTriplePageId(context)
+  const activePage = selectedBracketPage(pages, selectedPageId)
+  const sections = activePage.sectionIds
+    ? model.sections.filter((section) => activePage.sectionIds?.includes(section.id))
+    : model.sections
+  const locationLabel = activePage.mode === 'status' ? 'Status Panel' : activePage.label
+
+  useEffect(() => {
+    setIsPagePinned(false)
+    setSelectedPageId(fullBracketPageId)
+  }, [context.race.id])
+
+  useEffect(() => {
+    if (!isPagePinned) {
+      setSelectedPageId(autoPageId)
+    }
+  }, [autoPageId, context.currentHeat?.id, context.raceFinished, isPagePinned])
+
+  return (
+    <BracketDisplay
+      activePage={activePage}
+      context={context}
+      isPagePinned={isPagePinned}
+      locationLabel={locationLabel}
+      pages={pages}
+      setIsPagePinned={setIsPagePinned}
+      setSelectedPageId={setSelectedPageId}
+    >
+      {activePage.mode === 'status' ? (
+        <TripleEliminationStatusPanel context={context} />
+      ) : (
+        <div className="triple-bracket-layout">
+          <BracketCanvas
+            context={context}
+            layout="triple"
+            refreshKey={`${context.race.id}:${context.race.updatedAt}:${activePage.id}:${context.currentHeat?.id ?? ''}`}
+            sections={sections}
+          />
+          <TripleEliminationStatusPanel context={context} />
+        </div>
+      )}
+    </BracketDisplay>
   )
 }
 
@@ -819,7 +1961,11 @@ function RaceSpecificDisplay({ context, viewId }: { context: DisplayContext; vie
         return <EliminationCurrentDisplay context={context} />
       }
 
-      return <MultiLossEliminationBracketDisplay context={context} />
+      return context.race.format === 'double-elimination' ? (
+        <DoubleEliminationBracketDisplay context={context} />
+      ) : (
+        <TripleEliminationBracketDisplay context={context} />
+      )
     case 'round-robin':
       if (viewId === 'records') {
         return <RoundRobinRecordsDisplay context={context} />
