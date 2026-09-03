@@ -439,6 +439,7 @@ label {
   display: grid;
   grid-template-columns: minmax(420px, 1.5fr) minmax(320px, 1fr);
   gap: 18px;
+  flex: 0 0 auto;
   min-height: 0;
 }
 
@@ -455,11 +456,11 @@ label {
   display: grid;
   grid-template-columns: minmax(360px, 0.85fr) minmax(520px, 1.3fr);
   gap: 18px;
+  flex: 0 0 auto;
   min-height: 0;
 }
 
 .setup-grid {
-  flex: 0 0 auto;
   align-items: stretch;
 }
 
@@ -476,6 +477,7 @@ label {
 }
 
 .registration-grid {
+  align-items: start;
   grid-template-columns: minmax(320px, 0.65fr) minmax(620px, 1.35fr);
 }
 
@@ -502,7 +504,8 @@ label {
 }
 
 .standings-grid {
-  grid-template-columns: minmax(0, 2.4fr) minmax(240px, 0.65fr);
+  align-items: start;
+  grid-template-columns: minmax(0, 2.4fr) minmax(300px, 0.75fr);
 }
 
 .form-panel {
@@ -944,7 +947,19 @@ label {
 }
 
 .race-control-layout {
+  align-items: start;
   grid-template-columns: minmax(620px, 1.45fr) minmax(280px, 0.75fr);
+}
+
+.race-control-layout .current-state,
+.race-control-layout .next-actions {
+  height: fit-content;
+}
+
+.race-control-layout .heat-list:has(.heat-list-item) {
+  min-height: 280px;
+  max-height: min(60vh, 680px);
+  padding-right: 4px;
 }
 
 .timer-panel {
@@ -1208,8 +1223,15 @@ label {
 .data-table-wrap {
   min-height: 0;
   overflow: auto;
+  scrollbar-gutter: stable;
   border: 1px solid #d9e2dd;
   border-radius: 8px;
+}
+
+.registration-grid .data-table-wrap:has(tbody tr),
+.standings-grid .data-table-wrap:has(tbody tr) {
+  min-height: 280px;
+  max-height: min(65vh, 720px);
 }
 
 .data-table {
