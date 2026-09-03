@@ -50,7 +50,7 @@ The current app can run a first-pass race day from one laptop:
 6. View live standings for the selected race and populate later races from top-ranked racers.
 7. Scratch a racer from Registration and choose whether to keep empty lanes, regenerate pending heats, or leave affected heats flagged across races.
 
-Registration remains operator-controlled: division membership makes a racer eligible for a race but does not add them automatically. Use **Add Selected** for individual control or **Add All Eligible** to assign every unadded racer from the race's division at once.
+Registration remains operator-controlled: division membership makes a racer eligible for a race but does not add them automatically. Use **Add Selected** for individual control or **Add All Eligible** to assign every unadded racer from the race's division at once. The Registration roster panel has two views: **Race Roster** handles check-in, inspection, and removal from the selected race, while **Full Roster** searches and filters every event racer and manages racer identity, division memberships, and pre-race permanent deletion. Once a racer is involved in generated heats, remove or scratch them through the race roster instead of deleting them.
 
 Every mutation is written immediately to the local SQLite database under Electron's user data folder.
 

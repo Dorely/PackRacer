@@ -238,6 +238,13 @@ export type RemovalImpact = {
   createdAt: string
 }
 
+export type RacerDeletionStatus = {
+  racerId: string
+  assignedRaceIds: string[]
+  blockingRaceIds: string[]
+  canDelete: boolean
+}
+
 export type AuditEntry = {
   id: string
   createdAt: string

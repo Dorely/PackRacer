@@ -12,6 +12,7 @@ import {
   type RaceEvent,
   type RaceFormat,
   type Racer,
+  type RacerDeletionStatus,
   type RemovalImpact,
   type ScoringMode,
   type SchedulingOptions,
@@ -645,6 +646,14 @@ export function updateRacer(event: RaceEvent, racerId: string, input: UpdateRace
   const nextEvent = copyEvent(event)
   const racer = findRacer(nextEvent, racerId)
 
+  if (typeof input.racerNumber === 'string' && !input.racerNumber.trim()) {
+    throw new Error('Racer number is required.')
+  }
+
+  if (typeof input.name === 'string' && !input.name.trim()) {
+    throw new Error('Racer name is required.')
+  }
+
   if ('divisionIds' in input) {
     const nextDivisionIds = normalizeRacerDivisionIds(nextEvent, input.divisionIds ?? [])
     const removedDivisionIds = racer.divisionIds.filter((divisionId) => !nextDivisionIds.includes(divisionId))
@@ -682,21 +691,60 @@ export function updateRacer(event: RaceEvent, racerId: string, input: UpdateRace
   return nextEvent
 }
 
+export function getRacerDeletionStatus(event: RaceEvent, racerId: string): RacerDeletionStatus {
+  findRacer(event, racerId)
+  const assignedRaceIds: string[] = []
+  const blockingRaceIds: string[] = []
+
+  for (const race of event.races) {
+    const isAssigned = race.entries.some((entry) => entry.racerId === racerId)
+    const hasHeatReference = race.heats.some(
+      (heat) =>
+        heat.laneAssignments.some((assignment) => assignment.racerId === racerId) ||
+        heat.results.some((result) => result.racerId === racerId)
+    )
+
+    if (isAssigned) {
+      assignedRaceIds.push(race.id)
+    }
+
+    if ((isAssigned && race.heats.length > 0) || hasHeatReference) {
+      blockingRaceIds.push(race.id)
+    }
+  }
+
+  return {
+    racerId,
+    assignedRaceIds,
+    blockingRaceIds,
+    canDelete: blockingRaceIds.length === 0
+  }
+}
+
 export function deleteRacer(event: RaceEvent, racerId: string): RaceEvent {
+  const deletionStatus = getRacerDeletionStatus(event, racerId)
+
+  if (!deletionStatus.canDelete) {
+    const blockingRaceNames = deletionStatus.blockingRaceIds
+      .map((raceId) => event.races.find((race) => race.id === raceId)?.name)
+      .filter((name): name is string => Boolean(name))
+    const raceLabel = blockingRaceNames.length > 0 ? blockingRaceNames.join(', ') : 'a scheduled race'
+    throw new Error(`This racer cannot be permanently deleted because heats exist in ${raceLabel}. Use the race roster removal and scratch workflow instead.`)
+  }
+
   const nextEvent = copyEvent(event)
   findRacer(nextEvent, racerId)
+  const updatedAt = nowIso()
 
   nextEvent.racers = nextEvent.racers.filter((racer) => racer.id !== racerId)
 
   for (const race of nextEvent.races) {
     ensureRaceDefaults(race)
+    const previousEntryCount = race.entries.length
     race.entries = race.entries.filter((entry) => entry.racerId !== racerId)
 
-    for (const heat of race.heats) {
-      heat.laneAssignments = heat.laneAssignments.map((assignment) =>
-        assignment.racerId === racerId ? { ...assignment, racerId: null } : assignment
-      )
-      heat.results = heat.results.filter((result) => result.racerId !== racerId)
+    if (race.entries.length !== previousEntryCount) {
+      race.updatedAt = updatedAt
     }
   }
 
@@ -704,7 +752,7 @@ export function deleteRacer(event: RaceEvent, racerId: string): RaceEvent {
     delete nextEvent.activeRemovalImpact
   }
 
-  nextEvent.updatedAt = nowIso()
+  nextEvent.updatedAt = updatedAt
   return nextEvent
 }
 

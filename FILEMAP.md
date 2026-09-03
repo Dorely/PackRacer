@@ -80,7 +80,7 @@
 | `apps/desktop/src/renderer/src/sections/Events.tsx` | Event create, select, edit, and delete screen shown at app startup. |
 | `apps/desktop/src/renderer/src/sections/EventSetup.tsx` | Event division management, race creation, format-specific setup, source-race configuration, and scheduling options. |
 | `apps/desktop/src/renderer/src/sections/RaceControl.tsx` | Race-scoped heat selection, lane availability controls, result entry, rerun control, status marking, and heat cycling workflow. |
-| `apps/desktop/src/renderer/src/sections/Registration.tsx` | Division-aware racer creation and explicit race assignment with bulk-add, roster editing, readiness, and removal controls. |
+| `apps/desktop/src/renderer/src/sections/Registration.tsx` | Division-aware racer creation, explicit race assignment, race readiness controls, and searchable event-wide identity/division/deletion management. |
 | `apps/desktop/src/renderer/src/sections/Standings.tsx` | Race-scoped live standings table and compact source/dependent advancement summaries. |
 | `apps/desktop/src/renderer/src/sections/TimerPanel.tsx` | Race Control hardware setup, simulator scenarios, lane mapping, gate controls, diagnostics, and protocol replay UI. |
 | `apps/desktop/src/renderer/src/sections/types.ts` | Shared renderer section prop and action types. |
@@ -100,7 +100,7 @@
 | File | Description |
 |------|-------------|
 | `packages/race-engine/package.json` | Workspace package metadata for the pure race-domain engine. |
-| `packages/race-engine/src/event.ts` | Event, division, race, racer, race-entry, schema migration, and heat-impact mutation functions. |
+| `packages/race-engine/src/event.ts` | Event, division, race, racer, race-entry, schema migration, safe racer-deletion checks, and heat-impact mutation functions. |
 | `packages/race-engine/src/helpers.ts` | Shared ID, time, sorting, lane-count, race selection, division inheritance, and eligibility helpers. |
 | `packages/race-engine/src/index.ts` | Public exports for the race engine package. |
 | `packages/race-engine/src/scheduling.ts` | Race-scoped heat generation, lane availability rescheduling, result recording, heat advancement, and racer-removal reconciliation. |

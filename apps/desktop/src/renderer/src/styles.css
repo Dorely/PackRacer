@@ -397,8 +397,15 @@ label {
 
 .dialog-actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 10px;
+}
+
+.dialog-actions button {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .status-strip {
@@ -809,15 +816,15 @@ label {
   background: #ffffff;
 }
 
-.division-membership-editor summary {
-  min-width: 150px;
-  cursor: pointer;
-  color: #244b40;
-  font-weight: 800;
+.division-picker .inline-toggle span {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
-.division-membership-editor[open] .division-picker {
-  margin-top: 8px;
+.division-picker .inline-toggle[data-locked="true"] {
+  border-style: dashed;
+  color: #5c6b65;
+  background: #f1f4f2;
 }
 
 .context-label {
@@ -906,13 +913,158 @@ label {
   margin: 2px 0;
 }
 
-.registration-table {
-  min-width: 940px;
+.race-roster-table {
+  min-width: 760px;
 }
 
-.registration-table th:nth-child(5),
-.registration-table td:nth-child(5) {
+.race-roster-table th:nth-child(4),
+.race-roster-table td:nth-child(4) {
   min-width: 190px;
+}
+
+.full-roster-table {
+  min-width: 1040px;
+}
+
+.full-roster-table th:first-child,
+.full-roster-table td:first-child {
+  width: 100px;
+}
+
+.full-roster-table th:nth-child(2),
+.full-roster-table td:nth-child(2) {
+  min-width: 220px;
+}
+
+.full-roster-table th:nth-child(3),
+.full-roster-table td:nth-child(3) {
+  min-width: 300px;
+}
+
+.full-roster-table .division-picker .inline-toggle {
+  max-width: 100%;
+}
+
+.full-roster-table th:nth-child(4),
+.full-roster-table td:nth-child(4) {
+  min-width: 170px;
+}
+
+.racer-number-input {
+  max-width: 82px;
+}
+
+.registration-roster-panel [role="tabpanel"],
+.full-roster-view {
+  min-width: 0;
+}
+
+.registration-roster-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 14px 22px;
+}
+
+.registration-roster-heading > .panel-heading {
+  flex: 1 1 240px;
+}
+
+.roster-view-tabs {
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid #cfd9d3;
+  border-radius: 9px;
+  background: #eef3f0;
+}
+
+.roster-view-tabs button {
+  min-height: 36px;
+  padding: 0 13px;
+  border: 0;
+  border-radius: 6px;
+  color: #52675f;
+  background: transparent;
+  cursor: pointer;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.roster-view-tabs button[aria-selected="true"] {
+  color: #ffffff;
+  background: #2f7659;
+  box-shadow: 0 2px 5px rgba(22, 53, 44, 0.14);
+}
+
+.roster-view-tabs button:focus-visible {
+  outline: 3px solid rgba(45, 111, 122, 0.25);
+  outline-offset: 1px;
+}
+
+.full-roster-view {
+  display: grid;
+  gap: 14px;
+}
+
+.roster-filter-bar {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(190px, 0.65fr) auto;
+  align-items: end;
+  gap: 12px;
+}
+
+.filter-result-count {
+  min-height: 40px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: #52675f;
+  background: #eef5f1;
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.full-roster-table td:nth-child(2) small {
+  margin-top: 5px;
+}
+
+.roster-race-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.roster-race-list span {
+  max-width: 230px;
+  padding: 5px 7px;
+  overflow-wrap: anywhere;
+  border-radius: 6px;
+  color: #315649;
+  background: #e8f2ed;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.full-roster-actions {
+  display: grid;
+  grid-template-columns: repeat(2, max-content);
+  gap: 6px;
+  align-items: center;
+}
+
+.full-roster-actions small {
+  grid-column: 1 / -1;
+  max-width: 170px;
+}
+
+.table-empty-state {
+  height: 120px;
+  color: #607269 !important;
+  text-align: center !important;
+  font-weight: 800;
 }
 
 .registration-bulk-panel,
@@ -2974,6 +3126,15 @@ label {
     padding: 18px;
   }
 
+  .roster-filter-bar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .filter-result-count {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+
   .topbar h2 {
     font-size: 30px;
   }
@@ -3006,6 +3167,10 @@ label {
     gap: 16px;
     min-height: 320px;
     padding: 18px;
+  }
+
+  .registration-grid .data-table-wrap:has(tbody tr) {
+    max-height: min(58vh, 590px);
   }
 
   .timer-panel-summary {
