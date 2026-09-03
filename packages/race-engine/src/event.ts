@@ -264,6 +264,8 @@ function invalidateRacerHeats(event: RaceEvent, racer: Racer, raceId: string | u
 type LegacyRacer = Omit<Racer, 'divisionIds'> & {
   division?: string
   divisionIds?: string[]
+  checkedIn?: boolean
+  inspectionPassed?: boolean
 }
 
 type LegacyRace = Race & {
@@ -324,6 +326,8 @@ export function upgradeRaceEvent(event: RaceEvent): RaceEvent {
       : [ensureDivision(storedRacer.division ?? 'Open').id]
     const racer = { ...storedRacer, divisionIds } as LegacyRacer & Racer
     delete racer.division
+    delete racer.checkedIn
+    delete racer.inspectionPassed
     return racer
   })
 
@@ -337,6 +341,11 @@ export function upgradeRaceEvent(event: RaceEvent): RaceEvent {
     const race = storedRace as Race
     delete storedRace.eligibleRacerIds
     ensureRaceDefaults(race)
+
+    for (const entry of race.entries) {
+      entry.checkedIn = Boolean(entry.checkedIn)
+      entry.inspectionPassed = Boolean(entry.inspectionPassed)
+    }
 
     if (race.source) {
       delete race.divisionId
@@ -626,8 +635,6 @@ export function addRacer(event: RaceEvent, input: AddRacerInput): RaceEvent {
     divisionIds: normalizeRacerDivisionIds(nextEvent, input.divisionIds),
     vehicleName: input.vehicleName?.trim() || '',
     status: 'active',
-    checkedIn: Boolean(input.checkedIn),
-    inspectionPassed: Boolean(input.inspectionPassed),
     notes: input.notes?.trim() || '',
     createdAt,
     updatedAt: createdAt
@@ -804,8 +811,8 @@ export function addRaceEntries(event: RaceEvent, raceId: string, input: AddRaceE
       id: createId('entry'),
       racerId: racer.id,
       status: 'active',
-      checkedIn: input.checkedIn ?? racer.checkedIn,
-      inspectionPassed: input.inspectionPassed ?? racer.inspectionPassed,
+      checkedIn: input.checkedIn ?? false,
+      inspectionPassed: input.inspectionPassed ?? false,
       notes: input.notes?.trim() ?? '',
       createdAt,
       updatedAt: createdAt

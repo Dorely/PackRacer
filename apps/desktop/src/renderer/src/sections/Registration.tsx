@@ -334,7 +334,7 @@ export function Registration({ event, actions, selectedRaceId, setSelectedRaceId
 
     if (!registrationRace || selectedDivisionIds.length === 0) return
 
-    void actions.addRacer({ name, divisionIds: selectedDivisionIds, vehicleName: '', checkedIn: true, inspectionPassed: true })
+    void actions.addRacer({ name, divisionIds: selectedDivisionIds, vehicleName: '' })
     setName('')
   }
 
@@ -347,9 +347,7 @@ export function Registration({ event, actions, selectedRaceId, setSelectedRaceId
       await actions.addRacer({
         name: bulkName,
         divisionIds: selectedDivisionIds,
-        vehicleName: '',
-        checkedIn: true,
-        inspectionPassed: true
+        vehicleName: ''
       })
     }
 
@@ -369,22 +367,14 @@ export function Registration({ event, actions, selectedRaceId, setSelectedRaceId
 
     if (!registrationRace || selectedExistingRacerIds.length === 0 || registrationLocked) return
 
-    await actions.addRaceEntries(registrationRace.id, {
-      racerIds: selectedExistingRacerIds,
-      checkedIn: true,
-      inspectionPassed: true
-    })
+    await actions.addRaceEntries(registrationRace.id, { racerIds: selectedExistingRacerIds })
     setSelectedExistingRacerIds([])
   }
 
   const addAllEligible = () => {
     if (!registrationRace || availableRacers.length === 0 || registrationLocked) return
 
-    void actions.addRaceEntries(registrationRace.id, {
-      racerIds: availableRacers.map((racer) => racer.id),
-      checkedIn: true,
-      inspectionPassed: true
-    })
+    void actions.addRaceEntries(registrationRace.id, { racerIds: availableRacers.map((racer) => racer.id) })
   }
 
   if (!event) {

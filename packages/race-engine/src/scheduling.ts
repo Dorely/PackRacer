@@ -1405,8 +1405,8 @@ export function populateRaceEntriesFromSource(event: RaceEvent, raceId: string):
         id: existingEntry?.id ?? createId('entry'),
         racerId: standing.racerId,
         status: 'active',
-        checkedIn: existingEntry?.checkedIn ?? true,
-        inspectionPassed: existingEntry?.inspectionPassed ?? true,
+        checkedIn: existingEntry?.checkedIn ?? false,
+        inspectionPassed: existingEntry?.inspectionPassed ?? false,
         notes: existingEntry?.notes ?? '',
         createdAt: existingEntry?.createdAt ?? createdAt,
         updatedAt: createdAt

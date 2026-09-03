@@ -1,4 +1,4 @@
-export const EVENT_SCHEMA_VERSION = 9
+export const EVENT_SCHEMA_VERSION = 10
 
 export type RaceFormat =
   | 'timed-heats'
@@ -163,8 +163,6 @@ export type Racer = {
   divisionIds: string[]
   vehicleName: string
   status: RacerStatus
-  checkedIn: boolean
-  inspectionPassed: boolean
   notes: string
   createdAt: string
   updatedAt: string
@@ -302,8 +300,6 @@ export type AddRacerInput = {
   name: string
   divisionIds: string[]
   vehicleName?: string
-  checkedIn?: boolean
-  inspectionPassed?: boolean
   notes?: string
 }
 
@@ -315,8 +311,6 @@ export type UpdateRacerInput = Partial<
     | 'divisionIds'
     | 'vehicleName'
     | 'status'
-    | 'checkedIn'
-    | 'inspectionPassed'
     | 'notes'
   >
 >
