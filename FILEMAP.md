@@ -71,7 +71,7 @@
 |------|-------------|
 | `apps/desktop/src/renderer/index.html` | Renderer HTML entry point. |
 | `apps/desktop/src/renderer/timer-simulator.html` | Separate virtual timer-device window HTML entry point. |
-| `apps/desktop/src/renderer/src/App.tsx` | PackRacer operator shell, navigation, event/race session state, and race-day action wiring. |
+| `apps/desktop/src/renderer/src/App.tsx` | PackRacer operator shell, navigation, app-level Dev Mode gating, event/race session state, and race-day action wiring. |
 | `apps/desktop/src/renderer/src/env.d.ts` | Renderer global and Vite type declarations. |
 | `apps/desktop/src/renderer/src/formatters.ts` | Renderer formatting helpers for race statuses, times, racers, and heats. |
 | `apps/desktop/src/renderer/src/main.tsx` | React renderer bootstrap. |

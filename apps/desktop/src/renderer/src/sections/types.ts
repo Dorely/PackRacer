@@ -92,4 +92,5 @@ export type SectionProps = {
   timerProfiles: TimerProfile[]
   timerPorts: TimerPortInfo[]
   timerPreferences: TimerPreferences
+  developerMode: boolean
 }

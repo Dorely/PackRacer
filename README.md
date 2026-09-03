@@ -90,7 +90,7 @@ The simulator is a separate virtual serial-device window. It emulates a selected
 
 1. Create or select an event, register racers, and generate heats for a race.
 2. Open **Race Control** and expand **Hardware Timer**.
-3. Select **Open Timer Simulator**. In the new window, choose the physical timer model to emulate.
+3. In the side navigation, select **Enable Dev Mode** beneath the local database version card. Then select **Open Timer Simulator** in the Hardware Timer panel. In the new window, choose the physical timer model to emulate.
 4. Back in Race Control, select **Scan**, choose the same physical timer profile, choose **PACKRACER-SIM — PackRacer Timer Simulator**, and select **Connect**.
 5. Select **Arm Current Heat** in Race Control.
 6. In the simulator window, choose a scenario such as **Normal finish**, **Exact tie**, or **Explicit DNF**. For profiles without gate release, select **Send Simulated Heat** and use **New variation** for a different deterministic result. For a gate-capable profile, enable software gate control and select **Release Gate** in Race Control; the emulated timer automatically chooses a fresh randomized variation and sends the selected scenario after a short race delay.

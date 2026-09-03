@@ -207,6 +207,36 @@ label {
   font-size: 13px;
 }
 
+.sidebar-utilities {
+  display: grid;
+  gap: 8px;
+}
+
+.sidebar-dev-toggle {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid #3c6658;
+  border-radius: 7px;
+  color: #b9cec4;
+  background: transparent;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.sidebar-dev-toggle:hover,
+.sidebar-dev-toggle:focus-visible {
+  border-color: #7fd0a9;
+  color: #ffffff;
+  outline: none;
+}
+
+.sidebar-dev-toggle[data-active="true"] {
+  border-color: #d8a647;
+  color: #ffe4ad;
+  background: #3d3925;
+}
+
 .workspace {
   display: flex;
   flex-direction: column;

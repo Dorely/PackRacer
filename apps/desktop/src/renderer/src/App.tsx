@@ -39,6 +39,7 @@ import { Standings } from './sections/Standings'
 import type { AppActions, ConfirmationRequest } from './sections/types'
 
 const sectionIds = ['events', 'event', 'registration', 'race-control', 'standings', 'display'] as const
+const developerModeStorageKey = 'packracer:developer-mode'
 
 type SectionId = (typeof sectionIds)[number]
 
@@ -68,6 +69,14 @@ function readWindowContext(): WindowContext {
     isPopout,
     initialSection: isPopout && isSectionId(section) ? section : 'events',
     initialRaceId: params.get('raceId') ?? ''
+  }
+}
+
+function readDeveloperMode(): boolean {
+  try {
+    return window.localStorage.getItem(developerModeStorageKey) === 'true'
+  } catch {
+    return false
   }
 }
 
@@ -109,6 +118,23 @@ export function App() {
   const [timerProfiles, setTimerProfiles] = useState<TimerProfile[]>([])
   const [timerPorts, setTimerPorts] = useState<TimerPortInfo[]>([])
   const [timerPreferences, setTimerPreferences] = useState<TimerPreferences>(structuredClone(defaultTimerPreferences))
+  const [developerMode, setDeveloperMode] = useState(readDeveloperMode)
+
+  useEffect(() => {
+    const syncDeveloperMode = (event: StorageEvent) => {
+      if (event.key === developerModeStorageKey) setDeveloperMode(event.newValue === 'true')
+    }
+    window.addEventListener('storage', syncDeveloperMode)
+    return () => window.removeEventListener('storage', syncDeveloperMode)
+  }, [])
+
+  const toggleDeveloperMode = useCallback(() => {
+    setDeveloperMode((enabled) => {
+      const next = !enabled
+      window.localStorage.setItem(developerModeStorageKey, String(next))
+      return next
+    })
+  }, [])
 
   const applySession = useCallback((nextSession: EventSessionSnapshot | null) => {
     if (!nextSession) {
@@ -349,7 +375,8 @@ export function App() {
     timerState,
     timerProfiles,
     timerPorts,
-    timerPreferences
+    timerPreferences,
+    developerMode
   }
 
   const renderedSection = (
@@ -461,9 +488,20 @@ export function App() {
           })}
         </nav>
 
-        <div className="sidebar-footer">
-          <span>Local database</span>
-          <strong>v{appVersion}</strong>
+        <div className="sidebar-utilities">
+          <div className="sidebar-footer">
+            <span>Local database</span>
+            <strong>v{appVersion}</strong>
+          </div>
+          <button
+            aria-pressed={developerMode}
+            className="sidebar-dev-toggle"
+            data-active={developerMode}
+            onClick={toggleDeveloperMode}
+            type="button"
+          >
+            {developerMode ? 'Disable Dev Mode' : 'Enable Dev Mode'}
+          </button>
         </div>
       </aside>
 

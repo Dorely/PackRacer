@@ -22,13 +22,14 @@ type TimerPanelProps = {
   ports: Array<{ path: string; identity: string; manufacturer?: string; simulated?: boolean }>
   preferences: TimerPreferences
   state: TimerState
+  developerMode: boolean
 }
 
 function diagnosticTime(value: string): string {
   return new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 }
 
-export function TimerPanel({ actions, currentRace, currentHeat, profiles, ports, preferences, state }: TimerPanelProps) {
+export function TimerPanel({ actions, currentRace, currentHeat, profiles, ports, preferences, state, developerMode }: TimerPanelProps) {
   const [open, setOpen] = useState(false)
   const [selectedProfileId, setSelectedProfileId] = useState<TimerProfileId>(preferences.profileId)
   const [selectedPortPath, setSelectedPortPath] = useState(preferences.portPath)
@@ -180,7 +181,7 @@ export function TimerPanel({ actions, currentRace, currentHeat, profiles, ports,
           <div className="button-row timer-connect-actions">
             {!connected ? <button className="primary-action" disabled={!selectedPortPath} onClick={() => void connect()} type="button"><Plug aria-hidden="true" size={18} />Connect</button> : null}
             {connected ? <button className="secondary-action" onClick={() => void actions.disconnectTimer()} type="button"><Unplug aria-hidden="true" size={18} />Disconnect</button> : null}
-            <button className="secondary-action" onClick={() => void actions.openTimerSimulator()} type="button">Open Timer Simulator</button>
+            {developerMode ? <button className="secondary-action" onClick={() => void actions.openTimerSimulator()} type="button">Open Timer Simulator</button> : null}
             <span className={`timer-status status-${state.status}`}>{state.status}</span>
             {state.error ? <span className="timer-error">{state.error}</span> : null}
           </div>

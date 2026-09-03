@@ -65,13 +65,13 @@ The initial built-in physical release implementation is limited to documented Mi
 
 ## Simulator
 
-Choose **Open Timer Simulator** in Race Control. The separate simulator window activates a virtual `PACKRACER-SIM` port. Closing the window removes that port and drops an active connection.
+The simulator is a developer-facing diagnostic tool and is hidden during normal operation. Select **Enable Dev Mode** beneath the local database version card in the side navigation, then choose **Open Timer Simulator** in Race Control. The separate simulator window activates a virtual `PACKRACER-SIM` port. Closing the window removes that port and drops an active connection. Dev Mode is stored locally for this app installation and can be turned off from the same navigation control.
 
 The simulator is not a timer profile. Select the physical hardware model it should emulate in the simulator window, then choose the same physical profile and the scanned `PACKRACER-SIM` port in Race Control. Connection probing, setup commands, fragmented ASCII input, the physical adapter parser, arm snapshot, normalization, staging, persistence, and auditing all follow the hardware path.
 
 Normal use is:
 
-1. Open the Timer Simulator and select the hardware model to emulate.
+1. Enable Dev Mode, open the Timer Simulator, and select the hardware model to emulate.
 2. Scan ports in Race Control.
 3. Select the matching hardware profile and `PACKRACER-SIM`, then connect.
 4. Arm the current heat in Race Control.

@@ -209,7 +209,8 @@ export function RaceControl({
   timerState,
   timerProfiles,
   timerPorts,
-  timerPreferences
+  timerPreferences,
+  developerMode
 }: SectionProps) {
   const allHeats = currentRace?.heats ?? []
   const pendingHeat = allHeats.find((heat) => heat.status === 'pending')
@@ -466,6 +467,7 @@ export function RaceControl({
         preferences={timerPreferences}
         profiles={timerProfiles}
         state={timerState}
+        developerMode={developerMode}
       />
       <div className="race-panel current-state">
         <div className="panel-heading">
