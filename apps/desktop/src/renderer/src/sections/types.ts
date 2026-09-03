@@ -59,5 +59,6 @@ export type SectionProps = {
   actions: AppActions
   selectedRaceId: string
   setSelectedRaceId: (raceId: string) => void
+  openPopout?: () => void
   requestConfirmation: (request: ConfirmationRequest) => void
 }

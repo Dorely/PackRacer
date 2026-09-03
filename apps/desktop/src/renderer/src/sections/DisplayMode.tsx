@@ -1,4 +1,4 @@
-import { Monitor, Pin, PinOff, RotateCcw, Trophy } from 'lucide-react'
+import { ExternalLink, Monitor, Pin, PinOff, RotateCcw, Trophy } from 'lucide-react'
 import {
   type CSSProperties,
   type MutableRefObject,
@@ -1236,7 +1236,8 @@ function BracketDisplay({
   locationLabel,
   pages,
   setIsPagePinned,
-  setSelectedPageId
+  setSelectedPageId,
+  toolbarControls
 }: {
   activePage: BracketPage
   children: ReactNode
@@ -1246,6 +1247,7 @@ function BracketDisplay({
   pages: BracketPage[]
   setIsPagePinned: (isPinned: boolean) => void
   setSelectedPageId: (pageId: string) => void
+  toolbarControls?: ReactNode
 }) {
   return (
     <div className="elimination-display" data-page-mode={activePage.mode}>
@@ -1257,6 +1259,7 @@ function BracketDisplay({
         pages={pages}
         setIsPagePinned={setIsPagePinned}
         setSelectedPageId={setSelectedPageId}
+        toolbarControls={toolbarControls}
       />
       <div className="bracket-stage">{children}</div>
       <BracketLegend />
@@ -1271,7 +1274,8 @@ function BracketStatusBar({
   locationLabel,
   pages,
   setIsPagePinned,
-  setSelectedPageId
+  setSelectedPageId,
+  toolbarControls
 }: {
   activePage: BracketPage
   context: DisplayContext
@@ -1280,6 +1284,7 @@ function BracketStatusBar({
   pages: BracketPage[]
   setIsPagePinned: (isPinned: boolean) => void
   setSelectedPageId: (pageId: string) => void
+  toolbarControls?: ReactNode
 }) {
   const currentLabel = context.raceFinished ? 'Final Result' : currentMatchDisplayCode(context)
   const PinIcon = isPagePinned ? PinOff : Pin
@@ -1292,6 +1297,8 @@ function BracketStatusBar({
         <small>{heatParticipantSummary(context, context.currentHeat)}</small>
         <small>{currentBracketDetail(context, activePage, locationLabel)}</small>
       </div>
+
+      {toolbarControls ? <div className="bracket-toolbar-controls">{toolbarControls}</div> : null}
 
       <label className="bracket-page-selector">
         <span>Page</span>
@@ -1806,7 +1813,7 @@ function activeTriplePageId(context: DisplayContext): string {
   return `loss-${Math.min(currentHeat.eliminationBracket?.lossCount ?? 0, 2)}`
 }
 
-function SingleEliminationDisplay({ context }: { context: DisplayContext }) {
+function SingleEliminationDisplay({ context, toolbarControls }: { context: DisplayContext; toolbarControls?: ReactNode }) {
   const [selectedPageId, setSelectedPageId] = useState(fullBracketPageId)
   const [isPagePinned, setIsPagePinned] = useState(false)
   const rounds = buildTournamentRounds(context)
@@ -1839,6 +1846,7 @@ function SingleEliminationDisplay({ context }: { context: DisplayContext }) {
       pages={pages}
       setIsPagePinned={setIsPagePinned}
       setSelectedPageId={setSelectedPageId}
+      toolbarControls={toolbarControls}
     >
       <BracketCanvas
         context={context}
@@ -1850,7 +1858,7 @@ function SingleEliminationDisplay({ context }: { context: DisplayContext }) {
   )
 }
 
-function DoubleEliminationBracketDisplay({ context }: { context: DisplayContext }) {
+function DoubleEliminationBracketDisplay({ context, toolbarControls }: { context: DisplayContext; toolbarControls?: ReactNode }) {
   const [selectedPageId, setSelectedPageId] = useState(fullBracketPageId)
   const [isPagePinned, setIsPagePinned] = useState(false)
   const model = buildDoubleEliminationModel(context)
@@ -1882,6 +1890,7 @@ function DoubleEliminationBracketDisplay({ context }: { context: DisplayContext 
       pages={pages}
       setIsPagePinned={setIsPagePinned}
       setSelectedPageId={setSelectedPageId}
+      toolbarControls={toolbarControls}
     >
       <BracketCanvas
         context={context}
@@ -1893,7 +1902,7 @@ function DoubleEliminationBracketDisplay({ context }: { context: DisplayContext 
   )
 }
 
-function TripleEliminationBracketDisplay({ context }: { context: DisplayContext }) {
+function TripleEliminationBracketDisplay({ context, toolbarControls }: { context: DisplayContext; toolbarControls?: ReactNode }) {
   const [selectedPageId, setSelectedPageId] = useState(fullBracketPageId)
   const [isPagePinned, setIsPagePinned] = useState(false)
   const model = buildTripleEliminationModel(context)
@@ -1925,6 +1934,7 @@ function TripleEliminationBracketDisplay({ context }: { context: DisplayContext 
       pages={pages}
       setIsPagePinned={setIsPagePinned}
       setSelectedPageId={setSelectedPageId}
+      toolbarControls={toolbarControls}
     >
       {activePage.mode === 'status' ? (
         <TripleEliminationStatusPanel context={context} />
@@ -1947,10 +1957,22 @@ function EliminationRecordsDisplay({ context }: { context: DisplayContext }) {
   return <div className="elimination-display">{renderEliminationRecords(context)}</div>
 }
 
-function RaceSpecificDisplay({ context, viewId }: { context: DisplayContext; viewId: DisplayViewId }) {
+function RaceSpecificDisplay({
+  context,
+  toolbarControls,
+  viewId
+}: {
+  context: DisplayContext
+  toolbarControls?: ReactNode
+  viewId: DisplayViewId
+}) {
   switch (context.race.format) {
     case 'single-elimination':
-      return viewId === 'current' ? <EliminationCurrentDisplay context={context} /> : <SingleEliminationDisplay context={context} />
+      return viewId === 'current' ? (
+        <EliminationCurrentDisplay context={context} />
+      ) : (
+        <SingleEliminationDisplay context={context} toolbarControls={toolbarControls} />
+      )
     case 'double-elimination':
     case 'triple-elimination':
       if (viewId === 'records') {
@@ -1962,9 +1984,9 @@ function RaceSpecificDisplay({ context, viewId }: { context: DisplayContext; vie
       }
 
       return context.race.format === 'double-elimination' ? (
-        <DoubleEliminationBracketDisplay context={context} />
+        <DoubleEliminationBracketDisplay context={context} toolbarControls={toolbarControls} />
       ) : (
-        <TripleEliminationBracketDisplay context={context} />
+        <TripleEliminationBracketDisplay context={context} toolbarControls={toolbarControls} />
       )
     case 'round-robin':
       if (viewId === 'records') {
@@ -1992,7 +2014,7 @@ function RaceSpecificDisplay({ context, viewId }: { context: DisplayContext; vie
   }
 }
 
-export function DisplayMode({ event, currentRace, selectedRaceId, setSelectedRaceId }: SectionProps) {
+export function DisplayMode({ event, currentRace, openPopout, selectedRaceId, setSelectedRaceId }: SectionProps) {
   const [displayViewId, setDisplayViewId] = useState<DisplayViewId>('current')
   const pendingHeat = currentRace?.heats.find((heat) => heat.status === 'pending')
   const currentHeat = currentRace?.heats.find((heat) => heat.id === currentRace.currentHeatId) ?? pendingHeat
@@ -2036,43 +2058,61 @@ export function DisplayMode({ event, currentRace, selectedRaceId, setSelectedRac
     standings,
     disabledLaneNumbers
   }
+  const isBracketChromeCondensed = currentRace.format.endsWith('-elimination') && activeDisplayViewId === 'bracket'
+  const displayToolbarControls = (
+    <>
+      <label className="display-race-selector bracket-race-selector">
+        <span>Race</span>
+        <select value={selectedRaceId} onChange={(inputEvent) => setSelectedRaceId(inputEvent.target.value)}>
+          {event.races.map((race) => (
+            <option key={race.id} value={race.id}>
+              {race.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      {displayViews.length > 1 ? (
+        <div className="display-view-selector bracket-view-selector" role="group" aria-label="Display visualization">
+          {displayViews.map((view) => (
+            <button
+              data-active={view.id === activeDisplayViewId}
+              key={view.id}
+              onClick={() => setDisplayViewId(view.id)}
+              type="button"
+            >
+              {view.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {openPopout ? (
+        <button className="display-popout-button" onClick={openPopout} type="button">
+          <ExternalLink aria-hidden="true" size={17} />
+          <span>Pop Out</span>
+        </button>
+      ) : null}
+    </>
+  )
 
   return (
-    <section className="display-board" data-format={currentRace.format}>
-      <div className="display-heading">
-        <div>
-          <p className="eyebrow">Display Mode</p>
-          <h3>{event.name}</h3>
-          <span>{currentRace.name}</span>
-        </div>
-        <label className="display-race-selector">
-          <span>Race</span>
-          <select value={selectedRaceId} onChange={(inputEvent) => setSelectedRaceId(inputEvent.target.value)}>
-            {event.races.map((race) => (
-              <option key={race.id} value={race.id}>
-                {race.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        {displayViews.length > 1 ? (
-          <div className="display-view-selector" role="group" aria-label="Display visualization">
-            {displayViews.map((view) => (
-              <button
-                data-active={view.id === activeDisplayViewId}
-                key={view.id}
-                onClick={() => setDisplayViewId(view.id)}
-                type="button"
-              >
-                {view.label}
-              </button>
-            ))}
+    <section className="display-board" data-condensed-header={isBracketChromeCondensed} data-format={currentRace.format}>
+      {isBracketChromeCondensed ? null : (
+        <div className="display-heading">
+          <div>
+            <p className="eyebrow">Display Mode</p>
+            <h3>{event.name}</h3>
+            <span>{currentRace.name}</span>
           </div>
-        ) : null}
-        <Monitor aria-hidden="true" size={30} />
-      </div>
+          <div className="display-heading-controls">{displayToolbarControls}</div>
+          <Monitor aria-hidden="true" size={28} />
+        </div>
+      )}
 
-      <RaceSpecificDisplay context={context} viewId={activeDisplayViewId} />
+      <RaceSpecificDisplay
+        context={context}
+        toolbarControls={isBracketChromeCondensed ? displayToolbarControls : undefined}
+        viewId={activeDisplayViewId}
+      />
     </section>
   )
 }

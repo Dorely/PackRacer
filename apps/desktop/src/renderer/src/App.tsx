@@ -251,6 +251,7 @@ export function App() {
     actions,
     selectedRaceId,
     setSelectedRaceId,
+    openPopout: initialWindowContext.isPopout ? undefined : () => void openActiveSectionPopout(),
     requestConfirmation
   }
 
@@ -302,16 +303,19 @@ export function App() {
 
   if (initialWindowContext.isPopout) {
     const Icon = activeNavigationItem.icon
+    const showPopoutHeader = activeSection !== 'display'
 
     return (
       <main className="popout-shell" data-section={activeSection}>
-        <header className="popout-header">
-          <div>
-            <p className="eyebrow">{activeNavigationItem.meta}</p>
-            <h1>{activeNavigationItem.label}</h1>
-          </div>
-          <Icon aria-hidden="true" size={26} />
-        </header>
+        {showPopoutHeader ? (
+          <header className="popout-header">
+            <div>
+              <p className="eyebrow">{activeNavigationItem.meta}</p>
+              <h1>{activeNavigationItem.label}</h1>
+            </div>
+            <Icon aria-hidden="true" size={26} />
+          </header>
+        ) : null}
 
         {notices}
         <section className="popout-content">{renderedSection}</section>
@@ -360,19 +364,21 @@ export function App() {
         </div>
       </aside>
 
-      <section className="workspace" aria-labelledby="workspace-title">
-        <header className="topbar">
-          <div>
-            <p className="eyebrow">{activeNavigationItem.meta}</p>
-            <h2 id="workspace-title">{activeNavigationItem.label}</h2>
-          </div>
-          <div className="topbar-actions">
-            <button className="secondary-action" onClick={() => void openActiveSectionPopout()} type="button">
-              <ExternalLink aria-hidden="true" size={18} />
-              <span>Pop Out</span>
-            </button>
-          </div>
-        </header>
+      <section className="workspace" aria-labelledby={activeSection === 'display' ? undefined : 'workspace-title'}>
+        {activeSection !== 'display' ? (
+          <header className="topbar">
+            <div>
+              <p className="eyebrow">{activeNavigationItem.meta}</p>
+              <h2 id="workspace-title">{activeNavigationItem.label}</h2>
+            </div>
+            <div className="topbar-actions">
+              <button className="secondary-action" onClick={() => void openActiveSectionPopout()} type="button">
+                <ExternalLink aria-hidden="true" size={18} />
+                <span>Pop Out</span>
+              </button>
+            </div>
+          </header>
+        ) : null}
 
         {notices}
 
