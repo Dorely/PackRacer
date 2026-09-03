@@ -48,22 +48,24 @@ function EntryRow({ entry, raceId, racer, actions, requestConfirmation }: EntryR
       </td>
       <td>{formatStatus(entry.status)}</td>
       <td>
-        <button
-          aria-pressed={entry.checkedIn}
-          className="mini-action readiness-toggle"
-          onClick={() => void actions.updateRaceEntry(raceId, entry.id, { checkedIn: !entry.checkedIn })}
-          type="button"
-        >
-          Checked In
-        </button>
-        <button
-          aria-pressed={entry.inspectionPassed}
-          className="mini-action readiness-toggle"
-          onClick={() => void actions.updateRaceEntry(raceId, entry.id, { inspectionPassed: !entry.inspectionPassed })}
-          type="button"
-        >
-          Inspected
-        </button>
+        <div className="readiness-actions">
+          <button
+            aria-pressed={entry.checkedIn}
+            className="mini-action readiness-toggle"
+            onClick={() => void actions.updateRaceEntry(raceId, entry.id, { checkedIn: !entry.checkedIn })}
+            type="button"
+          >
+            Checked In
+          </button>
+          <button
+            aria-pressed={entry.inspectionPassed}
+            className="mini-action readiness-toggle"
+            onClick={() => void actions.updateRaceEntry(raceId, entry.id, { inspectionPassed: !entry.inspectionPassed })}
+            type="button"
+          >
+            Inspected
+          </button>
+        </div>
       </td>
       <td>
         <div className="button-row nowrap">
