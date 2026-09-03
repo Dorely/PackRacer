@@ -258,7 +258,7 @@ export function EventSetup({ event, currentRace, actions, selectedRaceId, setSel
         </div>
       </div>
 
-      <div className="race-panel">
+      <div className="race-panel race-list-panel">
         <div className="panel-heading">
           <div>
             <p className="eyebrow">Races</p>
@@ -322,7 +322,7 @@ export function EventSetup({ event, currentRace, actions, selectedRaceId, setSel
           </button>
         </form>
 
-        <div className="stack-list">
+        <div className="stack-list race-list-scroll">
           {event.races.map((race) => (
             <button
               className="list-card selectable-card"
@@ -341,7 +341,7 @@ export function EventSetup({ event, currentRace, actions, selectedRaceId, setSel
         </div>
       </div>
 
-      <div className="race-panel">
+      <div className="race-panel race-settings-panel">
         <div className="panel-heading">
           <div>
             <p className="eyebrow">Race setup</p>

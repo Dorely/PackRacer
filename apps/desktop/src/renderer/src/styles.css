@@ -458,6 +458,23 @@ label {
   min-height: 0;
 }
 
+.setup-grid {
+  flex: 0 0 auto;
+  align-items: stretch;
+}
+
+.setup-grid .race-list-scroll {
+  flex: 1 1 190px;
+  min-height: 180px;
+  max-height: 360px;
+  padding-right: 4px;
+}
+
+.setup-grid .race-settings-panel {
+  height: fit-content;
+  min-height: 100%;
+}
+
 .registration-grid {
   grid-template-columns: minmax(320px, 0.65fr) minmax(620px, 1.35fr);
 }

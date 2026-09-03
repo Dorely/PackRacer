@@ -480,7 +480,7 @@ export function App() {
 
         {notices}
 
-        {activeSection !== 'display' ? (
+        {activeSection !== 'display' && activeSection !== 'event' ? (
           <div className="status-strip" aria-label="Event readiness">
             {workflowStats.map((stat) => (
               <article className="stat-card" key={stat.label}>
