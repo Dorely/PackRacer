@@ -9,7 +9,8 @@
     "moduleResolution": "NodeNext",
     "noEmit": true,
     "paths": {
-      "@packracer/race-engine": ["../../packages/race-engine/src/index.ts"]
+      "@packracer/race-engine": ["../../packages/race-engine/src/index.ts"],
+      "@packracer/timer-adapters": ["../../packages/timer-adapters/src/index.ts"]
     },
     "skipLibCheck": true,
     "strict": true,
@@ -20,6 +21,7 @@
     "electron.vite.config.ts",
     "src/main/**/*.ts",
     "src/preload/**/*.ts",
-    "../../packages/race-engine/src/**/*.ts"
+    "../../packages/race-engine/src/**/*.ts",
+    "../../packages/timer-adapters/src/**/*.ts"
   ]
 }

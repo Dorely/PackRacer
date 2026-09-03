@@ -16,6 +16,18 @@ import type {
   UpdateRaceInput,
   UpdateRacerInput
 } from '@packracer/race-engine'
+import {
+  defaultTimerPreferences,
+  noTimerCapabilities,
+  type ConnectTimerInput,
+  type ConfigureSimulatorInput,
+  type PhysicalTimerProfileId,
+  type TimerPortInfo,
+  type TimerPreferences,
+  type TimerProfile,
+  type TimerReplayResult,
+  type TimerState
+} from '@packracer/timer-adapters'
 
 import { DisplayMode } from './sections/DisplayMode'
 import { Events } from './sections/Events'
@@ -85,6 +97,19 @@ export function App() {
   const [selectedRaceId, setSelectedRaceId] = useState(initialWindowContext.initialRaceId)
   const [errorMessage, setErrorMessage] = useState('')
   const [confirmationRequest, setConfirmationRequest] = useState<ConfirmationRequest | null>(null)
+  const [timerState, setTimerState] = useState<TimerState>({
+    status: 'disconnected',
+    selectedProfileId: defaultTimerPreferences.profileId,
+    capabilities: noTimerCapabilities,
+    diagnostics: [],
+    simulationMode: false,
+    simulatorScenario: 'normal-finish',
+    simulatorVariation: 0,
+    gateReleased: false
+  })
+  const [timerProfiles, setTimerProfiles] = useState<TimerProfile[]>([])
+  const [timerPorts, setTimerPorts] = useState<TimerPortInfo[]>([])
+  const [timerPreferences, setTimerPreferences] = useState<TimerPreferences>(structuredClone(defaultTimerPreferences))
 
   const applySession = useCallback((nextSession: EventSessionSnapshot | null) => {
     if (!nextSession) {
@@ -105,7 +130,16 @@ export function App() {
 
     void window.packRacer.getVersion().then(setAppVersion)
     void window.packRacer.getCurrentEvent().then(applySession)
-    return window.packRacer.onSessionUpdated(applySession)
+    void window.packRacer.getTimerState().then(setTimerState)
+    void window.packRacer.getTimerProfiles().then(setTimerProfiles)
+    void window.packRacer.getTimerPreferences().then(setTimerPreferences)
+    void window.packRacer.listTimerPorts().then(setTimerPorts)
+    const removeSessionListener = window.packRacer.onSessionUpdated(applySession)
+    const removeTimerListener = window.packRacer.onTimerUpdated(setTimerState)
+    return () => {
+      removeSessionListener()
+      removeTimerListener()
+    }
   }, [applySession])
 
   const event = session?.event ?? null
@@ -145,6 +179,15 @@ export function App() {
     [applySession]
   )
 
+  const runTimerAction = useCallback(async (action: () => Promise<TimerState>): Promise<void> => {
+    try {
+      setErrorMessage('')
+      setTimerState(await action())
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'The timer operation could not be completed.')
+    }
+  }, [])
+
   const actions: AppActions = useMemo(
     () => ({
       createEvent: (input: CreateEventInput) => runAction(() => getPackRacerApi().createEvent(input)),
@@ -177,9 +220,48 @@ export function App() {
         runAction(() => getPackRacerApi().recordHeatResults(raceId, input)),
       clearHeatResults: (raceId: string, heatId: string) => runAction(() => getPackRacerApi().clearHeatResults(raceId, heatId)),
       setCurrentHeat: (raceId: string, heatId: string) => runAction(() => getPackRacerApi().setCurrentHeat(raceId, heatId)),
-      advanceHeat: (raceId: string) => runAction(() => getPackRacerApi().advanceHeat(raceId))
+      advanceHeat: (raceId: string) => runAction(() => getPackRacerApi().advanceHeat(raceId)),
+      saveTimerPreferences: async (input: TimerPreferences) => {
+        try {
+          setErrorMessage('')
+          setTimerPreferences(await getPackRacerApi().saveTimerPreferences(input))
+        } catch (error) {
+          setErrorMessage(error instanceof Error ? error.message : 'Timer preferences could not be saved.')
+        }
+      },
+      connectTimer: (input: ConnectTimerInput) => runTimerAction(() => getPackRacerApi().connectTimer(input)),
+      disconnectTimer: () => runTimerAction(() => getPackRacerApi().disconnectTimer()),
+      scanTimerPorts: async () => {
+        try {
+          setErrorMessage('')
+          setTimerPorts(await getPackRacerApi().listTimerPorts())
+        } catch (error) {
+          setErrorMessage(error instanceof Error ? error.message : 'COM ports could not be scanned.')
+        }
+      },
+      armTimer: (raceId: string, heatId: string, laneMapping: Record<number, number>) =>
+        runTimerAction(() => getPackRacerApi().armTimer(raceId, heatId, laneMapping)),
+      disarmTimer: () => runTimerAction(() => getPackRacerApi().disarmTimer()),
+      resetTimer: () => runTimerAction(() => getPackRacerApi().resetTimer()),
+      forceTimerResults: () => runTimerAction(() => getPackRacerApi().forceTimerResults()),
+      releaseTimerGate: () => runTimerAction(() => getPackRacerApi().releaseTimerGate()),
+      configureTimerSimulator: (input: ConfigureSimulatorInput) =>
+        runTimerAction(() => getPackRacerApi().configureTimerSimulator(input)),
+      runTimerSimulator: () => runTimerAction(() => getPackRacerApi().runTimerSimulator()),
+      discardTimerCapture: () => runTimerAction(() => getPackRacerApi().discardTimerCapture()),
+      acceptTimerCapture: (captureId: string, raceId: string, input: RecordHeatResultsInput) =>
+        runAction(() => getPackRacerApi().acceptTimerCapture(captureId, raceId, input)),
+      replayTimerProtocol: async (profileId: PhysicalTimerProfileId): Promise<TimerReplayResult | null> => {
+        try {
+          setErrorMessage('')
+          return await getPackRacerApi().replayTimerProtocol(profileId)
+        } catch (error) {
+          setErrorMessage(error instanceof Error ? error.message : 'The protocol replay failed.')
+          return null
+        }
+      }
     }),
-    [runAction]
+    [runAction, runTimerAction]
   )
 
   const openActiveSectionPopout = useCallback(async () => {
@@ -252,7 +334,11 @@ export function App() {
     selectedRaceId,
     setSelectedRaceId,
     openPopout: initialWindowContext.isPopout ? undefined : () => void openActiveSectionPopout(),
-    requestConfirmation
+    requestConfirmation,
+    timerState,
+    timerProfiles,
+    timerPorts,
+    timerPreferences
   }
 
   const renderedSection = (
@@ -268,6 +354,12 @@ export function App() {
   const notices = (
     <>
       {errorMessage ? <div className="notice-banner" role="alert">{errorMessage}</div> : null}
+
+      {activeSection === 'race-control' && timerState.simulationMode ? (
+        <div className="notice-banner simulation-banner" role="status">
+          SIMULATION MODE — generated results require confirmation before saving.
+        </div>
+      ) : null}
 
       {event?.activeRemovalImpact ? (
         <div className="notice-banner warning" role="status">

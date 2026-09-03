@@ -16,6 +16,16 @@ import type {
   UpdateRaceInput,
   UpdateRacerInput
 } from '@packracer/race-engine'
+import type {
+  ConnectTimerInput,
+  ConfigureSimulatorInput,
+  PhysicalTimerProfileId,
+  TimerPortInfo,
+  TimerPreferences,
+  TimerProfile,
+  TimerReplayResult,
+  TimerState
+} from '@packracer/timer-adapters'
 
 declare global {
   interface Window {
@@ -49,6 +59,24 @@ declare global {
       clearHeatResults: (raceId: string, heatId: string) => Promise<EventSessionSnapshot>
       setCurrentHeat: (raceId: string, heatId: string) => Promise<EventSessionSnapshot>
       advanceHeat: (raceId: string) => Promise<EventSessionSnapshot>
+      getTimerState: () => Promise<TimerState>
+      getTimerProfiles: () => Promise<TimerProfile[]>
+      listTimerPorts: () => Promise<TimerPortInfo[]>
+      getTimerPreferences: () => Promise<TimerPreferences>
+      saveTimerPreferences: (input: TimerPreferences) => Promise<TimerPreferences>
+      connectTimer: (input: ConnectTimerInput) => Promise<TimerState>
+      disconnectTimer: () => Promise<TimerState>
+      armTimer: (raceId: string, heatId: string, laneMapping: Record<number, number>) => Promise<TimerState>
+      disarmTimer: () => Promise<TimerState>
+      resetTimer: () => Promise<TimerState>
+      forceTimerResults: () => Promise<TimerState>
+      releaseTimerGate: () => Promise<TimerState>
+      configureTimerSimulator: (input: ConfigureSimulatorInput) => Promise<TimerState>
+      runTimerSimulator: () => Promise<TimerState>
+      discardTimerCapture: () => Promise<TimerState>
+      acceptTimerCapture: (captureId: string, raceId: string, input: RecordHeatResultsInput) => Promise<EventSessionSnapshot>
+      replayTimerProtocol: (profileId: PhysicalTimerProfileId) => Promise<TimerReplayResult>
+      onTimerUpdated: (callback: (state: TimerState) => void) => () => void
     }
   }
 }

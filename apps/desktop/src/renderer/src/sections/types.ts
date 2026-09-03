@@ -15,6 +15,16 @@ import type {
   UpdateRaceInput,
   UpdateRacerInput
 } from '@packracer/race-engine'
+import type {
+  ConnectTimerInput,
+  ConfigureSimulatorInput,
+  PhysicalTimerProfileId,
+  TimerPortInfo,
+  TimerPreferences,
+  TimerProfile,
+  TimerReplayResult,
+  TimerState
+} from '@packracer/timer-adapters'
 
 export type ConfirmationRequest = {
   title: string
@@ -50,6 +60,20 @@ export type AppActions = {
   clearHeatResults: (raceId: string, heatId: string) => Promise<void>
   setCurrentHeat: (raceId: string, heatId: string) => Promise<void>
   advanceHeat: (raceId: string) => Promise<void>
+  saveTimerPreferences: (input: TimerPreferences) => Promise<void>
+  connectTimer: (input: ConnectTimerInput) => Promise<void>
+  disconnectTimer: () => Promise<void>
+  scanTimerPorts: () => Promise<void>
+  armTimer: (raceId: string, heatId: string, laneMapping: Record<number, number>) => Promise<void>
+  disarmTimer: () => Promise<void>
+  resetTimer: () => Promise<void>
+  forceTimerResults: () => Promise<void>
+  releaseTimerGate: () => Promise<void>
+  configureTimerSimulator: (input: ConfigureSimulatorInput) => Promise<void>
+  runTimerSimulator: () => Promise<void>
+  discardTimerCapture: () => Promise<void>
+  acceptTimerCapture: (captureId: string, raceId: string, input: RecordHeatResultsInput) => Promise<void>
+  replayTimerProtocol: (profileId: PhysicalTimerProfileId) => Promise<TimerReplayResult | null>
 }
 
 export type SectionProps = {
@@ -61,4 +85,8 @@ export type SectionProps = {
   setSelectedRaceId: (raceId: string) => void
   openPopout?: () => void
   requestConfirmation: (request: ConfirmationRequest) => void
+  timerState: TimerState
+  timerProfiles: TimerProfile[]
+  timerPorts: TimerPortInfo[]
+  timerPreferences: TimerPreferences
 }

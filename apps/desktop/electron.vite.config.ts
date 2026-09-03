@@ -7,7 +7,8 @@ export default defineConfig({
   main: {
     resolve: {
       alias: {
-        '@packracer/race-engine': resolve(__dirname, '../../packages/race-engine/src/index.ts')
+        '@packracer/race-engine': resolve(__dirname, '../../packages/race-engine/src/index.ts'),
+        '@packracer/timer-adapters': resolve(__dirname, '../../packages/timer-adapters/src/index.ts')
       }
     },
     plugins: [externalizeDepsPlugin()],
@@ -37,7 +38,8 @@ export default defineConfig({
     root: resolve(__dirname, 'src/renderer'),
     resolve: {
       alias: {
-        '@packracer/race-engine': resolve(__dirname, '../../packages/race-engine/src/index.ts')
+        '@packracer/race-engine': resolve(__dirname, '../../packages/race-engine/src/index.ts'),
+        '@packracer/timer-adapters': resolve(__dirname, '../../packages/timer-adapters/src/index.ts')
       }
     },
     plugins: [react()],

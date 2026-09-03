@@ -11,7 +11,8 @@
     "moduleResolution": "Bundler",
     "noEmit": true,
     "paths": {
-      "@packracer/race-engine": ["../../packages/race-engine/src/index.ts"]
+      "@packracer/race-engine": ["../../packages/race-engine/src/index.ts"],
+      "@packracer/timer-adapters": ["../../packages/timer-adapters/src/index.ts"]
     },
     "resolveJsonModule": true,
     "skipLibCheck": true,
@@ -19,5 +20,5 @@
     "target": "ES2020",
     "types": ["vite/client"]
   },
-  "include": ["src/renderer/src/**/*.ts", "src/renderer/src/**/*.tsx", "../../packages/race-engine/src/**/*.ts"]
+  "include": ["src/renderer/src/**/*.ts", "src/renderer/src/**/*.tsx", "../../packages/race-engine/src/**/*.ts", "../../packages/timer-adapters/src/**/*.ts"]
 }

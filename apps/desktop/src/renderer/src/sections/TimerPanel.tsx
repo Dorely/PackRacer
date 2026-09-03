@@ -1,0 +1,264 @@
+import { ChevronDown, ChevronUp, Plug, RefreshCw, Unplug, Usb } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+
+import type { Heat, Race } from '@packracer/race-engine'
+import type {
+  AdvancedTimerProfile,
+  PhysicalTimerProfileId,
+  SimulatorScenario,
+  TimerPreferences,
+  TimerProfile,
+  TimerProfileId,
+  TimerReplayResult,
+  TimerState
+} from '@packracer/timer-adapters'
+
+import type { AppActions } from './types'
+
+const scenarioLabels: Record<SimulatorScenario, string> = {
+  'normal-finish': 'Normal finish',
+  'close-finish': 'Close finish',
+  'exact-tie': 'Exact tie',
+  'explicit-dnf': 'Explicit DNF',
+  'incomplete-result': 'Incomplete result',
+  'duplicate-transmission': 'Duplicate transmission',
+  'disconnect-during-heat': 'Disconnect during heat'
+}
+
+type TimerPanelProps = {
+  actions: AppActions
+  currentRace: Race
+  currentHeat?: Heat
+  profiles: TimerProfile[]
+  ports: Array<{ path: string; identity: string; manufacturer?: string }>
+  preferences: TimerPreferences
+  state: TimerState
+}
+
+function diagnosticTime(value: string): string {
+  return new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+}
+
+export function TimerPanel({ actions, currentRace, currentHeat, profiles, ports, preferences, state }: TimerPanelProps) {
+  const [open, setOpen] = useState(false)
+  const [selectedProfileId, setSelectedProfileId] = useState<TimerProfileId>(preferences.profileId)
+  const [selectedPortPath, setSelectedPortPath] = useState(preferences.portPath)
+  const [profileDirty, setProfileDirty] = useState(false)
+  const [portDirty, setPortDirty] = useState(false)
+  const [draftPreferences, setDraftPreferences] = useState<TimerPreferences>(preferences)
+  const [replayProfileId, setReplayProfileId] = useState<PhysicalTimerProfileId>('micro-wizard-fasttrack')
+  const [replay, setReplay] = useState<TimerReplayResult | null>(null)
+
+  useEffect(() => {
+    setDraftPreferences(preferences)
+    if (state.status === 'disconnected' && !profileDirty) {
+      setSelectedProfileId(preferences.profileId)
+    }
+    if (state.status === 'disconnected' && !portDirty) {
+      setSelectedPortPath(ports.find((port) => port.identity === preferences.portIdentity)?.path ?? preferences.portPath)
+    }
+  }, [preferences, ports, profileDirty, portDirty, state.status])
+
+  const laneNumbers = useMemo(
+    () => Array.from({ length: currentRace.laneCount }, (_value, index) => index + 1),
+    [currentRace.laneCount]
+  )
+  const connected = state.status !== 'disconnected' && state.status !== 'error'
+  const selectedProfile = profiles.find((profile) => profile.id === selectedProfileId)
+  const hardwareReplayProfiles = profiles.filter(
+    (profile): profile is TimerProfile & { id: PhysicalTimerProfileId } => profile.category === 'hardware' || profile.id === 'advanced'
+  )
+  const captureIsCurrent = state.capture?.raceId === currentRace.id && state.capture?.heatId === currentHeat?.id
+
+  const updateAdvanced = (patch: Partial<AdvancedTimerProfile>) => {
+    setDraftPreferences((previous) => ({
+      ...previous,
+      advancedProfile: { ...previous.advancedProfile, ...patch }
+    }))
+  }
+
+  const saveSettings = async () => {
+    const selectedPort = ports.find((port) => port.path === selectedPortPath)
+    const physicalProfileId = selectedProfileId !== 'simulator' && selectedProfileId !== 'auto-detect'
+      ? selectedProfileId
+      : draftPreferences.profileId
+    const next = {
+      ...draftPreferences,
+      profileId: physicalProfileId,
+      portPath: selectedPortPath,
+      portIdentity: selectedPort?.identity
+    }
+    setDraftPreferences(next)
+    await actions.saveTimerPreferences(next)
+  }
+
+  const connect = async () => {
+    await saveSettings()
+    await actions.connectTimer({
+      profileId: selectedProfileId,
+      portPath: selectedProfileId === 'simulator' ? undefined : selectedPortPath,
+      advancedProfile: draftPreferences.advancedProfile
+    })
+  }
+
+  const setMapping = (physicalLane: number, packRacerLane: number) => {
+    setDraftPreferences((previous) => ({
+      ...previous,
+      laneMapping: { ...previous.laneMapping, [physicalLane]: packRacerLane }
+    }))
+  }
+
+  const arm = async () => {
+    if (!currentHeat) return
+    await saveSettings()
+    await actions.armTimer(currentRace.id, currentHeat.id, draftPreferences.laneMapping)
+  }
+
+  const runReplay = async () => {
+    setReplay(await actions.replayTimerProtocol(replayProfileId))
+  }
+
+  return (
+    <section className="timer-panel">
+      <button className="timer-panel-summary" aria-expanded={open} onClick={() => setOpen((value) => !value)} type="button">
+        <span className="timer-summary-title">
+          <Usb aria-hidden="true" size={20} />
+          <span>
+            <strong>Hardware Timer</strong>
+            <small>{state.profileName ?? 'Manual entry available — no timer connected'} · {state.status}</small>
+          </span>
+        </span>
+        {open ? <ChevronUp aria-hidden="true" size={19} /> : <ChevronDown aria-hidden="true" size={19} />}
+      </button>
+
+      {open ? (
+        <div className="timer-panel-body">
+          <div className="timer-setup-grid">
+            <label>
+              <span>Timer profile</span>
+              <select disabled={connected} value={selectedProfileId} onChange={(event) => { setProfileDirty(true); setSelectedProfileId(event.target.value as TimerProfileId) }}>
+                {(['automatic', 'hardware', 'advanced', 'simulation'] as const).map((category) => {
+                  const categoryProfiles = profiles.filter((profile) => profile.category === category)
+                  return categoryProfiles.length ? (
+                    <optgroup key={category} label={category === 'simulation' ? 'Simulation / Diagnostics' : category[0].toUpperCase() + category.slice(1)}>
+                      {categoryProfiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}
+                    </optgroup>
+                  ) : null
+                })}
+              </select>
+              <small>{selectedProfile?.description}</small>
+            </label>
+
+            {selectedProfileId !== 'simulator' ? (
+              <label>
+                <span>COM port</span>
+                <div className="inline-field-actions">
+                  <select disabled={connected} value={selectedPortPath} onChange={(event) => { setPortDirty(true); setSelectedPortPath(event.target.value) }}>
+                    <option value="">Select a port</option>
+                    {ports.map((port) => <option key={port.path} value={port.path}>{port.path}{port.manufacturer ? ` — ${port.manufacturer}` : ''}</option>)}
+                  </select>
+                  <button className="icon-action" disabled={connected} onClick={() => void actions.scanTimerPorts()} aria-label="Scan COM ports" type="button">
+                    <RefreshCw aria-hidden="true" size={18} />
+                  </button>
+                </div>
+              </label>
+            ) : (
+              <div className="timer-mode-note"><strong>No hardware required</strong><span>Uses the complete capture and persistence workflow.</span></div>
+            )}
+          </div>
+
+          {selectedProfileId === 'advanced' && !connected ? (
+            <details className="timer-details">
+              <summary>Advanced serial profile</summary>
+              <div className="advanced-timer-grid">
+                <label><span>Name</span><input value={draftPreferences.advancedProfile.name} onChange={(event) => updateAdvanced({ name: event.target.value })} /></label>
+                <label><span>Baud</span><input inputMode="numeric" value={draftPreferences.advancedProfile.serial.baudRate} onChange={(event) => updateAdvanced({ serial: { ...draftPreferences.advancedProfile.serial, baudRate: Number(event.target.value) || 9600 } })} /></label>
+                <label><span>Data bits</span><select value={draftPreferences.advancedProfile.serial.dataBits} onChange={(event) => updateAdvanced({ serial: { ...draftPreferences.advancedProfile.serial, dataBits: Number(event.target.value) as 5 | 6 | 7 | 8 } })}><option>5</option><option>6</option><option>7</option><option>8</option></select></label>
+                <label><span>Stop bits</span><select value={draftPreferences.advancedProfile.serial.stopBits} onChange={(event) => updateAdvanced({ serial: { ...draftPreferences.advancedProfile.serial, stopBits: Number(event.target.value) as 1 | 1.5 | 2 } })}><option value="1">1</option><option value="1.5">1.5</option><option value="2">2</option></select></label>
+                <label><span>Parity</span><select value={draftPreferences.advancedProfile.serial.parity} onChange={(event) => updateAdvanced({ serial: { ...draftPreferences.advancedProfile.serial, parity: event.target.value as AdvancedTimerProfile['serial']['parity'] } })}><option>none</option><option>even</option><option>odd</option><option>mark</option><option>space</option></select></label>
+                <label><span>Line ending</span><select value={draftPreferences.advancedProfile.lineEnding} onChange={(event) => updateAdvanced({ lineEnding: event.target.value as AdvancedTimerProfile['lineEnding'] })}><option value="any">Any</option><option value="cr">CR</option><option value="lf">LF</option><option value="crlf">CRLF</option></select></label>
+                <label><span>Record layout</span><select value={draftPreferences.advancedProfile.layout} onChange={(event) => updateAdvanced({ layout: event.target.value as AdvancedTimerProfile['layout'] })}><option value="lane-time-line">Lane/time line</option><option value="letter-equals-time">Lane=time</option><option value="ordered-lane-time-pairs">Ordered lane/time pairs</option></select></label>
+                <label><span>Lane style</span><select value={draftPreferences.advancedProfile.laneStyle} onChange={(event) => updateAdvanced({ laneStyle: event.target.value as 'number' | 'letter' })}><option value="number">Numeric</option><option value="letter">Letter</option></select></label>
+                <label><span>Time unit</span><select value={draftPreferences.advancedProfile.timeUnit} onChange={(event) => updateAdvanced({ timeUnit: event.target.value as 'seconds' | 'milliseconds' })}><option value="seconds">Seconds</option><option value="milliseconds">Milliseconds</option></select></label>
+                {(['completionText', 'probeCommand', 'probeResponseText', 'setupCommand', 'resetCommand', 'forceResultsCommand', 'releaseGateCommand'] as const).map((field) => (
+                  <label key={field}><span>{field.replace(/([A-Z])/g, ' $1')}</span><input value={draftPreferences.advancedProfile[field]} onChange={(event) => updateAdvanced({ [field]: event.target.value })} /></label>
+                ))}
+              </div>
+            </details>
+          ) : null}
+
+          <div className="button-row timer-connect-actions">
+            {!connected ? <button className="primary-action" onClick={() => void connect()} type="button"><Plug aria-hidden="true" size={18} />Connect</button> : null}
+            {connected ? <button className="secondary-action" onClick={() => void actions.disconnectTimer()} type="button"><Unplug aria-hidden="true" size={18} />Disconnect</button> : null}
+            <span className={`timer-status status-${state.status}`}>{state.status}</span>
+            {state.error ? <span className="timer-error">{state.error}</span> : null}
+          </div>
+
+          {connected ? (
+            <>
+              <div className="timer-mapping">
+                <strong>Physical lane mapping</strong>
+                <div className="timer-lane-map">
+                  {laneNumbers.map((physicalLane) => (
+                    <label key={physicalLane}>
+                      <span>Timer {physicalLane}</span>
+                      <select value={draftPreferences.laneMapping[physicalLane] ?? physicalLane} onChange={(event) => setMapping(physicalLane, Number(event.target.value))}>
+                        {laneNumbers.map((lane) => <option key={lane} value={lane}>PackRacer {lane}</option>)}
+                      </select>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {state.capabilities.gateRelease ? (
+                <label className="gate-acknowledgement">
+                  <input checked={draftPreferences.gateControlEnabled} onChange={(event) => setDraftPreferences((previous) => ({ ...previous, gateControlEnabled: event.target.checked }))} type="checkbox" />
+                  <span>I understand software gate release can start a physical race; enable it on this computer.</span>
+                  <button className="secondary-action" onClick={() => void saveSettings()} type="button">Save setting</button>
+                </label>
+              ) : null}
+
+              {state.simulationMode ? (
+                <div className="simulator-controls">
+                  <label><span>Scenario</span><select value={state.simulatorScenario} onChange={(event) => void actions.configureTimerSimulator({ scenario: event.target.value as SimulatorScenario })}>{Object.entries(scenarioLabels).map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select></label>
+                  <button className="secondary-action" onClick={() => void actions.configureTimerSimulator({ scenario: state.simulatorScenario, variation: state.simulatorVariation + 1 })} type="button">New variation</button>
+                  <span>Variation {state.simulatorVariation}</span>
+                </div>
+              ) : null}
+
+              <div className="button-row">
+                {state.armedHeat ? <button className="secondary-action" onClick={() => void actions.disarmTimer()} type="button">Disarm</button> : <button className="primary-action" disabled={!currentHeat} onClick={() => void arm()} type="button">Arm Current Heat</button>}
+                {state.simulationMode && state.status === 'armed' && !draftPreferences.gateControlEnabled ? <button className="primary-action" onClick={() => void actions.runTimerSimulator()} type="button">Run Simulated Heat</button> : null}
+                {state.status === 'armed' && state.capabilities.gateRelease && draftPreferences.gateControlEnabled ? <button className="danger-action" onClick={() => void actions.releaseTimerGate()} type="button">{state.simulationMode ? 'Release Simulated Gate' : 'Release Gate'}</button> : null}
+                {state.capabilities.reset ? <button className="secondary-action" onClick={() => void actions.resetTimer()} type="button">Reset</button> : null}
+                {state.capabilities.forceResults && state.armedHeat ? <button className="secondary-action" onClick={() => void actions.forceTimerResults()} type="button">Force Results</button> : null}
+              </div>
+            </>
+          ) : null}
+
+          {state.capture ? (
+            <div className="timer-capture" data-stale={!captureIsCurrent}>
+              <div><strong>{state.capture.simulated ? 'Simulated' : 'Hardware'} capture staged</strong><span>Heat {state.capture.heatNumber} · {state.capture.results.length} lane result(s){state.capture.complete ? '' : ' · incomplete'}</span></div>
+              {state.capture.warnings.map((warning) => <p key={warning}>{warning}</p>)}
+              {!captureIsCurrent ? <p>This capture is stale and cannot populate the selected heat.</p> : null}
+              <button className="secondary-action" onClick={() => void actions.discardTimerCapture()} type="button">Discard Capture</button>
+            </div>
+          ) : null}
+
+          <details className="timer-details">
+            <summary>Diagnostics and raw protocol replay</summary>
+            <div className="replay-controls">
+              <select value={replayProfileId} onChange={(event) => setReplayProfileId(event.target.value as PhysicalTimerProfileId)}>{hardwareReplayProfiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}</select>
+              <button className="secondary-action" onClick={() => void runReplay()} type="button">Replay Bundled Transcript</button>
+            </div>
+            {replay ? <pre className="protocol-replay">Chunks: {JSON.stringify(replay.chunks, null, 2)}{`\n\n`}Normalized: {JSON.stringify(replay.events, null, 2)}</pre> : null}
+            <div className="timer-transcript" aria-label="Timer diagnostic transcript">
+              {state.diagnostics.slice(-40).map((entry) => <div key={entry.id}><time>{diagnosticTime(entry.createdAt)}</time><span>{entry.direction}</span><code>{entry.message}</code></div>)}
+              {state.diagnostics.length === 0 ? <p className="empty-state">No timer activity yet.</p> : null}
+            </div>
+          </details>
+        </div>
+      ) : null}
+    </section>
+  )
+}

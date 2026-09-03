@@ -39,6 +39,13 @@ import {
   resolveRacerRemoval,
   setCurrentHeat
 } from '../../../../packages/race-engine/src/scheduling.ts'
+import type {
+  ConnectTimerInput,
+  ConfigureSimulatorInput,
+  PhysicalTimerProfileId,
+  TimerPreferences,
+  TimerState
+} from '@packracer/timer-adapters'
 
 import {
   closeEventStore,
@@ -49,6 +56,7 @@ import {
   mutateEvent,
   selectEventSession
 } from './event-store.ts'
+import { timerService } from './timer-service.ts'
 
 const isDevelopment = Boolean(process.env.ELECTRON_RENDERER_URL)
 const shouldOpenDevTools = process.env.PACKRACER_OPEN_DEVTOOLS === '1'
@@ -188,11 +196,22 @@ function broadcastSessionUpdate(snapshot: EventSessionSnapshot | null): void {
   }
 }
 
+function broadcastTimerUpdate(state: TimerState): void {
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (!window.isDestroyed()) {
+      window.webContents.send('timer:updated', state)
+    }
+  }
+}
+
 async function withSessionBroadcast<T extends EventSessionSnapshot | null>(operation: Promise<T>): Promise<T> {
   const snapshot = await operation
+  timerService.reconcileSession(snapshot)
   broadcastSessionUpdate(snapshot)
   return snapshot
 }
+
+timerService.setStateListener(broadcastTimerUpdate)
 
 app.setAppUserModelId('com.packracer.desktop')
 
@@ -357,7 +376,55 @@ ipcMain.handle('heat:advance', (_event, raceId: string) =>
   withSessionBroadcast(mutateEvent('heat:advance', (raceEvent) => advanceToNextHeat(raceEvent, raceId), { raceId }, raceId))
 )
 
-void app.whenReady().then(() => {
+ipcMain.handle('timer:get-state', () => timerService.getState())
+ipcMain.handle('timer:get-profiles', () => timerService.getProfiles())
+ipcMain.handle('timer:list-ports', () => timerService.listPorts())
+ipcMain.handle('timer:get-preferences', () => timerService.getPreferences())
+ipcMain.handle('timer:save-preferences', (_event, input: TimerPreferences) => timerService.savePreferences(input))
+ipcMain.handle('timer:connect', (_event, input: ConnectTimerInput) => timerService.connect(input))
+ipcMain.handle('timer:disconnect', () => timerService.disconnect())
+ipcMain.handle('timer:arm', (_event, raceId: string, heatId: string, laneMapping: Record<number, number>) =>
+  timerService.arm(raceId, heatId, laneMapping)
+)
+ipcMain.handle('timer:disarm', () => timerService.disarm())
+ipcMain.handle('timer:reset', () => timerService.reset())
+ipcMain.handle('timer:force-results', () => timerService.forceResults())
+ipcMain.handle('timer:release-gate', () => timerService.releaseGate())
+ipcMain.handle('timer:configure-simulator', (_event, input: ConfigureSimulatorInput) => timerService.configureSimulator(input))
+ipcMain.handle('timer:run-simulator', () => timerService.runSimulation())
+ipcMain.handle('timer:discard-capture', () => timerService.discardCapture())
+ipcMain.handle('timer:replay', (_event, profileId: PhysicalTimerProfileId) => timerService.replay(profileId))
+ipcMain.handle(
+  'timer:accept-capture',
+  async (_event, captureId: string, raceId: string, input: RecordHeatResultsInput) => {
+    const capture = await timerService.beginCaptureAcceptance(captureId, raceId, input)
+    try {
+      const snapshot = await withSessionBroadcast(
+        mutateEvent(
+          capture.simulated ? 'timer:accept-simulated-capture' : 'timer:accept-capture',
+          (raceEvent) => recordHeatResults(raceEvent, raceId, input),
+          {
+            captureId,
+            heatId: input.heatId,
+            profileId: capture.profileId,
+            simulated: capture.simulated,
+            simulatorScenario: capture.simulatorScenario,
+            warnings: capture.warnings
+          },
+          raceId
+        )
+      )
+      timerService.finishCaptureAcceptance(captureId, true)
+      return snapshot
+    } catch (error) {
+      timerService.finishCaptureAcceptance(captureId, false)
+      throw error
+    }
+  }
+)
+
+void app.whenReady().then(async () => {
+  await timerService.initialize()
   createMainWindow()
 
   app.on('activate', () => {
@@ -374,5 +441,6 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
+  void timerService.shutdown()
   closeEventStore()
 })

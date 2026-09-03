@@ -624,6 +624,13 @@ label {
   opacity: 0.58;
 }
 
+.notice-banner.simulation-banner {
+  border-color: #d39a35;
+  color: #4a3007;
+  background: #ffd77f;
+  letter-spacing: 0.04em;
+}
+
 .lane-row[data-disabled="true"] {
   border-left-color: #8f2f25;
   background: #fff3ef;
@@ -792,6 +799,237 @@ label {
 
 .race-control-layout {
   grid-template-columns: minmax(620px, 1.45fr) minmax(280px, 0.75fr);
+}
+
+.timer-panel {
+  grid-column: 1 / -1;
+  overflow: hidden;
+  border: 1px solid #d5ded8;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 12px 24px rgba(22, 53, 44, 0.06);
+}
+
+.timer-panel-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 62px;
+  padding: 14px 18px;
+  color: #26352f;
+  background: #f8fbf9;
+  border: 0;
+  border-radius: 0;
+  text-align: left;
+}
+
+.timer-summary-title,
+.timer-summary-title > span,
+.timer-mode-note,
+.timer-capture > div {
+  display: flex;
+}
+
+.timer-summary-title {
+  align-items: center;
+  gap: 12px;
+}
+
+.timer-summary-title > span,
+.timer-mode-note,
+.timer-capture > div {
+  flex-direction: column;
+  gap: 3px;
+}
+
+.timer-summary-title small,
+.timer-mode-note span,
+.timer-capture span {
+  color: #607269;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.timer-panel-body {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  border-top: 1px solid #dfe7e2;
+}
+
+.timer-setup-grid,
+.advanced-timer-grid,
+.timer-lane-map,
+.simulator-controls {
+  display: grid;
+  gap: 12px;
+}
+
+.timer-setup-grid {
+  grid-template-columns: repeat(2, minmax(240px, 1fr));
+}
+
+.advanced-timer-grid {
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
+  padding-top: 14px;
+}
+
+.timer-panel label,
+.timer-mapping,
+.simulator-controls label {
+  display: grid;
+  gap: 6px;
+  color: #536860;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.timer-panel label > small {
+  min-height: 30px;
+  color: #71847b;
+  font-weight: 600;
+}
+
+.inline-field-actions,
+.timer-connect-actions,
+.replay-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.inline-field-actions select {
+  flex: 1;
+}
+
+.timer-status {
+  padding: 7px 10px;
+  border-radius: 999px;
+  color: #536860;
+  background: #eef3f0;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.timer-status.status-ready,
+.timer-status.status-armed,
+.timer-status.status-result {
+  color: #17513c;
+  background: #dff1e8;
+}
+
+.timer-status.status-running,
+.timer-status.status-connecting {
+  color: #57400e;
+  background: #fff0bd;
+}
+
+.timer-status.status-error,
+.timer-error {
+  color: #8f2f25;
+}
+
+.timer-lane-map {
+  grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+}
+
+.gate-acknowledgement {
+  grid-template-columns: auto minmax(240px, 1fr) auto;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid #e5c378;
+  border-radius: 8px;
+  background: #fff8e9;
+}
+
+.simulator-controls {
+  grid-template-columns: minmax(220px, 1fr) auto auto;
+  align-items: end;
+  padding: 12px;
+  border: 1px solid #e5c378;
+  border-radius: 8px;
+  background: #fff8e9;
+}
+
+.timer-capture {
+  display: grid;
+  gap: 8px;
+  padding: 13px;
+  border: 1px solid #80b69e;
+  border-radius: 8px;
+  background: #ecf8f2;
+}
+
+.timer-capture[data-stale='true'] {
+  border-color: #d59b8d;
+  background: #fff0ec;
+}
+
+.timer-capture p {
+  margin: 0;
+  color: #705124;
+  font-size: 13px;
+}
+
+.timer-details {
+  border-top: 1px solid #e0e8e3;
+  padding-top: 12px;
+}
+
+.timer-details summary {
+  color: #355047;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.replay-controls {
+  margin-top: 12px;
+}
+
+.protocol-replay,
+.timer-transcript {
+  max-height: 260px;
+  overflow: auto;
+  margin: 12px 0 0;
+  padding: 12px;
+  border-radius: 7px;
+  color: #dcece4;
+  background: #17251f;
+  font: 12px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+.timer-transcript > div {
+  display: grid;
+  grid-template-columns: 72px 58px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.timer-transcript time,
+.timer-transcript span {
+  color: #91b5a5;
+}
+
+.timer-transcript code {
+  overflow-wrap: anywhere;
+}
+
+.result-source-badge {
+  padding: 10px 12px;
+  border: 1px solid #78aa95;
+  border-radius: 7px;
+  color: #23523f;
+  background: #e5f4ed;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+}
+
+.result-source-badge.simulated {
+  border-color: #d39a35;
+  color: #563804;
+  background: #ffedba;
 }
 
 .table-panel {
@@ -2440,6 +2678,13 @@ label {
     grid-template-columns: 1fr;
     grid-auto-flow: row;
     grid-auto-columns: auto;
+  }
+
+  .timer-setup-grid,
+  .advanced-timer-grid,
+  .simulator-controls,
+  .gate-acknowledgement {
+    grid-template-columns: 1fr;
   }
 
   .display-heading {

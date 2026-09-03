@@ -12,6 +12,7 @@ import {
 } from '@packracer/race-engine'
 
 import { formatStatus, formatTime, heatLabel, isMakeupHeat, racerLabel } from '../formatters'
+import { TimerPanel } from './TimerPanel'
 import type { SectionProps } from './types'
 
 type ResultDraft = {
@@ -23,6 +24,10 @@ type ResultDraft = {
 
 function usesTimeResults(scoringMode: ScoringMode): boolean {
   return scoringMode === 'average-time' || scoringMode === 'best-time' || scoringMode === 'total-time'
+}
+
+function scenarioLabel(scenario: string | undefined): string {
+  return (scenario ?? 'timer').split('-').join(' ')
 }
 
 function supportsMakeupResults(format: string | undefined): boolean {
@@ -200,7 +205,11 @@ export function RaceControl({
   actions,
   selectedRaceId,
   setSelectedRaceId,
-  requestConfirmation
+  requestConfirmation,
+  timerState,
+  timerProfiles,
+  timerPorts,
+  timerPreferences
 }: SectionProps) {
   const allHeats = currentRace?.heats ?? []
   const pendingHeat = allHeats.find((heat) => heat.status === 'pending')
@@ -254,6 +263,27 @@ export function RaceControl({
     [event]
   )
   const showTimeResults = usesTimeResults(currentRace?.scoringMode ?? 'average-time')
+  const currentTimerCapture = timerState.capture?.raceId === currentRace?.id && timerState.capture?.heatId === currentHeat?.id
+    ? timerState.capture
+    : undefined
+
+  useEffect(() => {
+    if (!currentHeat || !currentTimerCapture) return
+    setResultDrafts(() => {
+      const next = initialDraft(currentHeat)
+      for (const result of currentTimerCapture.results) {
+        if (!next[result.lane]) continue
+        next[result.lane] = {
+          ...next[result.lane],
+          status: result.status,
+          timeSeconds: result.timeMs === undefined ? '' : `${result.timeMs / 1000}`,
+          finishPosition: result.status === 'ok' && result.finishPosition ? `${result.finishPosition}` : '',
+          rescheduleMakeup: false
+        }
+      }
+      return next
+    })
+  }, [currentHeat?.id, currentTimerCapture?.id])
   const finishPositionOptions = useMemo(
     () => placementOptions(currentHeat, resultDrafts),
     [currentHeat, resultDrafts]
@@ -345,11 +375,28 @@ export function RaceControl({
           .map((assignment) => assignment.lane)
       : []
 
-    void actions.recordHeatResults(currentRace.id, {
+    const input = {
       heatId: currentHeat.id,
       results,
       rescheduleLanes: rescheduleLanes.length > 0 ? rescheduleLanes : undefined
-    })
+    }
+
+    if (currentTimerCapture) {
+      const accept = () => actions.acceptTimerCapture(currentTimerCapture.id, currentRace.id, input)
+      if (currentTimerCapture.simulated) {
+        requestConfirmation({
+          title: 'Accept simulated results',
+          message: `Save this simulated ${scenarioLabel(currentTimerCapture.simulatorScenario)} capture as the official result for heat ${currentHeat.heatNumber}?`,
+          confirmLabel: 'Accept Simulated Result',
+          onConfirm: accept
+        })
+      } else {
+        void accept()
+      }
+      return
+    }
+
+    void actions.recordHeatResults(currentRace.id, input)
   }
 
   const scratchLaneRacer = (racerId: string) => {
@@ -411,6 +458,15 @@ export function RaceControl({
 
   return (
     <section className="control-surface race-control-layout">
+      <TimerPanel
+        actions={actions}
+        currentHeat={currentHeat}
+        currentRace={currentRace}
+        ports={timerPorts}
+        preferences={timerPreferences}
+        profiles={timerProfiles}
+        state={timerState}
+      />
       <div className="race-panel current-state">
         <div className="panel-heading">
           <div>
@@ -454,6 +510,11 @@ export function RaceControl({
 
         {currentHeat ? (
           <form className="result-entry" onSubmit={submitResults}>
+            {currentTimerCapture ? (
+              <div className={`result-source-badge ${currentTimerCapture.simulated ? 'simulated' : 'hardware'}`}>
+                {currentTimerCapture.simulated ? 'SIMULATED CAPTURE' : 'HARDWARE CAPTURE'} — review or edit every value before saving.
+              </div>
+            ) : null}
             <div className="lane-grid" aria-label="Lane assignments and results">
               {currentHeat.laneAssignments.map((assignment) => {
                 const isDisabledLane = !assignment.racerId && disabledLaneNumbers.has(assignment.lane)
@@ -559,7 +620,7 @@ export function RaceControl({
                 ) : (
                   <Play aria-hidden="true" size={18} fill="currentColor" />
                 )}
-                <span>{currentHeat.status === 'complete' ? 'Update Results' : 'Record And Advance'}</span>
+                <span>{currentTimerCapture ? 'Accept Capture And Advance' : currentHeat.status === 'complete' ? 'Update Results' : 'Record And Advance'}</span>
               </button>
             </div>
           </form>

@@ -331,3 +331,47 @@ export async function deleteEventSession(eventId: string): Promise<EventSessionS
 
   return snapshot(database)
 }
+
+export async function getAppSetting<T>(key: string, fallback: T): Promise<T> {
+  const database = await openDatabase()
+  const row = queryOne<{ value: string }>(database, 'SELECT value FROM metadata WHERE key = ?', [key])
+
+  if (!row) {
+    return fallback
+  }
+
+  try {
+    return JSON.parse(row.value) as T
+  } catch {
+    return fallback
+  }
+}
+
+export async function setAppSetting<T>(key: string, value: T): Promise<void> {
+  const database = await openDatabase()
+  database.run('INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)', [key, JSON.stringify(value)])
+  persistDatabase(database)
+}
+
+export async function appendAuditAction(action: string, details: unknown, raceId?: string): Promise<EventSessionSnapshot | null> {
+  const database = await openDatabase()
+
+  if (!activeEvent) {
+    return null
+  }
+
+  const createdAt = new Date().toISOString()
+  database.run(
+    'INSERT INTO audit_log (id, event_id, race_id, created_at, action, details) VALUES (?, ?, ?, ?, ?, ?)',
+    [
+      createId('audit'),
+      activeEvent.id,
+      raceId ?? null,
+      createdAt,
+      action,
+      typeof details === 'string' ? details : JSON.stringify(details)
+    ] as SqlValue[]
+  )
+  persistDatabase(database)
+  return snapshot(database)
+}

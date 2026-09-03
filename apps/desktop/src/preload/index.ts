@@ -16,6 +16,16 @@ import type {
   UpdateRaceInput,
   UpdateRacerInput
 } from '@packracer/race-engine'
+import type {
+  ConnectTimerInput,
+  ConfigureSimulatorInput,
+  PhysicalTimerProfileId,
+  TimerPortInfo,
+  TimerPreferences,
+  TimerProfile,
+  TimerReplayResult,
+  TimerState
+} from '@packracer/timer-adapters'
 
 const invoke = <T>(channel: string, ...args: unknown[]): Promise<T> => ipcRenderer.invoke(channel, ...args) as Promise<T>
 
@@ -69,7 +79,31 @@ const packRacerApi = {
     invoke('heat:clear-results', raceId, heatId),
   setCurrentHeat: (raceId: string, heatId: string): Promise<EventSessionSnapshot> =>
     invoke('heat:set-current', raceId, heatId),
-  advanceHeat: (raceId: string): Promise<EventSessionSnapshot> => invoke('heat:advance', raceId)
+  advanceHeat: (raceId: string): Promise<EventSessionSnapshot> => invoke('heat:advance', raceId),
+  getTimerState: (): Promise<TimerState> => invoke('timer:get-state'),
+  getTimerProfiles: (): Promise<TimerProfile[]> => invoke('timer:get-profiles'),
+  listTimerPorts: (): Promise<TimerPortInfo[]> => invoke('timer:list-ports'),
+  getTimerPreferences: (): Promise<TimerPreferences> => invoke('timer:get-preferences'),
+  saveTimerPreferences: (input: TimerPreferences): Promise<TimerPreferences> => invoke('timer:save-preferences', input),
+  connectTimer: (input: ConnectTimerInput): Promise<TimerState> => invoke('timer:connect', input),
+  disconnectTimer: (): Promise<TimerState> => invoke('timer:disconnect'),
+  armTimer: (raceId: string, heatId: string, laneMapping: Record<number, number>): Promise<TimerState> =>
+    invoke('timer:arm', raceId, heatId, laneMapping),
+  disarmTimer: (): Promise<TimerState> => invoke('timer:disarm'),
+  resetTimer: (): Promise<TimerState> => invoke('timer:reset'),
+  forceTimerResults: (): Promise<TimerState> => invoke('timer:force-results'),
+  releaseTimerGate: (): Promise<TimerState> => invoke('timer:release-gate'),
+  configureTimerSimulator: (input: ConfigureSimulatorInput): Promise<TimerState> => invoke('timer:configure-simulator', input),
+  runTimerSimulator: (): Promise<TimerState> => invoke('timer:run-simulator'),
+  discardTimerCapture: (): Promise<TimerState> => invoke('timer:discard-capture'),
+  acceptTimerCapture: (captureId: string, raceId: string, input: RecordHeatResultsInput): Promise<EventSessionSnapshot> =>
+    invoke('timer:accept-capture', captureId, raceId, input),
+  replayTimerProtocol: (profileId: PhysicalTimerProfileId): Promise<TimerReplayResult> => invoke('timer:replay', profileId),
+  onTimerUpdated: (callback: (state: TimerState) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, state: TimerState) => callback(state)
+    ipcRenderer.on('timer:updated', listener)
+    return () => ipcRenderer.removeListener('timer:updated', listener)
+  }
 }
 
 contextBridge.exposeInMainWorld('packRacer', packRacerApi)

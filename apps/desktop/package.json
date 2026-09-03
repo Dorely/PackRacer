@@ -17,6 +17,7 @@
     "lucide-react": "^1.16.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
+    "serialport": "^13.0.0",
     "sql.js": "^1.14.1"
   },
   "devDependencies": {

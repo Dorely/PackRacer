@@ -10,6 +10,7 @@ The current repo contains the first development scaffold: an npm workspace with 
 - Race-day MVP workflow: implemented for local event creation, multi-race setup, racer registration, heat generation, result entry, standings, finals advancement, and racer scratching.
 - Race engine: present in `packages/race-engine` as pure TypeScript domain logic.
 - Persistence: one local SQLite app database is owned by the Electron main process, with autosaved event state and an audit log.
+- Hardware timers: optional Windows-first serial input, review-before-save captures, a production-accessible simulator, and raw protocol replay are implemented. Physical protocols await validation with real units.
 - Local API and websocket services: planned, not implemented yet.
 
 ## Prerequisites
@@ -45,6 +46,7 @@ The current app can run a first-pass race day from one laptop:
 3. Register racers manually with number, name, division, and optional vehicle name.
 4. Configure races in timed heats, points heats, round robin, single elimination, double elimination, or triple elimination formats, then generate heats.
 5. Use Race Control to enter both time and finish order, mark DNS/DNF/DQ, and advance to the next heat within the selected race.
+   Optionally connect a serial timer or the built-in simulator; captured values are staged in the same editable result form and never save automatically.
 6. View live standings for the selected race and populate later races from top-ranked racers.
 7. Scratch a racer from Registration and choose whether to keep empty lanes, regenerate pending heats, or leave affected heats flagged across races.
 
@@ -64,7 +66,8 @@ PackRacer follows the architecture direction in `VISION.md`:
 - React and TypeScript renderer for the operator UI.
 - Electron preload bridge for safe renderer access to desktop capabilities.
 - Future isolated packages for race engine, scheduling, scoring, standings, shared types, and exports.
-- Future local Node services for API, websocket updates, discovery, import/export, and hardware integration.
+- Future local Node services for API, websocket updates, discovery, and import/export.
+- Pure timer adapters in `packages/timer-adapters`, with serial handles and connection state isolated in the Electron main process.
 - Local SQLite app database for events, races, rosters, schedules, results, and audit history.
 - Current storage uses serialized event state plus an audit log; future schema work can normalize this into Drizzle-managed relational tables.
 
@@ -74,3 +77,7 @@ PackRacer follows the architecture direction in `VISION.md`:
 - Keep Electron main, preload, and renderer code separated.
 - Update `FILEMAP.md` whenever source files are added, removed, renamed, or significantly repurposed.
 - Read `VISION.md` and `FILEMAP.md` before making substantive changes.
+
+## Hardware Timers
+
+Hardware timers are currently supported on Windows x64. macOS, Linux, and Windows ARM are planned but unvalidated. See [Hardware Timers](docs/hardware-timers.md) for supported profiles, simulator scenarios, gate safety, diagnostics, and hardware validation steps.

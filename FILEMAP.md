@@ -19,6 +19,12 @@
 | `tsconfig.json` | Root TypeScript project references for editor and build graph alignment. |
 | `VISION.md` | High-level product vision, target architecture, and success criteria. |
 
+## Documentation
+
+| File | Description |
+|------|-------------|
+| `docs/hardware-timers.md` | Windows-first timer profiles, operator workflow, simulator, protocol replay, gate safety, and validation status. |
+
 ## GitHub Configuration
 
 | File | Description |
@@ -47,6 +53,7 @@
 |------|-------------|
 | `apps/desktop/src/main/index.ts` | Electron app lifecycle, main window creation, and main-process IPC handlers. |
 | `apps/desktop/src/main/event-store.ts` | App-owned SQLite database for local events, event selection, autosaved state, and audit log storage. |
+| `apps/desktop/src/main/timer-service.ts` | Main-process serial/simulator connection state, arm snapshots, capture normalization, diagnostics, safety checks, and preference persistence. |
 
 ## Desktop Preload
 
@@ -75,7 +82,18 @@
 | `apps/desktop/src/renderer/src/sections/RaceControl.tsx` | Race-scoped heat selection, lane availability controls, result entry, rerun control, status marking, and heat cycling workflow. |
 | `apps/desktop/src/renderer/src/sections/Registration.tsx` | Manual and bulk race registration with roster edits, check-in/inspection toggles, and removal controls. |
 | `apps/desktop/src/renderer/src/sections/Standings.tsx` | Race-scoped live standings table and compact source/dependent advancement summaries. |
+| `apps/desktop/src/renderer/src/sections/TimerPanel.tsx` | Race Control hardware setup, simulator scenarios, lane mapping, gate controls, diagnostics, and protocol replay UI. |
 | `apps/desktop/src/renderer/src/sections/types.ts` | Shared renderer section prop and action types. |
+
+## Timer Adapter Package
+
+| File | Description |
+|------|-------------|
+| `packages/timer-adapters/package.json` | Workspace metadata for pure hardware timer protocol adapters and simulator generation. |
+| `packages/timer-adapters/src/index.ts` | Public exports for timer types, profiles, parsers, replay fixtures, and simulator. |
+| `packages/timer-adapters/src/profiles.ts` | Declarative physical/advanced timer definitions, fragmented text framing, protocol parsers, commands, and replay fixtures. |
+| `packages/timer-adapters/src/simulator.ts` | Deterministic simulator event generation for normal, edge-case, duplicate, incomplete, and disconnect scenarios. |
+| `packages/timer-adapters/src/types.ts` | Timer profiles, capabilities, arm snapshots, captures, diagnostics, preferences, simulator, replay, and adapter contracts. |
 
 ## Race Engine Package
 
