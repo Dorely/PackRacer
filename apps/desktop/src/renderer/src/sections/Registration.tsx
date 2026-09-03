@@ -316,8 +316,14 @@ export function Registration({ event, actions, selectedRaceId, setSelectedRaceId
   useEffect(() => {
     setBulkNames('')
     setSelectedExistingRacerIds([])
-    setSelectedDivisionIds(registrationRace?.divisionId ? [registrationRace.divisionId] : [])
-  }, [registrationRace?.id, registrationRace?.divisionId])
+    setSelectedDivisionIds(
+      registrationRace?.divisionId
+        ? [registrationRace.divisionId]
+        : event?.divisions[0]
+          ? [event.divisions[0].id]
+          : []
+    )
+  }, [event?.id, event?.divisions[0]?.id, registrationRace?.id, registrationRace?.divisionId])
 
   useEffect(() => {
     setSelectedExistingRacerIds((previousIds) => previousIds.filter((racerId) => availableRacerIds.has(racerId)))
@@ -332,7 +338,7 @@ export function Registration({ event, actions, selectedRaceId, setSelectedRaceId
   const submitRacer = (formEvent: FormEvent) => {
     formEvent.preventDefault()
 
-    if (!registrationRace || selectedDivisionIds.length === 0) return
+    if (selectedDivisionIds.length === 0) return
 
     void actions.addRacer({ name, divisionIds: selectedDivisionIds, vehicleName: '' })
     setName('')
@@ -341,7 +347,7 @@ export function Registration({ event, actions, selectedRaceId, setSelectedRaceId
   const submitBulkRacers = async (formEvent: FormEvent) => {
     formEvent.preventDefault()
 
-    if (!registrationRace || parsedBulkNames.length === 0 || selectedDivisionIds.length === 0) return
+    if (parsedBulkNames.length === 0 || selectedDivisionIds.length === 0) return
 
     for (const bulkName of parsedBulkNames) {
       await actions.addRacer({
@@ -387,76 +393,101 @@ export function Registration({ event, actions, selectedRaceId, setSelectedRaceId
         <div className="panel-heading">
           <div>
             <p className="eyebrow">Registration</p>
-            <h3>{registrationRace?.name ?? 'No direct race'}</h3>
+            <h3>Build rosters</h3>
           </div>
-          <UserPlus aria-hidden="true" size={24} />
+          <Users aria-hidden="true" size={24} />
         </div>
 
-        {registrationRace ? (
-          <>
-            <label>
-              <span>Race</span>
-              <select value={registrationRace.id} onChange={(inputEvent) => setSelectedRaceId(inputEvent.target.value)}>
-                {registrationRaceOptions.map((race) => <option key={race.id} value={race.id}>{race.name}</option>)}
-              </select>
-            </label>
-
-            {registrationLocked ? (
-              <p className="empty-state">This race format cannot accept more race entries after heats are generated. You can still create racers.</p>
-            ) : null}
-
-            <fieldset className="division-fieldset">
-              <legend>Racer divisions</legend>
-              <DivisionPicker divisions={event.divisions} selectedDivisionIds={selectedDivisionIds} setSelectedDivisionIds={setSelectedDivisionIds} />
-            </fieldset>
-
-            <form className="form-grid" onSubmit={submitRacer}>
-              <label>
-                <span>Name</span>
-                <input value={name} onChange={(inputEvent) => setName(inputEvent.target.value)} required />
-              </label>
-              <button className="primary-action" disabled={selectedDivisionIds.length === 0} type="submit">
-                <UserPlus aria-hidden="true" size={18} />
-                <span>Create Racer</span>
-              </button>
-            </form>
-
-            <div className="registration-bulk-panel">
-              <button className="secondary-action" onClick={() => setBulkAddOpen((isOpen) => !isOpen)} type="button">
-                {bulkAddOpen ? 'Hide Bulk Add' : 'Bulk Add'}
-              </button>
-
-              {bulkAddOpen ? (
-                <form className="form-grid" onSubmit={(formEvent) => void submitBulkRacers(formEvent)}>
-                  <label>
-                    <span>Names</span>
-                    <textarea
-                      onChange={(inputEvent) => setBulkNames(inputEvent.target.value)}
-                      placeholder="Alex Rivera, Jordan Lee"
-                      rows={7}
-                      value={bulkNames}
-                    />
-                  </label>
-                  <button className="primary-action" disabled={parsedBulkNames.length === 0 || selectedDivisionIds.length === 0} type="submit">
-                    <UserPlus aria-hidden="true" size={18} />
-                    <span>
-                      {parsedBulkNames.length === 1
-                        ? 'Create 1 Racer'
-                        : parsedBulkNames.length > 1
-                          ? `Create ${parsedBulkNames.length} Racers`
-                          : 'Create Racers'}
-                    </span>
-                  </button>
-                </form>
-              ) : null}
+        <section aria-labelledby="create-roster-heading" className="registration-workflow-card" data-workflow="roster">
+          <div className="registration-workflow-heading">
+            <span className="workflow-step">1</span>
+            <div>
+              <p className="eyebrow">Event roster</p>
+              <h4 id="create-roster-heading">Create roster racers</h4>
+              <small>Add each person once, with every division they can race in.</small>
             </div>
+            <UserPlus aria-hidden="true" size={21} />
+          </div>
 
+          <fieldset className="division-fieldset">
+            <legend>Division membership</legend>
+            <DivisionPicker divisions={event.divisions} selectedDivisionIds={selectedDivisionIds} setSelectedDivisionIds={setSelectedDivisionIds} />
+          </fieldset>
+
+          <form className="form-grid" onSubmit={submitRacer}>
+            <label>
+              <span>Racer name</span>
+              <input value={name} onChange={(inputEvent) => setName(inputEvent.target.value)} required />
+            </label>
+            <button className="primary-action" disabled={selectedDivisionIds.length === 0} type="submit">
+              <UserPlus aria-hidden="true" size={18} />
+              <span>Add Racer to Event Roster</span>
+            </button>
+          </form>
+
+          <div className="registration-bulk-panel">
+            <button className="secondary-action" onClick={() => setBulkAddOpen((isOpen) => !isOpen)} type="button">
+              {bulkAddOpen ? 'Hide Bulk Add' : 'Bulk Add Racers to Event Roster'}
+            </button>
+
+            {bulkAddOpen ? (
+              <form className="form-grid registration-bulk-form" onSubmit={(formEvent) => void submitBulkRacers(formEvent)}>
+                <label>
+                  <span>Racer names</span>
+                  <textarea
+                    onChange={(inputEvent) => setBulkNames(inputEvent.target.value)}
+                    placeholder="Alex Rivera, Jordan Lee"
+                    rows={7}
+                    value={bulkNames}
+                  />
+                </label>
+                <button className="primary-action" disabled={parsedBulkNames.length === 0 || selectedDivisionIds.length === 0} type="submit">
+                  <UserPlus aria-hidden="true" size={18} />
+                  <span>
+                    {parsedBulkNames.length === 1
+                      ? 'Add 1 Racer to Event Roster'
+                      : parsedBulkNames.length > 1
+                        ? `Add ${parsedBulkNames.length} Racers to Event Roster`
+                        : 'Add Racers to Event Roster'}
+                  </span>
+                </button>
+              </form>
+            ) : null}
+          </div>
+        </section>
+
+        <section aria-labelledby="assign-race-heading" className="registration-workflow-card" data-workflow="race">
+          <div className="registration-workflow-heading">
+            <span className="workflow-step">2</span>
+            <div>
+              <p className="eyebrow">Selected race</p>
+              <h4 id="assign-race-heading">Assign roster racers</h4>
+              <small>Choose a race, then add eligible people from the event roster.</small>
+            </div>
+            <ShieldCheck aria-hidden="true" size={21} />
+          </div>
+
+          {registrationRace ? (
             <form className="form-grid" onSubmit={(formEvent) => void submitExisting(formEvent)}>
+              <label>
+                <span>Race to fill</span>
+                <select value={registrationRace.id} onChange={(inputEvent) => setSelectedRaceId(inputEvent.target.value)}>
+                  {registrationRaceOptions.map((race) => <option key={race.id} value={race.id}>{race.name}</option>)}
+                </select>
+              </label>
+
+              {registrationLocked ? (
+                <p className="notice-banner warning">This race cannot accept more entries after heats are generated. Event roster creation remains available above.</p>
+              ) : null}
+
               <div className="registration-existing-heading">
-                <span>Eligible racers not yet added</span>
+                <div>
+                  <strong>Eligible event roster racers</strong>
+                  <small>{availableRacers.length} not yet assigned to {registrationRace.name}</small>
+                </div>
                 <div className="button-row">
                   <button className="mini-action" disabled={registrationLocked || availableRacers.length === 0} onClick={addAllEligible} type="button">
-                    Add All Eligible ({availableRacers.length})
+                    Add All to Race ({availableRacers.length})
                   </button>
                   <button
                     className="mini-action"
@@ -484,17 +515,17 @@ export function Registration({ event, actions, selectedRaceId, setSelectedRaceId
                     <span>#{racer.racerNumber} {racer.name}</span>
                   </label>
                 ))}
-                {availableRacers.length === 0 ? <p className="empty-state">Every eligible racer is already assigned to this race.</p> : null}
+                {availableRacers.length === 0 ? <p className="empty-state">Every eligible event roster racer is already assigned to this race.</p> : null}
               </div>
 
-              <button className="secondary-action" disabled={selectedExistingRacerIds.length === 0 || registrationLocked} type="submit">
-                Add Selected ({selectedExistingRacerIds.length})
+              <button className="primary-action registration-assign-action" disabled={selectedExistingRacerIds.length === 0 || registrationLocked} type="submit">
+                Add Selected to {registrationRace.name} ({selectedExistingRacerIds.length})
               </button>
             </form>
-          </>
-        ) : (
-          <p className="empty-state">Add a manually registered race before creating racers or assigning them to a race.</p>
-        )}
+          ) : (
+            <p className="empty-state registration-workflow-empty">Add a manually registered race in Race Setup before assigning event roster racers.</p>
+          )}
+        </section>
       </div>
 
       <div className="race-panel table-panel registration-roster-panel">
