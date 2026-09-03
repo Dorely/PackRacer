@@ -5,7 +5,6 @@ import type { Heat, Race } from '@packracer/race-engine'
 import type {
   AdvancedTimerProfile,
   PhysicalTimerProfileId,
-  SimulatorScenario,
   TimerPreferences,
   TimerProfile,
   TimerProfileId,
@@ -15,22 +14,12 @@ import type {
 
 import type { AppActions } from './types'
 
-const scenarioLabels: Record<SimulatorScenario, string> = {
-  'normal-finish': 'Normal finish',
-  'close-finish': 'Close finish',
-  'exact-tie': 'Exact tie',
-  'explicit-dnf': 'Explicit DNF',
-  'incomplete-result': 'Incomplete result',
-  'duplicate-transmission': 'Duplicate transmission',
-  'disconnect-during-heat': 'Disconnect during heat'
-}
-
 type TimerPanelProps = {
   actions: AppActions
   currentRace: Race
   currentHeat?: Heat
   profiles: TimerProfile[]
-  ports: Array<{ path: string; identity: string; manufacturer?: string }>
+  ports: Array<{ path: string; identity: string; manufacturer?: string; simulated?: boolean }>
   preferences: TimerPreferences
   state: TimerState
 }
@@ -57,7 +46,11 @@ export function TimerPanel({ actions, currentRace, currentHeat, profiles, ports,
     if (state.status === 'disconnected' && !portDirty) {
       setSelectedPortPath(ports.find((port) => port.identity === preferences.portIdentity)?.path ?? preferences.portPath)
     }
-  }, [preferences, ports, profileDirty, portDirty, state.status])
+    if ((state.status === 'disconnected' || state.status === 'error') && selectedPortPath && !ports.some((port) => port.path === selectedPortPath)) {
+      setSelectedPortPath('')
+      setPortDirty(false)
+    }
+  }, [preferences, ports, profileDirty, portDirty, selectedPortPath, state.status])
 
   const laneNumbers = useMemo(
     () => Array.from({ length: currentRace.laneCount }, (_value, index) => index + 1),
@@ -79,14 +72,14 @@ export function TimerPanel({ actions, currentRace, currentHeat, profiles, ports,
 
   const saveSettings = async () => {
     const selectedPort = ports.find((port) => port.path === selectedPortPath)
-    const physicalProfileId = selectedProfileId !== 'simulator' && selectedProfileId !== 'auto-detect'
+    const physicalProfileId = selectedProfileId !== 'auto-detect'
       ? selectedProfileId
       : draftPreferences.profileId
     const next = {
       ...draftPreferences,
       profileId: physicalProfileId,
-      portPath: selectedPortPath,
-      portIdentity: selectedPort?.identity
+      portPath: selectedPort?.simulated ? draftPreferences.portPath : selectedPortPath,
+      portIdentity: selectedPort?.simulated ? draftPreferences.portIdentity : selectedPort?.identity
     }
     setDraftPreferences(next)
     await actions.saveTimerPreferences(next)
@@ -96,7 +89,7 @@ export function TimerPanel({ actions, currentRace, currentHeat, profiles, ports,
     await saveSettings()
     await actions.connectTimer({
       profileId: selectedProfileId,
-      portPath: selectedProfileId === 'simulator' ? undefined : selectedPortPath,
+      portPath: selectedPortPath,
       advancedProfile: draftPreferences.advancedProfile
     })
   }
@@ -137,10 +130,10 @@ export function TimerPanel({ actions, currentRace, currentHeat, profiles, ports,
             <label>
               <span>Timer profile</span>
               <select disabled={connected} value={selectedProfileId} onChange={(event) => { setProfileDirty(true); setSelectedProfileId(event.target.value as TimerProfileId) }}>
-                {(['automatic', 'hardware', 'advanced', 'simulation'] as const).map((category) => {
+                {(['automatic', 'hardware', 'advanced'] as const).map((category) => {
                   const categoryProfiles = profiles.filter((profile) => profile.category === category)
                   return categoryProfiles.length ? (
-                    <optgroup key={category} label={category === 'simulation' ? 'Simulation / Diagnostics' : category[0].toUpperCase() + category.slice(1)}>
+                    <optgroup key={category} label={category[0].toUpperCase() + category.slice(1)}>
                       {categoryProfiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}
                     </optgroup>
                   ) : null
@@ -148,23 +141,19 @@ export function TimerPanel({ actions, currentRace, currentHeat, profiles, ports,
               </select>
             </label>
 
-            {selectedProfileId !== 'simulator' ? (
-              <label>
-                <span>COM port</span>
-                <div className="inline-field-actions">
-                  <select disabled={connected} value={selectedPortPath} onChange={(event) => { setPortDirty(true); setSelectedPortPath(event.target.value) }}>
-                    <option value="">Select a port</option>
-                    {ports.map((port) => <option key={port.path} value={port.path}>{port.path}{port.manufacturer ? ` — ${port.manufacturer}` : ''}</option>)}
-                  </select>
-                  <button className="secondary-action timer-scan-action" disabled={connected} onClick={() => void actions.scanTimerPorts()} title="Scan for connected serial timers" type="button">
-                    <RefreshCw aria-hidden="true" size={18} />
-                    <span>Scan</span>
-                  </button>
-                </div>
-              </label>
-            ) : (
-              <div className="timer-mode-note"><strong>No hardware required</strong><span>Uses the complete capture and persistence workflow.</span></div>
-            )}
+            <label>
+              <span>Available port</span>
+              <div className="inline-field-actions">
+                <select disabled={connected} value={selectedPortPath} onChange={(event) => { setPortDirty(true); setSelectedPortPath(event.target.value) }}>
+                  <option value="">Select a scanned port</option>
+                  {ports.map((port) => <option key={port.path} value={port.path}>{port.path}{port.manufacturer ? ` — ${port.manufacturer}` : ''}{port.simulated ? ' (virtual)' : ''}</option>)}
+                </select>
+                <button className="secondary-action timer-scan-action" disabled={connected} onClick={() => void actions.scanTimerPorts()} title="Scan for connected serial timers" type="button">
+                  <RefreshCw aria-hidden="true" size={18} />
+                  <span>Scan</span>
+                </button>
+              </div>
+            </label>
           </div>
           <p className="timer-profile-description">{selectedProfile?.description}</p>
 
@@ -189,8 +178,9 @@ export function TimerPanel({ actions, currentRace, currentHeat, profiles, ports,
           ) : null}
 
           <div className="button-row timer-connect-actions">
-            {!connected ? <button className="primary-action" onClick={() => void connect()} type="button"><Plug aria-hidden="true" size={18} />Connect</button> : null}
+            {!connected ? <button className="primary-action" disabled={!selectedPortPath} onClick={() => void connect()} type="button"><Plug aria-hidden="true" size={18} />Connect</button> : null}
             {connected ? <button className="secondary-action" onClick={() => void actions.disconnectTimer()} type="button"><Unplug aria-hidden="true" size={18} />Disconnect</button> : null}
+            <button className="secondary-action" onClick={() => void actions.openTimerSimulator()} type="button">Open Timer Simulator</button>
             <span className={`timer-status status-${state.status}`}>{state.status}</span>
             {state.error ? <span className="timer-error">{state.error}</span> : null}
           </div>
@@ -219,18 +209,9 @@ export function TimerPanel({ actions, currentRace, currentHeat, profiles, ports,
                 </label>
               ) : null}
 
-              {state.simulationMode ? (
-                <div className="simulator-controls">
-                  <label><span>Scenario</span><select value={state.simulatorScenario} onChange={(event) => void actions.configureTimerSimulator({ scenario: event.target.value as SimulatorScenario })}>{Object.entries(scenarioLabels).map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select></label>
-                  <button className="secondary-action" onClick={() => void actions.configureTimerSimulator({ scenario: state.simulatorScenario, variation: state.simulatorVariation + 1 })} type="button">New variation</button>
-                  <span>Variation {state.simulatorVariation}</span>
-                </div>
-              ) : null}
-
               <div className="button-row">
                 {state.armedHeat ? <button className="secondary-action" onClick={() => void actions.disarmTimer()} type="button">Disarm</button> : <button className="primary-action" disabled={!currentHeat} onClick={() => void arm()} type="button">Arm Current Heat</button>}
-                {state.simulationMode && state.status === 'armed' && !draftPreferences.gateControlEnabled ? <button className="primary-action" onClick={() => void actions.runTimerSimulator()} type="button">Run Simulated Heat</button> : null}
-                {state.status === 'armed' && state.capabilities.gateRelease && draftPreferences.gateControlEnabled ? <button className="danger-action" onClick={() => void actions.releaseTimerGate()} type="button">{state.simulationMode ? 'Release Simulated Gate' : 'Release Gate'}</button> : null}
+                {state.status === 'armed' && state.capabilities.gateRelease && draftPreferences.gateControlEnabled ? <button className="danger-action" onClick={() => void actions.releaseTimerGate()} type="button">Release Gate</button> : null}
                 {state.capabilities.reset ? <button className="secondary-action" onClick={() => void actions.resetTimer()} type="button">Reset</button> : null}
                 {state.capabilities.forceResults && state.armedHeat ? <button className="secondary-action" onClick={() => void actions.forceTimerResults()} type="button">Force Results</button> : null}
               </div>

@@ -46,7 +46,8 @@ export default defineConfig({
     build: {
       rollupOptions: {
         input: {
-          index: resolve(__dirname, 'src/renderer/index.html')
+          index: resolve(__dirname, 'src/renderer/index.html'),
+          timerSimulator: resolve(__dirname, 'src/renderer/timer-simulator.html')
         }
       }
     }

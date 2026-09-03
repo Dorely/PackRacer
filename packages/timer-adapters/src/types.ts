@@ -6,9 +6,9 @@ export type TimerProfileId =
   | 'newbold'
   | 'the-judge'
   | 'advanced'
-  | 'simulator'
 
-export type PhysicalTimerProfileId = Exclude<TimerProfileId, 'auto-detect' | 'simulator'>
+export type PhysicalTimerProfileId = Exclude<TimerProfileId, 'auto-detect'>
+export type BuiltInTimerProfileId = Exclude<PhysicalTimerProfileId, 'advanced'>
 
 export type TimerConnectionStatus =
   | 'disconnected'
@@ -43,7 +43,7 @@ export type TimerProfile = {
   id: TimerProfileId
   name: string
   description: string
-  category: 'automatic' | 'hardware' | 'advanced' | 'simulation'
+  category: 'automatic' | 'hardware' | 'advanced'
   serial?: TimerSerialSettings
   capabilities: TimerCapabilities
   hardwareValidation: 'not-applicable' | 'protocol-implemented'
@@ -81,6 +81,7 @@ export type TimerPortInfo = {
   vendorId?: string
   productId?: string
   identity: string
+  simulated?: boolean
 }
 
 export type ArmedHeatLane = {
@@ -142,7 +143,7 @@ export type SimulatorScenario =
 export type TimerState = {
   status: TimerConnectionStatus
   selectedProfileId: TimerProfileId
-  connectedProfileId?: PhysicalTimerProfileId | 'simulator'
+  connectedProfileId?: PhysicalTimerProfileId
   profileName?: string
   portPath?: string
   capabilities: TimerCapabilities
@@ -151,8 +152,6 @@ export type TimerState = {
   diagnostics: TimerDiagnosticEntry[]
   error?: string
   simulationMode: boolean
-  simulatorScenario: SimulatorScenario
-  simulatorVariation: number
   gateReleased: boolean
 }
 
@@ -171,9 +170,23 @@ export type ArmTimerInput = {
 }
 
 export type ConfigureSimulatorInput = {
-  scenario: SimulatorScenario
+  profileId?: BuiltInTimerProfileId
+  scenario?: SimulatorScenario
   variation?: number
 }
+
+export type TimerSimulatorState = {
+  active: boolean
+  profileId: BuiltInTimerProfileId
+  scenario: SimulatorScenario
+  variation: number
+  connected: boolean
+  connectedProfileId?: PhysicalTimerProfileId
+  armedHeatNumber?: number
+  diagnostics: TimerDiagnosticEntry[]
+}
+
+export const timerSimulatorPortPath = 'PACKRACER-SIM'
 
 export type TimerAdapterEvent =
   | { type: 'race-started' }

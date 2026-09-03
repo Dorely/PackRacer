@@ -22,7 +22,6 @@ import {
   defaultTimerPreferences,
   noTimerCapabilities,
   type ConnectTimerInput,
-  type ConfigureSimulatorInput,
   type PhysicalTimerProfileId,
   type TimerPortInfo,
   type TimerPreferences,
@@ -105,8 +104,6 @@ export function App() {
     capabilities: noTimerCapabilities,
     diagnostics: [],
     simulationMode: false,
-    simulatorScenario: 'normal-finish',
-    simulatorVariation: 0,
     gateReleased: false
   })
   const [timerProfiles, setTimerProfiles] = useState<TimerProfile[]>([])
@@ -138,9 +135,11 @@ export function App() {
     void window.packRacer.listTimerPorts().then(setTimerPorts)
     const removeSessionListener = window.packRacer.onSessionUpdated(applySession)
     const removeTimerListener = window.packRacer.onTimerUpdated(setTimerState)
+    const removeTimerPortsListener = window.packRacer.onTimerPortsUpdated(setTimerPorts)
     return () => {
       removeSessionListener()
       removeTimerListener()
+      removeTimerPortsListener()
     }
   }, [applySession])
 
@@ -251,9 +250,15 @@ export function App() {
       resetTimer: () => runTimerAction(() => getPackRacerApi().resetTimer()),
       forceTimerResults: () => runTimerAction(() => getPackRacerApi().forceTimerResults()),
       releaseTimerGate: () => runTimerAction(() => getPackRacerApi().releaseTimerGate()),
-      configureTimerSimulator: (input: ConfigureSimulatorInput) =>
-        runTimerAction(() => getPackRacerApi().configureTimerSimulator(input)),
-      runTimerSimulator: () => runTimerAction(() => getPackRacerApi().runTimerSimulator()),
+      openTimerSimulator: async () => {
+        try {
+          setErrorMessage('')
+          await getPackRacerApi().openTimerSimulator()
+          setTimerPorts(await getPackRacerApi().listTimerPorts())
+        } catch (error) {
+          setErrorMessage(error instanceof Error ? error.message : 'The timer simulator could not be opened.')
+        }
+      },
       discardTimerCapture: () => runTimerAction(() => getPackRacerApi().discardTimerCapture()),
       acceptTimerCapture: (captureId: string, raceId: string, input: RecordHeatResultsInput) =>
         runAction(() => getPackRacerApi().acceptTimerCapture(captureId, raceId, input)),
@@ -361,7 +366,7 @@ export function App() {
     <>
       {errorMessage ? <div className="notice-banner" role="alert">{errorMessage}</div> : null}
 
-      {activeSection === 'race-control' && timerState.simulationMode ? (
+      {activeSection === 'race-control' && timerState.simulationMode && !['disconnected', 'error'].includes(timerState.status) ? (
         <div className="notice-banner simulation-banner" role="status">
           SIMULATION MODE — generated results require confirmation before saving.
         </div>

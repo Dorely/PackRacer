@@ -48,7 +48,9 @@ import type {
   ConnectTimerInput,
   ConfigureSimulatorInput,
   PhysicalTimerProfileId,
+  TimerPortInfo,
   TimerPreferences,
+  TimerSimulatorState,
   TimerState
 } from '@packracer/timer-adapters'
 
@@ -76,6 +78,7 @@ type PopoutRequest = {
 const popoutSectionIds: PopoutSectionId[] = ['events', 'event', 'registration', 'race-control', 'standings', 'display']
 const popoutWindows = new Map<PopoutSectionId, BrowserWindow>()
 let mainWindow: BrowserWindow | null = null
+let timerSimulatorWindow: BrowserWindow | null = null
 
 function isPopoutSectionId(value: unknown): value is PopoutSectionId {
   return typeof value === 'string' && popoutSectionIds.includes(value as PopoutSectionId)
@@ -193,6 +196,44 @@ function createMainWindow(): void {
   createAppWindow({ mode: 'main' })
 }
 
+function createTimerSimulatorWindow(): BrowserWindow {
+  if (timerSimulatorWindow && !timerSimulatorWindow.isDestroyed()) {
+    timerSimulatorWindow.focus()
+    return timerSimulatorWindow
+  }
+
+  const window = new BrowserWindow({
+    width: 760,
+    height: 760,
+    minWidth: 680,
+    minHeight: 620,
+    title: 'PackRacer - Timer Simulator',
+    backgroundColor: '#f7f5ef',
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.cjs'),
+      sandbox: true,
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  })
+  window.setMenuBarVisibility(false)
+  timerSimulatorWindow = window
+  void timerService.activateSimulator()
+
+  if (isDevelopment && process.env.ELECTRON_RENDERER_URL) {
+    const rendererUrl = new URL('timer-simulator.html', process.env.ELECTRON_RENDERER_URL)
+    void window.loadURL(rendererUrl.toString())
+  } else {
+    void window.loadFile(join(__dirname, '../renderer/timer-simulator.html'))
+  }
+
+  window.on('closed', () => {
+    timerSimulatorWindow = null
+    void timerService.deactivateSimulator()
+  })
+  return window
+}
+
 function broadcastSessionUpdate(snapshot: EventSessionSnapshot | null): void {
   for (const window of BrowserWindow.getAllWindows()) {
     if (!window.isDestroyed()) {
@@ -209,6 +250,18 @@ function broadcastTimerUpdate(state: TimerState): void {
   }
 }
 
+function broadcastTimerPorts(ports: TimerPortInfo[]): void {
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (!window.isDestroyed()) window.webContents.send('timer:ports-updated', ports)
+  }
+}
+
+function broadcastTimerSimulatorUpdate(state: TimerSimulatorState): void {
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (!window.isDestroyed()) window.webContents.send('timer-simulator:updated', state)
+  }
+}
+
 async function withSessionBroadcast<T extends EventSessionSnapshot | null>(operation: Promise<T>): Promise<T> {
   const snapshot = await operation
   timerService.reconcileSession(snapshot)
@@ -217,10 +270,13 @@ async function withSessionBroadcast<T extends EventSessionSnapshot | null>(opera
 }
 
 timerService.setStateListener(broadcastTimerUpdate)
+timerService.setPortsListener(broadcastTimerPorts)
+timerService.setSimulatorStateListener(broadcastTimerSimulatorUpdate)
 
 app.setAppUserModelId('com.packracer.desktop')
 
 ipcMain.handle('app:get-version', () => app.getVersion())
+ipcMain.handle('app:open-timer-simulator', () => { createTimerSimulatorWindow() })
 
 ipcMain.handle('app:open-popout', (_event, input: Partial<PopoutRequest>) => {
   if (!isPopoutSectionId(input.sectionId)) {
@@ -411,10 +467,12 @@ ipcMain.handle('timer:disarm', () => timerService.disarm())
 ipcMain.handle('timer:reset', () => timerService.reset())
 ipcMain.handle('timer:force-results', () => timerService.forceResults())
 ipcMain.handle('timer:release-gate', () => timerService.releaseGate())
-ipcMain.handle('timer:configure-simulator', (_event, input: ConfigureSimulatorInput) => timerService.configureSimulator(input))
-ipcMain.handle('timer:run-simulator', () => timerService.runSimulation())
 ipcMain.handle('timer:discard-capture', () => timerService.discardCapture())
 ipcMain.handle('timer:replay', (_event, profileId: PhysicalTimerProfileId) => timerService.replay(profileId))
+ipcMain.handle('timer-simulator:get-state', () => timerService.getSimulatorState())
+ipcMain.handle('timer-simulator:configure', (_event, input: ConfigureSimulatorInput) => timerService.configureSimulator(input))
+ipcMain.handle('timer-simulator:send-heat', () => timerService.sendSimulatorHeat())
+ipcMain.handle('timer-simulator:send-raw', (_event, data: string) => timerService.sendSimulatorRaw(data))
 ipcMain.handle(
   'timer:accept-capture',
   async (_event, captureId: string, raceId: string, input: RecordHeatResultsInput) => {

@@ -5,12 +5,16 @@ import {
   createTimerAdapter,
   defaultTimerPreferences,
   detectableTimerProfileIds,
+  encodeSimulatedTimerTransmission,
   generateSimulatedTimerEvents,
   listTimerProfiles,
   noTimerCapabilities,
   replayTimerProfile,
+  simulatorProbeResponse,
+  timerSimulatorPortPath,
   type AdvancedTimerProfile,
   type ArmedHeat,
+  type BuiltInTimerProfileId,
   type ConnectTimerInput,
   type ConfigureSimulatorInput,
   type NormalizedLaneResult,
@@ -22,6 +26,7 @@ import {
   type TimerPreferences,
   type TimerProfile,
   type TimerReplayResult,
+  type TimerSimulatorState,
   type TimerState
 } from '@packracer/timer-adapters'
 
@@ -31,6 +36,8 @@ const preferencesKey = 'hardwareTimerPreferences'
 const transcriptLimit = 160
 
 type StateListener = (state: TimerState) => void
+type PortsListener = (ports: TimerPortInfo[]) => void
+type SimulatorStateListener = (state: TimerSimulatorState) => void
 
 function captureId(): string {
   return `timer_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 9)}`
@@ -84,7 +91,11 @@ function writePort(port: SerialPort, data: string): Promise<void> {
 
 export class TimerService {
   private listener?: StateListener
+  private portsListener?: PortsListener
+  private simulatorListener?: SimulatorStateListener
   private serialPort?: SerialPort
+  private virtualPortConnected = false
+  private connectionResponse = ''
   private adapter?: TimerAdapter
   private preferences: TimerPreferences = structuredClone(defaultTimerPreferences)
   private received = new Map<number, NormalizedLaneResult>()
@@ -93,19 +104,33 @@ export class TimerService {
   private warnings: string[] = []
   private timers = new Set<ReturnType<typeof setTimeout>>()
   private acceptingCaptureId?: string
+  private simulatorState: TimerSimulatorState = {
+    active: false,
+    profileId: 'micro-wizard-fasttrack',
+    scenario: 'normal-finish',
+    variation: 0,
+    connected: false,
+    diagnostics: []
+  }
   private state: TimerState = {
     status: 'disconnected',
     selectedProfileId: defaultTimerPreferences.profileId,
     capabilities: noTimerCapabilities,
     diagnostics: [],
     simulationMode: false,
-    simulatorScenario: 'normal-finish',
-    simulatorVariation: 0,
     gateReleased: false
   }
 
   setStateListener(listener: StateListener): void {
     this.listener = listener
+  }
+
+  setPortsListener(listener: PortsListener): void {
+    this.portsListener = listener
+  }
+
+  setSimulatorStateListener(listener: SimulatorStateListener): void {
+    this.simulatorListener = listener
   }
 
   async initialize(): Promise<void> {
@@ -138,7 +163,7 @@ export class TimerService {
   }
 
   async listPorts(): Promise<TimerPortInfo[]> {
-    return (await SerialPort.list()).map((port) => ({
+    const ports: TimerPortInfo[] = (await SerialPort.list()).map((port) => ({
       path: port.path,
       manufacturer: port.manufacturer,
       serialNumber: port.serialNumber,
@@ -146,6 +171,54 @@ export class TimerService {
       productId: port.productId,
       identity: portIdentity(port)
     }))
+    if (this.simulatorState.active) {
+      ports.push({
+        path: timerSimulatorPortPath,
+        manufacturer: 'PackRacer Timer Simulator',
+        identity: timerSimulatorPortPath,
+        simulated: true
+      })
+    }
+    return ports
+  }
+
+  getSimulatorState(): TimerSimulatorState {
+    return structuredClone({
+      ...this.simulatorState,
+      connected: this.virtualPortConnected,
+      connectedProfileId: this.virtualPortConnected ? this.state.connectedProfileId : undefined,
+      armedHeatNumber: this.virtualPortConnected ? this.state.armedHeat?.heatNumber : undefined
+    })
+  }
+
+  async activateSimulator(): Promise<TimerSimulatorState> {
+    this.simulatorState.active = true
+    this.simulatorLog('system', 'Virtual timer port activated.')
+    await this.emitPorts()
+    this.emitSimulator()
+    return this.getSimulatorState()
+  }
+
+  async deactivateSimulator(): Promise<void> {
+    this.simulatorState.active = false
+    this.simulatorLog('system', 'Virtual timer port deactivated.')
+    if (this.virtualPortConnected) {
+      await this.handleMalfunction('The timer simulator window closed and its virtual port was removed.')
+      this.virtualPortConnected = false
+    }
+    await this.emitPorts()
+    this.emitSimulator()
+  }
+
+  configureSimulator(input: ConfigureSimulatorInput): TimerSimulatorState {
+    if (input.profileId && this.virtualPortConnected && input.profileId !== this.simulatorState.profileId) {
+      throw new Error('Disconnect PackRacer from the virtual timer port before changing the emulated hardware.')
+    }
+    if (input.profileId) this.simulatorState.profileId = input.profileId
+    if (input.scenario) this.simulatorState.scenario = input.scenario
+    if (input.variation !== undefined) this.simulatorState.variation = input.variation
+    this.emitSimulator()
+    return this.getSimulatorState()
   }
 
   async savePreferences(input: TimerPreferences): Promise<TimerPreferences> {
@@ -156,11 +229,27 @@ export class TimerService {
 
   private emit(): void {
     this.listener?.(this.getState())
+    this.emitSimulator()
+  }
+
+  private async emitPorts(): Promise<void> {
+    this.portsListener?.(await this.listPorts())
+  }
+
+  private emitSimulator(): void {
+    this.simulatorListener?.(this.getSimulatorState())
   }
 
   private log(direction: 'system' | 'received' | 'sent', message: string): void {
     this.state.diagnostics = [
       ...this.state.diagnostics,
+      { id: captureId(), createdAt: new Date().toISOString(), direction, message }
+    ].slice(-transcriptLimit)
+  }
+
+  private simulatorLog(direction: 'system' | 'received' | 'sent', message: string): void {
+    this.simulatorState.diagnostics = [
+      ...this.simulatorState.diagnostics,
       { id: captureId(), createdAt: new Date().toISOString(), direction, message }
     ].slice(-transcriptLimit)
   }
@@ -173,14 +262,93 @@ export class TimerService {
   }
 
   private async writeCommands(commands: string[]): Promise<void> {
-    if (!this.serialPort) {
-      return
-    }
-
     for (const command of commands) {
       const payload = command === ' ' ? command : `${command}\r`
       this.log('sent', command === ' ' ? '<space>' : command)
-      await writePort(this.serialPort, payload)
+      await this.writeTransport(payload)
+    }
+  }
+
+  private async openTransport(path: string, profile: TimerProfile): Promise<void> {
+    this.connectionResponse = ''
+    if (path === timerSimulatorPortPath) {
+      if (!this.simulatorState.active) {
+        throw new Error('Open the Timer Simulator window before connecting to its virtual port.')
+      }
+      this.virtualPortConnected = true
+      this.emitSimulator()
+      return
+    }
+
+    const port = await openPort(path, profile)
+    this.serialPort = port
+    port.on('data', (data: Buffer) => this.receiveSerial(data))
+    port.on('error', (error) => { void this.handleMalfunction(error.message) })
+    port.on('close', () => {
+      if (this.serialPort === port && this.state.status !== 'disconnected') {
+        void this.handleMalfunction('The timer connection closed unexpectedly.')
+      }
+    })
+  }
+
+  private async closeTransport(): Promise<void> {
+    const port = this.serialPort
+    this.serialPort = undefined
+    if (port) {
+      port.removeAllListeners()
+      await closePort(port)
+    }
+    this.virtualPortConnected = false
+    this.connectionResponse = ''
+    this.emitSimulator()
+  }
+
+  private async writeTransport(data: string): Promise<void> {
+    if (this.virtualPortConnected) {
+      this.simulatorLog('received', JSON.stringify(data))
+      const response = simulatorProbeResponse(this.simulatorState.profileId, data)
+      if (response) {
+        const timer = setTimeout(() => {
+          this.timers.delete(timer)
+          if (!this.virtualPortConnected) return
+          this.simulatorLog('sent', JSON.stringify(response))
+          this.receiveSerial(Buffer.from(response, 'ascii'))
+          this.emitSimulator()
+        }, 40)
+        this.timers.add(timer)
+      }
+      this.emitSimulator()
+      return
+    }
+    if (!this.serialPort) throw new Error('The timer port is not open.')
+    await writePort(this.serialPort, data)
+  }
+
+  private async verifyAdapter(adapter: TimerAdapter): Promise<void> {
+    const probes = adapter.probeCommands()
+    if (probes.length === 0) {
+      if (this.virtualPortConnected && adapter.profile.id === this.simulatorState.profileId) return
+      if (adapter.profile.id === 'newbold') {
+        this.connectionResponse = ''
+        await this.writeCommands(adapter.setupCommands())
+        await new Promise((resolve) => setTimeout(resolve, 1_200))
+        adapter.beginHeat()
+        const response = this.connectionResponse.endsWith('\n') || this.connectionResponse.endsWith('\r')
+          ? this.connectionResponse
+          : `${this.connectionResponse}\r\n`
+        const identified = adapter.ingest(response).some((event) => event.type === 'lane-result') || /NewBold|DT[128]000/i.test(response)
+        adapter.beginHeat()
+        if (identified) return
+        throw new Error('No NewBold timer data was received. Connect the timer before power-up, then power-cycle it while connecting so its startup or result text can be observed.')
+      }
+      throw new Error(`${adapter.profile.name} cannot be verified because no probe command and response are configured.`)
+    }
+
+    this.connectionResponse = ''
+    await this.writeCommands(probes)
+    await new Promise((resolve) => setTimeout(resolve, 850))
+    if (!adapter.matchesProbeResponse(this.connectionResponse)) {
+      throw new Error(`${adapter.profile.name} did not identify itself on the selected port.`)
     }
   }
 
@@ -190,29 +358,24 @@ export class TimerService {
       throw new Error('Auto-detection profiles are unavailable.')
     }
 
-    const port = await openPort(portPath, fallbackProfile)
     const adapters = detectableTimerProfileIds().map((profileId) => createTimerAdapter(profileId, this.preferences.advancedProfile))
-    let response = ''
-    const receive = (data: Buffer) => { response += data.toString('ascii') }
-    port.on('data', receive)
 
     try {
+      await this.openTransport(portPath, fallbackProfile)
+      this.connectionResponse = ''
       for (const adapter of adapters) {
-        for (const command of adapter.probeCommands()) {
-          await writePort(port, `${command}\r`)
-        }
+        await this.writeCommands(adapter.probeCommands())
       }
 
       await new Promise((resolve) => setTimeout(resolve, 850))
-      const match = adapters.find((adapter) => adapter.matchesProbeResponse(response))
+      const match = adapters.find((adapter) => adapter.matchesProbeResponse(this.connectionResponse))
       if (!match) {
-        throw new Error('No supported timer identified itself on the selected port. Select a profile manually.')
+        throw new Error('No supported timer identified itself on the selected port.')
       }
 
       return match.profile.id as PhysicalTimerProfileId
     } finally {
-      port.off('data', receive)
-      await closePort(port)
+      await this.closeTransport()
     }
   }
 
@@ -229,27 +392,11 @@ export class TimerService {
       error: undefined,
       capture: undefined,
       armedHeat: undefined,
-      simulationMode: input.profileId === 'simulator',
+      simulationMode: input.portPath === timerSimulatorPortPath,
       gateReleased: false
     }
     this.log('system', `Connecting to ${input.profileId}.`)
     this.emit()
-
-    if (input.profileId === 'simulator') {
-      const profile = listTimerProfiles().find((candidate) => candidate.id === 'simulator')!
-      this.state = {
-        ...this.state,
-        status: 'ready',
-        connectedProfileId: 'simulator',
-        profileName: profile.name,
-        capabilities: profile.capabilities,
-        portPath: undefined,
-        simulationMode: true
-      }
-      this.log('system', 'Simulator connected. No serial hardware is active.')
-      this.emit()
-      return this.getState()
-    }
 
     if (!input.portPath) {
       return this.fail('Select a COM port before connecting.')
@@ -258,14 +405,9 @@ export class TimerService {
     try {
       const profileId = input.profileId === 'auto-detect' ? await this.detectProfile(input.portPath) : input.profileId
       this.adapter = createTimerAdapter(profileId, input.advancedProfile ?? this.preferences.advancedProfile)
-      this.serialPort = await openPort(input.portPath, this.adapter.profile)
-      this.serialPort.on('data', (data: Buffer) => this.receiveSerial(data))
-      this.serialPort.on('error', (error) => { void this.handleMalfunction(error.message) })
-      this.serialPort.on('close', () => {
-        if (this.state.status !== 'disconnected') {
-          void this.handleMalfunction('The timer connection closed unexpectedly.')
-        }
-      })
+      await this.openTransport(input.portPath, this.adapter.profile)
+      await this.verifyAdapter(this.adapter)
+      this.adapter.beginHeat()
       await this.writeCommands(this.adapter.setupCommands())
       this.state = {
         ...this.state,
@@ -273,19 +415,16 @@ export class TimerService {
         connectedProfileId: profileId,
         profileName: this.adapter.profile.name,
         capabilities: this.adapter.profile.capabilities,
-        simulationMode: false,
+        simulationMode: input.portPath === timerSimulatorPortPath,
         error: undefined
       }
-      void this.rememberPhysicalConnection(profileId, input.portPath)
+      if (input.portPath !== timerSimulatorPortPath) void this.rememberPhysicalConnection(profileId, input.portPath)
       this.log('system', `${this.adapter.profile.name} connected on ${input.portPath}.`)
       this.emit()
       return this.getState()
     } catch (error) {
       this.adapter = undefined
-      if (this.serialPort) {
-        await closePort(this.serialPort)
-        this.serialPort = undefined
-      }
+      await this.closeTransport()
       return this.fail(error instanceof Error ? error.message : 'The timer connection failed.')
     }
   }
@@ -308,13 +447,8 @@ export class TimerService {
 
   async disconnect(emit = true): Promise<TimerState> {
     this.clearScheduledEvents()
-    const port = this.serialPort
-    this.serialPort = undefined
     this.adapter = undefined
-    if (port) {
-      port.removeAllListeners()
-      await closePort(port)
-    }
+    await this.closeTransport()
     this.received.clear()
     this.expectedPhysicalLanes.clear()
     this.state = {
@@ -359,6 +493,10 @@ export class TimerService {
     this.rawFrames.push(text)
     this.rawFrames = this.rawFrames.slice(-80)
     this.log('received', JSON.stringify(text))
+    if (this.state.status === 'connecting') {
+      this.connectionResponse += text
+      return
+    }
     if (this.adapter) {
       this.processEvents(this.adapter.ingest(text))
     }
@@ -493,37 +631,20 @@ export class TimerService {
       { heatId: this.state.armedHeat.heatId, profileId: this.state.connectedProfileId },
       this.state.armedHeat.raceId
     )
-    if (this.state.simulationMode) {
-      this.scheduleSimulation()
-    }
     return this.getState()
   }
 
-  configureSimulator(input: ConfigureSimulatorInput): TimerState {
-    this.state.simulatorScenario = input.scenario
-    if (input.variation !== undefined) {
-      this.state.simulatorVariation = input.variation
+  sendSimulatorHeat(): TimerSimulatorState {
+    if (!this.simulatorState.active || !this.virtualPortConnected || !this.state.simulationMode) {
+      throw new Error('Connect Race Control to the active PackRacer virtual timer port first.')
     }
-    this.emit()
-    return this.getState()
-  }
-
-  runSimulation(): TimerState {
-    if (!this.state.simulationMode || !this.state.armedHeat || this.state.status !== 'armed') {
-      throw new Error('Connect the simulator and arm the current heat first.')
+    if (this.state.connectedProfileId !== this.simulatorState.profileId) {
+      throw new Error('The connected Race Control profile does not match the hardware selected in the simulator.')
     }
-    if (this.preferences.gateControlEnabled) {
-      throw new Error('Use Release Simulated Gate while software gate control is enabled.')
-    }
-    this.state.status = 'running'
-    this.emit()
-    this.scheduleSimulation()
-    return this.getState()
-  }
-
-  private scheduleSimulation(): void {
     const heat = this.state.armedHeat
-    if (!heat) return
+    if (!heat || !['armed', 'running'].includes(this.state.status)) {
+      throw new Error('Arm the current heat in Race Control before sending simulated timer data.')
+    }
     const simulatorHeat: ArmedHeat = {
       ...heat,
       lanes: [...this.expectedPhysicalLanes].map((physicalLane) => ({
@@ -531,18 +652,39 @@ export class TimerService {
         racerId: heat.lanes.find((lane) => lane.lane === (heat.laneMapping[physicalLane] ?? physicalLane))?.racerId ?? ''
       }))
     }
-    const events = generateSimulatedTimerEvents(simulatorHeat, this.state.simulatorScenario, this.state.simulatorVariation)
-    events.forEach((event, index) => {
+    const events = generateSimulatedTimerEvents(simulatorHeat, this.simulatorState.scenario, this.simulatorState.variation)
+    const chunks = encodeSimulatedTimerTransmission(this.simulatorState.profileId, events)
+    chunks.forEach((chunk, index) => {
       const timer = setTimeout(() => {
         this.timers.delete(timer)
-        this.log('received', `[simulator] ${JSON.stringify(event)}`)
-        this.processEvents([event])
-        if (index === events.length - 1 && this.state.simulatorScenario === 'incomplete-result' && !this.state.capture) {
-          this.finalizeCapture(false)
-        }
-      }, 250 + index * 180)
+        if (!this.virtualPortConnected) return
+        this.simulatorLog('sent', JSON.stringify(chunk))
+        this.receiveSerial(Buffer.from(chunk, 'ascii'))
+        this.emitSimulator()
+      }, 160 + index * 110)
       this.timers.add(timer)
     })
+    if (this.simulatorState.scenario === 'disconnect-during-heat') {
+      const timer = setTimeout(() => {
+        this.timers.delete(timer)
+        this.virtualPortConnected = false
+        void this.handleMalfunction('The emulated timer disconnected during the heat.')
+        this.simulatorLog('system', 'Virtual timer connection dropped during the heat.')
+        this.emitSimulator()
+      }, 160 + chunks.length * 110)
+      this.timers.add(timer)
+    }
+    return this.getSimulatorState()
+  }
+
+  sendSimulatorRaw(data: string): TimerSimulatorState {
+    if (!this.simulatorState.active || !this.virtualPortConnected) {
+      throw new Error('Connect Race Control to the active PackRacer virtual timer port first.')
+    }
+    this.simulatorLog('sent', JSON.stringify(data))
+    this.receiveSerial(Buffer.from(data, 'ascii'))
+    this.emitSimulator()
+    return this.getSimulatorState()
   }
 
   private processEvents(events: TimerAdapterEvent[]): void {
@@ -644,7 +786,7 @@ export class TimerService {
       capturedAt: new Date().toISOString(),
       complete: frameComplete && missing.length === 0,
       simulated: this.state.simulationMode,
-      simulatorScenario: this.state.simulationMode ? this.state.simulatorScenario : undefined,
+      simulatorScenario: this.state.simulationMode ? this.simulatorState.scenario : undefined,
       results,
       warnings,
       rawFrames: [...this.rawFrames]

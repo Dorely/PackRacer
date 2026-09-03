@@ -19,7 +19,6 @@ import type {
 } from '@packracer/race-engine'
 import type {
   ConnectTimerInput,
-  ConfigureSimulatorInput,
   PhysicalTimerProfileId,
   TimerPortInfo,
   TimerPreferences,
@@ -74,8 +73,7 @@ export type AppActions = {
   resetTimer: () => Promise<void>
   forceTimerResults: () => Promise<void>
   releaseTimerGate: () => Promise<void>
-  configureTimerSimulator: (input: ConfigureSimulatorInput) => Promise<void>
-  runTimerSimulator: () => Promise<void>
+  openTimerSimulator: () => Promise<void>
   discardTimerCapture: () => Promise<void>
   acceptTimerCapture: (captureId: string, raceId: string, input: RecordHeatResultsInput) => Promise<void>
   replayTimerProtocol: (profileId: PhysicalTimerProfileId) => Promise<TimerReplayResult | null>

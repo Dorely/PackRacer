@@ -23,7 +23,11 @@
 
 | File | Description |
 |------|-------------|
-| `docs/hardware-timers.md` | Windows-first timer profiles, operator workflow, simulator, protocol replay, gate safety, and validation status. |
+| `docs/hardware-timers.md` | Timer operator workflow, virtual-port simulator, protocol index, gate safety, and validation status. |
+| `docs/hardware-timers/micro-wizard-fasttrack.md` | Micro Wizard K/Q serial settings, command table, result framing, simulator behavior, sources, and validation gaps. |
+| `docs/hardware-timers/besttrack-champ.md` | Legacy SmartLine and current SRM Champ connection assumptions, commands, result formats, sources, and validation gaps. |
+| `docs/hardware-timers/newbold.md` | NewBold serial settings, reset behavior, ordered result format, detection limits, sources, and validation gaps. |
+| `docs/hardware-timers/the-judge.md` | The Judge serial settings, status/result framing, command assumptions, sources, and validation gaps. |
 
 ## GitHub Configuration
 
@@ -53,7 +57,7 @@
 |------|-------------|
 | `apps/desktop/src/main/index.ts` | Electron app lifecycle, main window creation, and main-process IPC handlers. |
 | `apps/desktop/src/main/event-store.ts` | App-owned SQLite database for local events, event selection, autosaved state, and audit log storage. |
-| `apps/desktop/src/main/timer-service.ts` | Main-process serial/simulator connection state, arm snapshots, capture normalization, diagnostics, safety checks, and preference persistence. |
+| `apps/desktop/src/main/timer-service.ts` | Main-process physical and virtual serial transport, verified connections, arm snapshots, capture normalization, diagnostics, safety, and preferences. |
 
 ## Desktop Preload
 
@@ -66,10 +70,12 @@
 | File | Description |
 |------|-------------|
 | `apps/desktop/src/renderer/index.html` | Renderer HTML entry point. |
+| `apps/desktop/src/renderer/timer-simulator.html` | Separate virtual timer-device window HTML entry point. |
 | `apps/desktop/src/renderer/src/App.tsx` | PackRacer operator shell, navigation, event/race session state, and race-day action wiring. |
 | `apps/desktop/src/renderer/src/env.d.ts` | Renderer global and Vite type declarations. |
 | `apps/desktop/src/renderer/src/formatters.ts` | Renderer formatting helpers for race statuses, times, racers, and heats. |
 | `apps/desktop/src/renderer/src/main.tsx` | React renderer bootstrap. |
+| `apps/desktop/src/renderer/src/timer-simulator-main.tsx` | Virtual serial timer window, emulated hardware/scenario controls, raw-byte sender, and transport transcript. |
 | `apps/desktop/src/renderer/src/styles.css` | Desktop app shell styling. |
 
 ## Desktop Renderer Sections
@@ -92,7 +98,7 @@
 | `packages/timer-adapters/package.json` | Workspace metadata for pure hardware timer protocol adapters and simulator generation. |
 | `packages/timer-adapters/src/index.ts` | Public exports for timer types, profiles, parsers, replay fixtures, and simulator. |
 | `packages/timer-adapters/src/profiles.ts` | Declarative physical/advanced timer definitions, fragmented text framing, protocol parsers, commands, and replay fixtures. |
-| `packages/timer-adapters/src/simulator.ts` | Deterministic simulator event generation for normal, edge-case, duplicate, incomplete, and disconnect scenarios. |
+| `packages/timer-adapters/src/simulator.ts` | Deterministic scenario generation plus hardware-specific probe responses and fragmented raw serial encoding for the virtual port. |
 | `packages/timer-adapters/src/types.ts` | Timer profiles, capabilities, arm snapshots, captures, diagnostics, preferences, simulator, replay, and adapter contracts. |
 
 ## Race Engine Package

@@ -26,6 +26,7 @@ import type {
   TimerPreferences,
   TimerProfile,
   TimerReplayResult,
+  TimerSimulatorState,
   TimerState
 } from '@packracer/timer-adapters'
 
@@ -34,6 +35,7 @@ declare global {
     packRacer: {
       getVersion: () => Promise<string>
       openPopout: (input: { sectionId: string; selectedRaceId?: string }) => Promise<void>
+      openTimerSimulator: () => Promise<void>
       onSessionUpdated: (callback: (snapshot: EventSessionSnapshot | null) => void) => () => void
       createEvent: (input: CreateEventInput) => Promise<EventSessionSnapshot>
       getCurrentEvent: () => Promise<EventSessionSnapshot | null>
@@ -76,12 +78,16 @@ declare global {
       resetTimer: () => Promise<TimerState>
       forceTimerResults: () => Promise<TimerState>
       releaseTimerGate: () => Promise<TimerState>
-      configureTimerSimulator: (input: ConfigureSimulatorInput) => Promise<TimerState>
-      runTimerSimulator: () => Promise<TimerState>
       discardTimerCapture: () => Promise<TimerState>
       acceptTimerCapture: (captureId: string, raceId: string, input: RecordHeatResultsInput) => Promise<EventSessionSnapshot>
       replayTimerProtocol: (profileId: PhysicalTimerProfileId) => Promise<TimerReplayResult>
       onTimerUpdated: (callback: (state: TimerState) => void) => () => void
+      onTimerPortsUpdated: (callback: (ports: TimerPortInfo[]) => void) => () => void
+      getTimerSimulatorState: () => Promise<TimerSimulatorState>
+      configureTimerSimulator: (input: ConfigureSimulatorInput) => Promise<TimerSimulatorState>
+      sendTimerSimulatorHeat: () => Promise<TimerSimulatorState>
+      sendTimerSimulatorRaw: (data: string) => Promise<TimerSimulatorState>
+      onTimerSimulatorUpdated: (callback: (state: TimerSimulatorState) => void) => () => void
     }
   }
 }

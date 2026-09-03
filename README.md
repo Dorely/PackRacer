@@ -86,15 +86,15 @@ Hardware timers are currently supported on Windows x64. macOS, Linux, and Window
 
 ### Using the Simulator
 
-The simulator follows the same arm, capture, review, persistence, and audit path as a physical timer, so it can be used for development or race-day practice without a COM port:
+The simulator is a separate virtual serial-device window. It emulates a selected hardware model, exposes `PACKRACER-SIM` as a scanned port, answers that model's connection probe, and sends raw protocol bytes through the same adapter used for physical hardware:
 
 1. Create or select an event, register racers, and generate heats for a race.
 2. Open **Race Control** and expand **Hardware Timer**.
-3. Choose **Simulator — no hardware** under **Simulation / Diagnostics**, then select **Connect**. An amber **SIMULATION MODE** banner remains visible while it is connected.
-4. Choose a scenario, such as **Normal finish**, **Exact tie**, or **Explicit DNF**. Use **New variation** when you want a different deterministic result for the same heat.
-5. Select **Arm Current Heat**.
-6. Select **Run Simulated Heat** and wait for the staged capture. If software gate control is enabled, use **Release Simulated Gate** instead.
+3. Select **Open Timer Simulator**. In the new window, choose the physical timer model to emulate.
+4. Back in Race Control, select **Scan**, choose the same physical timer profile, choose **PACKRACER-SIM — PackRacer Timer Simulator**, and select **Connect**.
+5. Select **Arm Current Heat** in Race Control.
+6. In the simulator window, choose a scenario such as **Normal finish**, **Exact tie**, or **Explicit DNF**, then select **Send Simulated Heat**. Use **New variation** for a different deterministic result.
 7. Review or edit the populated result fields. Select **Discard Capture** to abandon them, or **Accept Capture And Advance** to save them.
-8. Confirm every simulated acceptance. Saved simulator results are deliberately labeled and audited as simulated.
+8. Confirm every simulated acceptance. Saved simulator results are deliberately labeled and audited as simulated. An amber **SIMULATION MODE** banner remains visible while Race Control is connected to the virtual port.
 
-Reset returns the simulator to its ready state. The incomplete, duplicate-transmission, and disconnect scenarios are useful for practicing recovery without affecting manual result entry.
+The simulator transcript shows commands received from Race Control and raw bytes sent back. Its manual-data control also accepts ASCII with `\\r` and `\\n` escapes. Closing the simulator window removes the virtual port and drops an active virtual connection. The incomplete, duplicate-transmission, and disconnect scenarios are useful for practicing recovery without affecting manual result entry.

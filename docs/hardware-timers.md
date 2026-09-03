@@ -25,34 +25,16 @@ Serial access uses [`serialport@13`](https://serialport.io/docs/next/guide-platf
 
 The main process validates the capture ID, current event, race, heat, lane assignments, disabled lanes, and arm snapshot before persistence. The capture is consumed only after the result and its audit entry are successfully stored.
 
-## Supported Profiles
+## Supported Profiles and Protocol Notes
 
-### Micro Wizard FastTrack K/Q
+Hardware-specific findings, exact implemented commands, public-source support, unknowns, and hardware-validation status are maintained separately:
 
-- 9600 baud, 8 data bits, no parity, 1 stop bit.
-- `RV` detection; `RE`, `N1`, and `N2` format setup.
-- Lane masking, `LR` reset, `RA` force results, and letter-lane result parsing.
-- `LG` gate release is available only after the computer-level safety acknowledgement is saved and a current heat is armed.
-- Protocol source: [Micro Wizard K3/Q-series instructions](https://cdn.shopify.com/s/files/1/0788/7562/3729/files/K3_grand_prix_instructions.pdf?v=1703017627).
-
-### BestTrack / SmartLine Champ
-
-- Separate legacy SmartLine and current SRM profiles, both at 9600 8N1.
-- Legacy profile supports probing, lane masks, reset, and force-result commands with letter-lane results.
-- SRM profile parses numeric-lane results and uses its distinct probe response.
-- Protocol source: [Champ Single Sided Timer Manual](https://www.besttrack.com/Champ%20Single%20Sided%20Timer%20Manual.pdf).
-
-### NewBold DT / TURBO / DerbyStick
-
-- 1200 baud, 7 data bits, no parity, 2 stop bits.
-- Must be selected manually because it cannot identify itself reliably.
-- A space performs timer preparation/reset; results are parsed as ordered lane/time pairs.
-- Protocol source: [NewBold operating manual](https://newboldproducts.shoppingcartsplus.com/f/opmandtx_5.pdf).
-
-### The Judge
-
-- 9600 baud, 8 data bits, no parity, 1 stop bit.
-- `*` probe/force behavior, `Lane N time` records, and `Race Over` framing.
+| Profile | Protocol notes |
+|---|---|
+| Micro Wizard FastTrack K/Q | [Micro Wizard protocol](hardware-timers/micro-wizard-fasttrack.md) |
+| BestTrack / SmartLine Champ and Champ SRM | [BestTrack Champ protocols](hardware-timers/besttrack-champ.md) |
+| NewBold DT / TURBO / DerbyStick | [NewBold protocol](hardware-timers/newbold.md) |
+| The Judge | [The Judge protocol](hardware-timers/the-judge.md) |
 
 ### Advanced Serial Timer
 
@@ -83,20 +65,21 @@ The initial built-in physical release implementation is limited to documented Mi
 
 ## Simulator
 
-Choose **Simulator — no hardware** from the **Simulation / Diagnostics** group. Connecting it disconnects physical hardware first and shows a persistent amber simulation banner in Race Control.
+Choose **Open Timer Simulator** in Race Control. The separate simulator window activates a virtual `PACKRACER-SIM` port. Closing the window removes that port and drops an active connection.
 
-The simulator uses the same main-process service, arm snapshot, result normalization, staged form, validation, SQLite persistence, and audit path as hardware. Only the serial transport is bypassed.
+The simulator is not a timer profile. Select the physical hardware model it should emulate in the simulator window, then choose the same physical profile and the scanned `PACKRACER-SIM` port in Race Control. Connection probing, setup commands, fragmented ASCII input, the physical adapter parser, arm snapshot, normalization, staging, persistence, and auditing all follow the hardware path.
 
 Normal use is:
 
-1. Connect the simulator.
-2. Arm the current heat.
-3. Choose **Run Simulated Heat**.
-4. Observe the running state and staged capture.
-5. Review or edit the result.
-6. Confirm every simulated acceptance, or discard it.
+1. Open the Timer Simulator and select the hardware model to emulate.
+2. Scan ports in Race Control.
+3. Select the matching hardware profile and `PACKRACER-SIM`, then connect.
+4. Arm the current heat in Race Control.
+5. Choose **Send Simulated Heat** in the simulator window.
+6. Observe the raw-byte transcript and staged capture.
+7. Review or edit the result, then confirm every simulated acceptance or discard it.
 
-When software gate control is enabled, use **Release Simulated Gate** instead of **Run Simulated Heat**. This exercises the same two-step arm/release safety path.
+The simulator also accepts manually entered ASCII with `\\r` and `\\n` escapes. This is useful for exercising malformed, partial, or model-specific messages through the connected adapter.
 
 Times are reproducible from the heat ID, scenario, and session-only variation number. The same heat and variation produces the same ordering and approximately three-second times. **New variation** changes the deterministic input without persisting that diagnostic choice into a future app session.
 
@@ -104,13 +87,13 @@ Scenarios:
 
 - **Normal finish** — all occupied lanes receive unique times and places.
 - **Close finish** — valid times differ by only a few milliseconds.
-- **Exact tie** — two lanes share a time without an authoritative place.
-- **Explicit DNF** — one occupied lane reports DNF.
-- **Incomplete result** — one occupied lane never reports and the partial capture is staged.
+- **Exact tie** — two lanes share a time; profiles that transmit authoritative order retain that order.
+- **Explicit DNF** — one occupied lane uses the profile's documented DNF/timeout representation; profiles without one leave that lane missing.
+- **Incomplete result** — one occupied lane never reports. A profile with an end marker stages an incomplete capture; other profiles remain armed until **Force Results** or operator recovery.
 - **Duplicate transmission** — the completed result is emitted twice to exercise deduplication.
 - **Disconnect during heat** — the connection fails between start and result.
 
-Reset returns the simulator to ready. Force Results stages only the lane values already received. Simulated results may be stored for rehearsal, but every acceptance requires confirmation and is audited as simulated.
+Reset and gate-release commands are sent to the virtual device and appear in its transcript. Force Results stages only lane values already received. Simulated results may be stored for rehearsal, but every acceptance requires confirmation and is audited as simulated.
 
 ## Raw Protocol Replay
 
@@ -126,7 +109,7 @@ The following app-local values are stored in SQLite metadata and are not added t
 - Advanced declarative profile.
 - Software gate-control acknowledgement.
 
-Simulator scenario and variation are session-only. PackRacer never auto-connects.
+Simulator model, scenario, variation, and transcript are session-only. PackRacer never auto-connects.
 
 ## Hardware Validation Checklist
 

@@ -26,6 +26,7 @@ import type {
   TimerPreferences,
   TimerProfile,
   TimerReplayResult,
+  TimerSimulatorState,
   TimerState
 } from '@packracer/timer-adapters'
 
@@ -39,6 +40,7 @@ type PopoutRequest = {
 const packRacerApi = {
   getVersion: (): Promise<string> => invoke('app:get-version'),
   openPopout: (input: PopoutRequest): Promise<void> => invoke('app:open-popout', input),
+  openTimerSimulator: (): Promise<void> => invoke('app:open-timer-simulator'),
   onSessionUpdated: (callback: (snapshot: EventSessionSnapshot | null) => void): (() => void) => {
     const listener = (_event: Electron.IpcRendererEvent, snapshot: EventSessionSnapshot | null) => callback(snapshot)
     ipcRenderer.on('session:updated', listener)
@@ -99,8 +101,6 @@ const packRacerApi = {
   resetTimer: (): Promise<TimerState> => invoke('timer:reset'),
   forceTimerResults: (): Promise<TimerState> => invoke('timer:force-results'),
   releaseTimerGate: (): Promise<TimerState> => invoke('timer:release-gate'),
-  configureTimerSimulator: (input: ConfigureSimulatorInput): Promise<TimerState> => invoke('timer:configure-simulator', input),
-  runTimerSimulator: (): Promise<TimerState> => invoke('timer:run-simulator'),
   discardTimerCapture: (): Promise<TimerState> => invoke('timer:discard-capture'),
   acceptTimerCapture: (captureId: string, raceId: string, input: RecordHeatResultsInput): Promise<EventSessionSnapshot> =>
     invoke('timer:accept-capture', captureId, raceId, input),
@@ -109,6 +109,20 @@ const packRacerApi = {
     const listener = (_event: Electron.IpcRendererEvent, state: TimerState) => callback(state)
     ipcRenderer.on('timer:updated', listener)
     return () => ipcRenderer.removeListener('timer:updated', listener)
+  },
+  onTimerPortsUpdated: (callback: (ports: TimerPortInfo[]) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, ports: TimerPortInfo[]) => callback(ports)
+    ipcRenderer.on('timer:ports-updated', listener)
+    return () => ipcRenderer.removeListener('timer:ports-updated', listener)
+  },
+  getTimerSimulatorState: (): Promise<TimerSimulatorState> => invoke('timer-simulator:get-state'),
+  configureTimerSimulator: (input: ConfigureSimulatorInput): Promise<TimerSimulatorState> => invoke('timer-simulator:configure', input),
+  sendTimerSimulatorHeat: (): Promise<TimerSimulatorState> => invoke('timer-simulator:send-heat'),
+  sendTimerSimulatorRaw: (data: string): Promise<TimerSimulatorState> => invoke('timer-simulator:send-raw', data),
+  onTimerSimulatorUpdated: (callback: (state: TimerSimulatorState) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, state: TimerSimulatorState) => callback(state)
+    ipcRenderer.on('timer-simulator:updated', listener)
+    return () => ipcRenderer.removeListener('timer-simulator:updated', listener)
   }
 }
 

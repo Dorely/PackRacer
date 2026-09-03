@@ -70,17 +70,18 @@ function parseNewBoldLine(line: string): TimerAdapterEvent[] {
     const physicalLane = Number(match[1])
     const timeMs = secondsToMilliseconds(match[2])
 
-    if (physicalLane === 0 && timeMs === 0) {
-      events.push({ type: 'lane-result', physicalLane: 0, status: 'dnf' })
-      continue
-    }
-
     if (timeMs === undefined) {
       events.push({ type: 'warning', message: `Ignored malformed NewBold result “${match[0].trim()}”.` })
       continue
     }
 
-    events.push({ type: 'lane-result', physicalLane, timeMs, finishPosition: place })
+    events.push({
+      type: 'lane-result',
+      physicalLane,
+      timeMs: timeMs >= 9_999 ? undefined : timeMs,
+      status: timeMs >= 9_999 ? 'dnf' : 'ok',
+      finishPosition: place
+    })
     place += 1
   }
 
@@ -357,17 +358,8 @@ const advancedSummary: TimerProfile = {
   hardwareValidation: 'protocol-implemented'
 }
 
-const simulatorSummary: TimerProfile = {
-  id: 'simulator',
-  name: 'Simulator — no hardware',
-  description: 'Exercise the full timer workflow without a serial device.',
-  category: 'simulation',
-  capabilities: { autoDetect: false, reset: true, laneMask: true, forceResults: true, gateRelease: true },
-  hardwareValidation: 'not-applicable'
-}
-
 export function listTimerProfiles(): TimerProfile[] {
-  return [automaticProfile, ...hardwareProfiles.map((definition) => definition.profile), advancedSummary, simulatorSummary]
+  return [automaticProfile, ...hardwareProfiles.map((definition) => definition.profile), advancedSummary]
 }
 
 export function detectableTimerProfileIds(): PhysicalTimerProfileId[] {
@@ -377,7 +369,7 @@ export function detectableTimerProfileIds(): PhysicalTimerProfileId[] {
 }
 
 export function createTimerAdapter(profileId: TimerProfileId, advanced?: AdvancedTimerProfile): TimerAdapter {
-  if (profileId === 'auto-detect' || profileId === 'simulator') {
+  if (profileId === 'auto-detect') {
     throw new Error(`${profileId} does not use a text protocol adapter.`)
   }
 
