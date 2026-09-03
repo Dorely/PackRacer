@@ -485,7 +485,34 @@ label {
 
 .registration-grid {
   align-items: start;
-  grid-template-columns: minmax(320px, 0.65fr) minmax(620px, 1.35fr);
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.registration-controls-panel {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+  min-height: auto;
+}
+
+.registration-controls-panel > .panel-heading {
+  grid-column: 1 / -1;
+}
+
+.registration-controls-panel .registration-workflow-card {
+  align-content: start;
+  max-height: 420px;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+.registration-roster-panel {
+  min-height: 520px;
+}
+
+.registration-roster-panel .data-table-wrap:has(tbody tr) {
+  min-height: 420px;
+  max-height: min(72vh, 820px);
 }
 
 .division-management-panel {
@@ -3153,23 +3180,6 @@ label {
   font-weight: 700;
 }
 
-@media (max-width: 1799px) {
-  .registration-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .registration-grid .form-panel {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    align-items: start;
-    min-height: auto;
-  }
-
-  .registration-grid .form-panel > .panel-heading {
-    grid-column: 1 / -1;
-  }
-}
-
 @media (max-width: 1599px) {
   .app-shell {
     grid-template-columns: 240px minmax(0, 1fr);
@@ -3283,14 +3293,6 @@ label {
     gap: 18px;
     min-height: auto;
     padding: 18px;
-  }
-
-  .registration-grid .form-panel {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .registration-grid .form-panel > .panel-heading {
-    grid-column: auto;
   }
 
   .roster-filter-bar {

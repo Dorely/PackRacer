@@ -389,7 +389,7 @@ export function Registration({ event, actions, selectedRaceId, setSelectedRaceId
 
   return (
     <section className="section-grid registration-grid">
-      <div className="race-panel form-panel">
+      <div className="race-panel form-panel registration-controls-panel">
         <div className="panel-heading">
           <div>
             <p className="eyebrow">Registration</p>
