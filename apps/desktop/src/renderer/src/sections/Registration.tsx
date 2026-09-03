@@ -202,16 +202,22 @@ function FullRosterRow({ actions, deletionStatus, event, racer, requestConfirmat
   return (
     <tr data-muted={racer.status !== 'active'}>
       <td>
-        <input
-          aria-label={`Number for ${racer.name}`}
-          className="racer-number-input"
-          onChange={(inputEvent) => setRacerNumber(inputEvent.target.value)}
-          value={racerNumber}
-        />
-      </td>
-      <td>
-        <input aria-label={`Name for racer ${racer.racerNumber}`} value={name} onChange={(inputEvent) => setName(inputEvent.target.value)} />
-        <small>{formatStatus(racer.status)}</small>
+        <div className="full-roster-identity">
+          <label className="full-roster-number-field">
+            <span aria-hidden="true">#</span>
+            <input
+              aria-label={`Number for ${racer.name}`}
+              className="racer-number-input"
+              onChange={(inputEvent) => setRacerNumber(inputEvent.target.value)}
+              value={racerNumber}
+            />
+          </label>
+          <input aria-label={`Name for racer ${racer.racerNumber}`} value={name} onChange={(inputEvent) => setName(inputEvent.target.value)} />
+        </div>
+        <div className="full-roster-context">
+          <span>{formatStatus(racer.status)}</span>
+          <span>{assignedRaces.length > 0 ? assignedRaces.map((race) => race.name).join(', ') : 'Not assigned to a race'}</span>
+        </div>
       </td>
       <td>
         <DivisionPicker
@@ -224,13 +230,6 @@ function FullRosterRow({ actions, deletionStatus, event, racer, requestConfirmat
             void actions.updateRacer(racer.id, { divisionIds: nextDivisionIds })
           }}
         />
-      </td>
-      <td>
-        {assignedRaces.length > 0 ? (
-          <div className="roster-race-list">
-            {assignedRaces.map((race) => <span key={race.id}>{race.name}</span>)}
-          </div>
-        ) : <small>Not assigned</small>}
       </td>
       <td>
         <div className="full-roster-actions">
@@ -577,7 +576,7 @@ export function Registration({ event, actions, selectedRaceId, setSelectedRaceId
 
             <div className="data-table-wrap">
               <table className="data-table registration-table full-roster-table">
-                <thead><tr><th>#</th><th>Racer</th><th>Divisions</th><th>Race rosters</th><th>Actions</th></tr></thead>
+                <thead><tr><th>Racer</th><th>Divisions</th><th>Actions</th></tr></thead>
                 <tbody>
                   {fullRoster.map((racer) => (
                     <FullRosterRow
@@ -590,7 +589,7 @@ export function Registration({ event, actions, selectedRaceId, setSelectedRaceId
                     />
                   ))}
                   {fullRoster.length === 0 ? (
-                    <tr><td className="table-empty-state" colSpan={5}>{event.racers.length === 0 ? 'No racers have been created yet.' : 'No racers match these filters.'}</td></tr>
+                    <tr><td className="table-empty-state" colSpan={3}>{event.racers.length === 0 ? 'No racers have been created yet.' : 'No racers match these filters.'}</td></tr>
                   ) : null}
                 </tbody>
               </table>
