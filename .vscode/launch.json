@@ -3,10 +3,18 @@
   "configurations": [
     {
       "name": "PackRacer: Debug Desktop",
-      "type": "node-terminal",
+      "type": "pwa-node",
       "request": "launch",
-      "command": "npm run debug",
-      "cwd": "${workspaceFolder}"
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "debug",
+        "--workspace",
+        "@packracer/desktop"
+      ],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "autoAttachChildProcesses": true
     }
   ]
 }
