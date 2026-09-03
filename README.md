@@ -81,3 +81,18 @@ PackRacer follows the architecture direction in `VISION.md`:
 ## Hardware Timers
 
 Hardware timers are currently supported on Windows x64. macOS, Linux, and Windows ARM are planned but unvalidated. See [Hardware Timers](docs/hardware-timers.md) for supported profiles, simulator scenarios, gate safety, diagnostics, and hardware validation steps.
+
+### Using the Simulator
+
+The simulator follows the same arm, capture, review, persistence, and audit path as a physical timer, so it can be used for development or race-day practice without a COM port:
+
+1. Create or select an event, register racers, and generate heats for a race.
+2. Open **Race Control** and expand **Hardware Timer**.
+3. Choose **Simulator — no hardware** under **Simulation / Diagnostics**, then select **Connect**. An amber **SIMULATION MODE** banner remains visible while it is connected.
+4. Choose a scenario, such as **Normal finish**, **Exact tie**, or **Explicit DNF**. Use **New variation** when you want a different deterministic result for the same heat.
+5. Select **Arm Current Heat**.
+6. Select **Run Simulated Heat** and wait for the staged capture. If software gate control is enabled, use **Release Simulated Gate** instead.
+7. Review or edit the populated result fields. Select **Discard Capture** to abandon them, or **Accept Capture And Advance** to save them.
+8. Confirm every simulated acceptance. Saved simulator results are deliberately labeled and audited as simulated.
+
+Reset returns the simulator to its ready state. The incomplete, duplicate-transmission, and disconnect scenarios are useful for practicing recovery without affecting manual result entry.

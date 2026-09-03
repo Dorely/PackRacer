@@ -146,7 +146,6 @@ export function TimerPanel({ actions, currentRace, currentHeat, profiles, ports,
                   ) : null
                 })}
               </select>
-              <small>{selectedProfile?.description}</small>
             </label>
 
             {selectedProfileId !== 'simulator' ? (
@@ -157,8 +156,9 @@ export function TimerPanel({ actions, currentRace, currentHeat, profiles, ports,
                     <option value="">Select a port</option>
                     {ports.map((port) => <option key={port.path} value={port.path}>{port.path}{port.manufacturer ? ` — ${port.manufacturer}` : ''}</option>)}
                   </select>
-                  <button className="icon-action" disabled={connected} onClick={() => void actions.scanTimerPorts()} aria-label="Scan COM ports" type="button">
+                  <button className="secondary-action timer-scan-action" disabled={connected} onClick={() => void actions.scanTimerPorts()} title="Scan for connected serial timers" type="button">
                     <RefreshCw aria-hidden="true" size={18} />
+                    <span>Scan</span>
                   </button>
                 </div>
               </label>
@@ -166,6 +166,7 @@ export function TimerPanel({ actions, currentRace, currentHeat, profiles, ports,
               <div className="timer-mode-note"><strong>No hardware required</strong><span>Uses the complete capture and persistence workflow.</span></div>
             )}
           </div>
+          <p className="timer-profile-description">{selectedProfile?.description}</p>
 
           {selectedProfileId === 'advanced' && !connected ? (
             <details className="timer-details">

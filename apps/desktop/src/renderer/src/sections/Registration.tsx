@@ -49,18 +49,20 @@ function EntryRow({ entry, raceId, racer, actions, requestConfirmation }: EntryR
       <td>{formatStatus(entry.status)}</td>
       <td>
         <button
-          className="mini-action"
+          aria-pressed={entry.checkedIn}
+          className="mini-action readiness-toggle"
           onClick={() => void actions.updateRaceEntry(raceId, entry.id, { checkedIn: !entry.checkedIn })}
           type="button"
         >
-          {entry.checkedIn ? 'Checked In' : 'Check In'}
+          Checked In
         </button>
         <button
-          className="mini-action"
+          aria-pressed={entry.inspectionPassed}
+          className="mini-action readiness-toggle"
           onClick={() => void actions.updateRaceEntry(raceId, entry.id, { inspectionPassed: !entry.inspectionPassed })}
           type="button"
         >
-          {entry.inspectionPassed ? 'Inspected' : 'Inspect'}
+          Inspected
         </button>
       </td>
       <td>

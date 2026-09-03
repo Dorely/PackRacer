@@ -624,6 +624,23 @@ label {
   opacity: 0.58;
 }
 
+.readiness-toggle {
+  min-width: 88px;
+  color: #52625b;
+  background: #eef1ef;
+  border-color: #d5ddd8;
+}
+
+.readiness-toggle[aria-pressed='true'] {
+  color: #ffffff;
+  background: #2f7659;
+  border-color: #2f7659;
+}
+
+.readiness-toggle + .readiness-toggle {
+  margin-left: 6px;
+}
+
 .notice-banner.simulation-banner {
   border-color: #d39a35;
   color: #4a3007;
@@ -867,7 +884,8 @@ label {
 }
 
 .timer-setup-grid {
-  grid-template-columns: repeat(2, minmax(240px, 1fr));
+  grid-template-columns: minmax(320px, 1.15fr) minmax(300px, 0.85fr);
+  align-items: end;
 }
 
 .advanced-timer-grid {
@@ -885,9 +903,10 @@ label {
   font-weight: 800;
 }
 
-.timer-panel label > small {
-  min-height: 30px;
+.timer-profile-description {
+  margin: -7px 0 0;
   color: #71847b;
+  font-size: 12px;
   font-weight: 600;
 }
 
@@ -901,9 +920,22 @@ label {
 
 .inline-field-actions select {
   flex: 1;
+  min-width: 0;
+}
+
+.timer-scan-action {
+  flex: none;
+  min-height: 40px;
+  padding: 0 13px;
+  color: #285246;
+  background: #f4f8f6;
+  border-color: #c8d7d0;
 }
 
 .timer-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 7px 10px;
   border-radius: 999px;
   color: #536860;
@@ -911,6 +943,14 @@ label {
   font-size: 12px;
   font-weight: 900;
   text-transform: uppercase;
+}
+
+.timer-status::before {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  content: '';
 }
 
 .timer-status.status-ready,
