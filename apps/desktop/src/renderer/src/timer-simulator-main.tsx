@@ -97,7 +97,9 @@ function TimerSimulatorApp() {
 
   const connectedToThisPort = state.connected && timerState.simulationMode
   const profileMatches = timerState.connectedProfileId === state.profileId
-  const canSendHeat = connectedToThisPort && profileMatches && ['armed', 'running'].includes(timerState.status)
+  const selectedProfile = builtInProfiles.find((profile) => profile.id === state.profileId)
+  const awaitingAutomaticGateResult = Boolean(selectedProfile?.capabilities.gateRelease && timerState.gateReleased)
+  const canSendHeat = connectedToThisPort && profileMatches && ['armed', 'running'].includes(timerState.status) && !awaitingAutomaticGateResult
 
   return (
     <main className="timer-simulator-shell">
@@ -138,7 +140,8 @@ function TimerSimulatorApp() {
           <button className="secondary-action" onClick={() => void configure({ variation: state.variation + 1 })} type="button">New variation</button>
           <button className="primary-action" disabled={!canSendHeat} onClick={() => void sendHeat()} type="button">Send Simulated Heat</button>
         </div>
-        {!canSendHeat ? <p className="field-help">Connect the matching profile to PACKRACER-SIM and arm a heat before sending results.</p> : null}
+        {selectedProfile?.capabilities.gateRelease ? <p className="field-help">When Race Control releases the emulated gate, the simulator automatically chooses a fresh randomized variation and sends this scenario after a short race delay.</p> : null}
+        {!canSendHeat && !awaitingAutomaticGateResult ? <p className="field-help">Connect the matching profile to PACKRACER-SIM and arm a heat before sending results.</p> : null}
       </section>
 
       <section className="timer-simulator-card">

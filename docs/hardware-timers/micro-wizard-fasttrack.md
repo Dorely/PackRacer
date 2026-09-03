@@ -54,7 +54,7 @@ The public command reference does not define an explicit DNF token. A missing la
 
 ## Simulator Behavior
 
-The virtual timer answers `RV` with a Micro Wizard/Q identity, accepts the same setup, mask, reset, force, and gate commands in its transcript, and emits fragmented `RG0` plus `N1` lane records through the physical parser.
+The virtual timer answers `RV` with a Micro Wizard/Q identity and accepts the same setup, mask, reset, force, and gate commands in its transcript. Receiving the documented `LG` release command automatically selects a fresh randomized variation and, after a short simulated race delay, emits fragmented `RG0` plus `N1` lane records through the physical parser. This automatic response is simulator-only; a physical timer supplies its measured results.
 
 ## Hardware Validation Needed
 

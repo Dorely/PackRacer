@@ -317,11 +317,44 @@ export class TimerService {
         }, 40)
         this.timers.add(timer)
       }
+      if (this.isSimulatorGateRelease(data)) {
+        this.scheduleSimulatorGateResult()
+      }
       this.emitSimulator()
       return
     }
     if (!this.serialPort) throw new Error('The timer port is not open.')
     await writePort(this.serialPort, data)
+  }
+
+  private isSimulatorGateRelease(data: string): boolean {
+    if (!this.adapter?.profile.capabilities.gateRelease || !this.state.armedHeat) return false
+    return this.adapter.releaseGateCommands().some((command) => {
+      const payload = command === ' ' ? command : `${command}\r`
+      return data === payload
+    })
+  }
+
+  private scheduleSimulatorGateResult(): void {
+    const previousVariation = this.simulatorState.variation
+    let variation = Math.floor(Math.random() * 1_000_000_000)
+    if (variation === previousVariation) variation = (variation + 1) % 1_000_000_000
+    this.simulatorState.variation = variation
+    this.simulatorLog(
+      'system',
+      `Gate release received. Running ${this.simulatorState.scenario} with randomized variation ${variation}.`
+    )
+    const timer = setTimeout(() => {
+      this.timers.delete(timer)
+      try {
+        this.sendSimulatorHeat()
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'The emulated timer could not send its automatic result.'
+        this.simulatorLog('system', message)
+        this.emitSimulator()
+      }
+    }, 750)
+    this.timers.add(timer)
   }
 
   private async verifyAdapter(adapter: TimerAdapter): Promise<void> {

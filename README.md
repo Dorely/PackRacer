@@ -93,7 +93,7 @@ The simulator is a separate virtual serial-device window. It emulates a selected
 3. Select **Open Timer Simulator**. In the new window, choose the physical timer model to emulate.
 4. Back in Race Control, select **Scan**, choose the same physical timer profile, choose **PACKRACER-SIM — PackRacer Timer Simulator**, and select **Connect**.
 5. Select **Arm Current Heat** in Race Control.
-6. In the simulator window, choose a scenario such as **Normal finish**, **Exact tie**, or **Explicit DNF**, then select **Send Simulated Heat**. Use **New variation** for a different deterministic result.
+6. In the simulator window, choose a scenario such as **Normal finish**, **Exact tie**, or **Explicit DNF**. For profiles without gate release, select **Send Simulated Heat** and use **New variation** for a different deterministic result. For a gate-capable profile, enable software gate control and select **Release Gate** in Race Control; the emulated timer automatically chooses a fresh randomized variation and sends the selected scenario after a short race delay.
 7. Review or edit the populated result fields. Select **Discard Capture** to abandon them, or **Accept Capture And Advance** to save them.
 8. Confirm every simulated acceptance. Saved simulator results are deliberately labeled and audited as simulated. An amber **SIMULATION MODE** banner remains visible while Race Control is connected to the virtual port.
 
