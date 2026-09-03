@@ -398,7 +398,12 @@ export function Registration({ event, actions, selectedRaceId, setSelectedRaceId
           <Users aria-hidden="true" size={24} />
         </div>
 
-        <section aria-labelledby="create-roster-heading" className="registration-workflow-card" data-workflow="roster">
+        <section
+          aria-labelledby="create-roster-heading"
+          className="registration-workflow-card"
+          data-expanded={bulkAddOpen || undefined}
+          data-workflow="roster"
+        >
           <div className="registration-workflow-heading">
             <span className="workflow-step">1</span>
             <div>
@@ -414,23 +419,11 @@ export function Registration({ event, actions, selectedRaceId, setSelectedRaceId
             <DivisionPicker divisions={event.divisions} selectedDivisionIds={selectedDivisionIds} setSelectedDivisionIds={setSelectedDivisionIds} />
           </fieldset>
 
-          <form className="form-grid" onSubmit={submitRacer}>
-            <label>
-              <span>Racer name</span>
-              <input value={name} onChange={(inputEvent) => setName(inputEvent.target.value)} required />
-            </label>
-            <button className="primary-action" disabled={selectedDivisionIds.length === 0} type="submit">
-              <UserPlus aria-hidden="true" size={18} />
-              <span>Add Racer to Event Roster</span>
-            </button>
-          </form>
-
-          <div className="registration-bulk-panel">
-            <button className="secondary-action" onClick={() => setBulkAddOpen((isOpen) => !isOpen)} type="button">
-              {bulkAddOpen ? 'Hide Bulk Add' : 'Bulk Add Racers to Event Roster'}
-            </button>
-
-            {bulkAddOpen ? (
+          {bulkAddOpen ? (
+            <div className="registration-bulk-panel">
+              <button className="secondary-action" onClick={() => setBulkAddOpen(false)} type="button">
+                Use Individual Racer Entry
+              </button>
               <form className="form-grid registration-bulk-form" onSubmit={(formEvent) => void submitBulkRacers(formEvent)}>
                 <label>
                   <span>Racer names</span>
@@ -452,8 +445,27 @@ export function Registration({ event, actions, selectedRaceId, setSelectedRaceId
                   </span>
                 </button>
               </form>
-            ) : null}
-          </div>
+            </div>
+          ) : (
+            <>
+              <form className="form-grid" onSubmit={submitRacer}>
+                <label>
+                  <span>Racer name</span>
+                  <input value={name} onChange={(inputEvent) => setName(inputEvent.target.value)} required />
+                </label>
+                <button className="primary-action" disabled={selectedDivisionIds.length === 0} type="submit">
+                  <UserPlus aria-hidden="true" size={18} />
+                  <span>Add Racer to Event Roster</span>
+                </button>
+              </form>
+
+              <div className="registration-bulk-panel">
+                <button className="secondary-action" onClick={() => setBulkAddOpen(true)} type="button">
+                  Bulk Add Racers to Event Roster
+                </button>
+              </div>
+            </>
+          )}
         </section>
 
         <section aria-labelledby="assign-race-heading" className="registration-workflow-card" data-workflow="race">
