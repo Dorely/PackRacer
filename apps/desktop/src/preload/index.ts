@@ -1,16 +1,18 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
 import type {
+  AddRaceEntriesInput,
   AddRaceEntryInput,
   AddRacerInput,
+  CreateDivisionInput,
   CreateEventInput,
   CreateRaceInput,
   EventSessionSnapshot,
   EventSummary,
   RecordHeatResultsInput,
-  RegisterRacerInput,
   RemovalResolutionStrategy,
   UpdateEventInput,
+  UpdateDivisionInput,
   UpdateRaceLaneAvailabilityInput,
   UpdateRaceEntryInput,
   UpdateRaceInput,
@@ -47,6 +49,10 @@ const packRacerApi = {
   listEvents: (): Promise<EventSummary[]> => invoke('event:list'),
   selectEvent: (eventId: string): Promise<EventSessionSnapshot> => invoke('event:select', eventId),
   updateEvent: (input: UpdateEventInput): Promise<EventSessionSnapshot> => invoke('event:update', input),
+  addDivision: (input: CreateDivisionInput): Promise<EventSessionSnapshot> => invoke('division:add', input),
+  updateDivision: (divisionId: string, input: UpdateDivisionInput): Promise<EventSessionSnapshot> =>
+    invoke('division:update', divisionId, input),
+  deleteDivision: (divisionId: string): Promise<EventSessionSnapshot> => invoke('division:delete', divisionId),
   deleteEvent: (eventId: string): Promise<EventSessionSnapshot | null> => invoke('event:delete', eventId),
   createRace: (input: CreateRaceInput): Promise<EventSessionSnapshot> => invoke('race:create', input),
   updateRace: (raceId: string, input: UpdateRaceInput): Promise<EventSessionSnapshot> => invoke('race:update', raceId, input),
@@ -62,8 +68,8 @@ const packRacerApi = {
     invoke('racer:resolve-removal', strategy),
   addRaceEntry: (raceId: string, input: AddRaceEntryInput): Promise<EventSessionSnapshot> =>
     invoke('race-entry:add', raceId, input),
-  registerRacerForRace: (raceId: string, input: RegisterRacerInput): Promise<EventSessionSnapshot> =>
-    invoke('race-entry:register-racer', raceId, input),
+  addRaceEntries: (raceId: string, input: AddRaceEntriesInput): Promise<EventSessionSnapshot> =>
+    invoke('race-entry:add-many', raceId, input),
   updateRaceEntry: (raceId: string, entryId: string, input: UpdateRaceEntryInput): Promise<EventSessionSnapshot> =>
     invoke('race-entry:update', raceId, entryId, input),
   removeRaceEntry: (raceId: string, entryId: string): Promise<EventSessionSnapshot> =>

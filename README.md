@@ -43,12 +43,14 @@ The current app can run a first-pass race day from one laptop:
 
 1. Create an event in the local app database from Event Setup.
 2. Configure the event name, date, track, lane count, and one or more races within the event.
-3. Register racers manually with number, name, division, and optional vehicle name.
-4. Configure races in timed heats, points heats, round robin, single elimination, double elimination, or triple elimination formats, then generate heats.
+3. Configure event divisions, assign one or more division memberships to each racer, and manually add eligible racers to each division's race.
+4. Configure each directly registered race for one division—or populate a later race from another race's results—then generate timed heats, points heats, round robin, single elimination, double elimination, or triple elimination schedules.
 5. Use Race Control to enter both time and finish order, mark DNS/DNF/DQ, and advance to the next heat within the selected race.
    Optionally connect a serial timer or the built-in simulator; captured values are staged in the same editable result form and never save automatically.
 6. View live standings for the selected race and populate later races from top-ranked racers.
 7. Scratch a racer from Registration and choose whether to keep empty lanes, regenerate pending heats, or leave affected heats flagged across races.
+
+Registration remains operator-controlled: division membership makes a racer eligible for a race but does not add them automatically. Use **Add Selected** for individual control or **Add All Eligible** to assign every unadded racer from the race's division at once.
 
 Every mutation is written immediately to the local SQLite database under Electron's user data folder.
 

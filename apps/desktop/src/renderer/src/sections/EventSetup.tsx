@@ -1,7 +1,7 @@
 import { Flag, ListPlus, Save, Trash2 } from 'lucide-react'
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 
-import { isEliminationFormat, type RaceFormat, type ScoringMode } from '@packracer/race-engine'
+import { getRaceDivision, isEliminationFormat, type Division, type RaceFormat, type ScoringMode } from '@packracer/race-engine'
 
 import { formatStatus, raceSummary } from '../formatters'
 import type { SectionProps } from './types'
@@ -58,8 +58,48 @@ function selectedScoringMode(format: RaceFormat, scoringMode: ScoringMode): Scor
   return options.length === 0 || options.includes(scoringMode) ? scoringMode : defaultScoringMode(format)
 }
 
+function DivisionRow({
+  division,
+  actions,
+  requestConfirmation
+}: {
+  division: Division
+  actions: SectionProps['actions']
+  requestConfirmation: SectionProps['requestConfirmation']
+}) {
+  const [name, setName] = useState(division.name)
+
+  useEffect(() => setName(division.name), [division.name])
+
+  const removeDivision = () => {
+    requestConfirmation({
+      title: 'Delete division',
+      message: `Delete ${division.name}? A division in use by a racer or race cannot be deleted.`,
+      confirmLabel: 'Delete Division',
+      destructive: true,
+      onConfirm: () => actions.deleteDivision(division.id)
+    })
+  }
+
+  return (
+    <div className="division-management-row">
+      <input aria-label={`${division.name} division name`} value={name} onChange={(event) => setName(event.target.value)} />
+      <button className="mini-action" disabled={!name.trim()} onClick={() => void actions.updateDivision(division.id, { name })} type="button">
+        <Save aria-hidden="true" size={14} />
+        <span>Save</span>
+      </button>
+      <button className="danger-action" onClick={removeDivision} type="button">
+        <Trash2 aria-hidden="true" size={14} />
+        <span>Delete</span>
+      </button>
+    </div>
+  )
+}
+
 export function EventSetup({ event, currentRace, actions, selectedRaceId, setSelectedRaceId, requestConfirmation }: SectionProps) {
+  const [newDivisionName, setNewDivisionName] = useState('')
   const [raceName, setRaceName] = useState('Main Tournament')
+  const [raceDivisionId, setRaceDivisionId] = useState(event?.divisions[0]?.id ?? '')
   const [raceFormat, setRaceFormat] = useState<RaceFormat>('timed-heats')
   const [raceLaneCount, setRaceLaneCount] = useState(3)
   const [raceRounds, setRaceRounds] = useState(3)
@@ -75,6 +115,13 @@ export function EventSetup({ event, currentRace, actions, selectedRaceId, setSel
   const [usesSource, setUsesSource] = useState(Boolean(currentRace?.source))
   const [sourceRaceId, setSourceRaceId] = useState(currentRace?.source?.sourceRaceId ?? '')
   const [sourceTopCount, setSourceTopCount] = useState(currentRace?.source?.topCount ?? 8)
+  const [editDivisionId, setEditDivisionId] = useState(currentRace?.divisionId ?? '')
+
+  useEffect(() => {
+    if (event?.divisions[0] && !event.divisions.some((division) => division.id === raceDivisionId)) {
+      setRaceDivisionId(event.divisions[0].id)
+    }
+  }, [event?.id, event?.divisions, raceDivisionId])
 
   useEffect(() => {
     if (!currentRace) {
@@ -92,12 +139,15 @@ export function EventSetup({ event, currentRace, actions, selectedRaceId, setSel
     setUsesSource(Boolean(currentRace.source))
     setSourceRaceId(currentRace.source?.sourceRaceId ?? '')
     setSourceTopCount(currentRace.source?.topCount ?? 8)
-  }, [currentRace])
+    setEditDivisionId(event ? getRaceDivision(event, currentRace)?.id ?? event.divisions[0]?.id ?? '' : '')
+  }, [currentRace, event])
 
   const sourceRaceOptions = useMemo(
     () => event?.races.filter((race) => race.id !== currentRace?.id) ?? [],
     [event, currentRace]
   )
+  const selectedSourceRace = sourceRaceOptions.find((race) => race.id === sourceRaceId)
+  const inheritedDivision = event ? getRaceDivision(event, selectedSourceRace) : undefined
 
   const createScoringOptions = scoringOptions(raceFormat)
   const editScoringOptions = scoringOptions(editRaceFormat)
@@ -115,6 +165,17 @@ export function EventSetup({ event, currentRace, actions, selectedRaceId, setSel
     setEditScoringMode(defaultScoringMode(format))
   }
 
+  const submitDivision = (formEvent: FormEvent) => {
+    formEvent.preventDefault()
+
+    if (!newDivisionName.trim()) {
+      return
+    }
+
+    void actions.addDivision({ name: newDivisionName })
+    setNewDivisionName('')
+  }
+
   const submitRace = (formEvent: FormEvent) => {
     formEvent.preventDefault()
     void actions.createRace({
@@ -123,6 +184,7 @@ export function EventSetup({ event, currentRace, actions, selectedRaceId, setSel
       laneCount: raceLaneCount,
       roundsPerRacer: createSupportsRuns ? raceRounds : 1,
       scoringMode: selectedScoringMode(raceFormat, raceScoringMode),
+      divisionId: raceDivisionId,
       schedulingOptions: { avoidSameLane: true, avoidSameOpponents: true, fillPartialHeats: true }
     })
     setRaceName('Additional Race')
@@ -142,7 +204,8 @@ export function EventSetup({ event, currentRace, actions, selectedRaceId, setSel
       roundsPerRacer: editSupportsRuns ? editRaceRounds : 1,
       scoringMode: selectedScoringMode(editRaceFormat, editScoringMode),
       schedulingOptions: { avoidSameLane, avoidSameOpponents, fillPartialHeats },
-      source: usesSource && sourceRaceId ? { sourceRaceId, topCount: sourceTopCount } : undefined
+      source: usesSource && sourceRaceId ? { sourceRaceId, topCount: sourceTopCount } : undefined,
+      divisionId: usesSource ? undefined : editDivisionId
     })
   }
 
@@ -164,6 +227,37 @@ export function EventSetup({ event, currentRace, actions, selectedRaceId, setSel
 
   return (
     <section className="section-grid setup-grid">
+      <div className="race-panel division-management-panel">
+        <div className="panel-heading">
+          <div>
+            <p className="eyebrow">Event divisions</p>
+            <h3>{event.divisions.length} configured</h3>
+          </div>
+          <ListPlus aria-hidden="true" size={24} />
+        </div>
+
+        <form className="compact-form division-create-form" onSubmit={submitDivision}>
+          <label>
+            <span>New division</span>
+            <input
+              placeholder="Scouts"
+              value={newDivisionName}
+              onChange={(inputEvent) => setNewDivisionName(inputEvent.target.value)}
+            />
+          </label>
+          <button className="primary-action" disabled={!newDivisionName.trim()} type="submit">
+            <ListPlus aria-hidden="true" size={18} />
+            <span>Add Division</span>
+          </button>
+        </form>
+
+        <div className="division-management-list">
+          {event.divisions.map((division) => (
+            <DivisionRow actions={actions} division={division} key={division.id} requestConfirmation={requestConfirmation} />
+          ))}
+        </div>
+      </div>
+
       <div className="race-panel">
         <div className="panel-heading">
           <div>
@@ -185,6 +279,16 @@ export function EventSetup({ event, currentRace, actions, selectedRaceId, setSel
                 {raceFormats.map((format) => (
                   <option key={format} value={format}>
                     {formatStatus(format)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>Division</span>
+              <select required value={raceDivisionId} onChange={(inputEvent) => setRaceDivisionId(inputEvent.target.value)}>
+                {event.divisions.map((division) => (
+                  <option key={division.id} value={division.id}>
+                    {division.name}
                   </option>
                 ))}
               </select>
@@ -268,6 +372,28 @@ export function EventSetup({ event, currentRace, actions, selectedRaceId, setSel
                   ))}
                 </select>
               </label>
+              {usesSource ? (
+                <label>
+                  <span>Division</span>
+                  <input readOnly value={inheritedDivision ? `${inheritedDivision.name} (inherited)` : 'Select a source race'} />
+                </label>
+              ) : (
+                <label>
+                  <span>Division</span>
+                  <select
+                    disabled={currentRace.entries.length > 0 || currentRace.heats.length > 0}
+                    required
+                    value={editDivisionId}
+                    onChange={(inputEvent) => setEditDivisionId(inputEvent.target.value)}
+                  >
+                    {event.divisions.map((division) => (
+                      <option key={division.id} value={division.id}>
+                        {division.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
               <label>
                 <span>Lanes</span>
                 <input min={1} max={12} type="number" value={editLaneCount} onChange={(inputEvent) => setEditLaneCount(Number(inputEvent.target.value))} />

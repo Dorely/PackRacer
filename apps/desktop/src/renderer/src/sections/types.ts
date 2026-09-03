@@ -1,15 +1,17 @@
 import type {
+  AddRaceEntriesInput,
   AddRaceEntryInput,
   AddRacerInput,
+  CreateDivisionInput,
   CreateEventInput,
   CreateRaceInput,
   EventSessionSnapshot,
   Race,
   RaceEvent,
   RecordHeatResultsInput,
-  RegisterRacerInput,
   RemovalResolutionStrategy,
   UpdateEventInput,
+  UpdateDivisionInput,
   UpdateRaceLaneAvailabilityInput,
   UpdateRaceEntryInput,
   UpdateRaceInput,
@@ -39,6 +41,9 @@ export type AppActions = {
   createEvent: (input: CreateEventInput) => Promise<void>
   selectEvent: (eventId: string) => Promise<void>
   updateEvent: (input: UpdateEventInput) => Promise<void>
+  addDivision: (input: CreateDivisionInput) => Promise<void>
+  updateDivision: (divisionId: string, input: UpdateDivisionInput) => Promise<void>
+  deleteDivision: (divisionId: string) => Promise<void>
   deleteEvent: (eventId: string) => Promise<void>
   createRace: (input: CreateRaceInput) => Promise<void>
   updateRace: (raceId: string, input: UpdateRaceInput) => Promise<void>
@@ -50,7 +55,7 @@ export type AppActions = {
   scratchRacer: (racerId: string) => Promise<void>
   resolveRacerRemoval: (strategy: RemovalResolutionStrategy) => Promise<void>
   addRaceEntry: (raceId: string, input: AddRaceEntryInput) => Promise<void>
-  registerRacerForRace: (raceId: string, input: RegisterRacerInput) => Promise<void>
+  addRaceEntries: (raceId: string, input: AddRaceEntriesInput) => Promise<void>
   updateRaceEntry: (raceId: string, entryId: string, input: UpdateRaceEntryInput) => Promise<void>
   removeRaceEntry: (raceId: string, entryId: string) => Promise<void>
   scratchRaceEntry: (raceId: string, entryId: string) => Promise<void>

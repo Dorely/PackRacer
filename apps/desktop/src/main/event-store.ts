@@ -8,6 +8,7 @@ import {
   calculateStandings,
   createId,
   createRaceEvent,
+  upgradeRaceEvent,
   type AuditEntry,
   type CreateEventInput,
   type EventSessionSnapshot,
@@ -152,7 +153,20 @@ function auditRows(eventId: string, database: SqlDatabase): AuditEntry[] {
 
 function loadEvent(eventId: string, database: SqlDatabase): RaceEvent | null {
   const row = queryOne<{ data: string }>(database, 'SELECT data FROM event_state WHERE id = ?', [eventId])
-  return row ? (JSON.parse(row.data) as RaceEvent) : null
+
+  if (!row) {
+    return null
+  }
+
+  const event = upgradeRaceEvent(JSON.parse(row.data) as RaceEvent)
+  const upgradedData = JSON.stringify(event)
+
+  if (upgradedData !== row.data) {
+    database.run('UPDATE event_state SET data = ? WHERE id = ?', [upgradedData, eventId])
+    persistDatabase(database)
+  }
+
+  return event
 }
 
 function selectedStandings(event: RaceEvent): Standing[] {

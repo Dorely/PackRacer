@@ -45,18 +45,33 @@ export function getRaceRacers(event: RaceEvent, race: Race | undefined): Racer[]
 }
 
 export function getEligibleRacers(event: RaceEvent, race?: Race): Racer[] {
-  const eligibleIds = race?.eligibleRacerIds ? new Set(race.eligibleRacerIds) : null
-  const raceRacers = getRaceRacers(event, race)
+  return getRaceRacers(event, race)
+}
 
-  return sortRacers(
-    raceRacers.filter((racer) => {
-      if (racer.status !== 'active') {
-        return false
-      }
+export function getRaceDivisionId(event: RaceEvent, race: Race | undefined): string | undefined {
+  const visitedRaceIds = new Set<string>()
+  let currentRace = race
 
-      return eligibleIds ? eligibleIds.has(racer.id) : true
-    })
-  )
+  while (currentRace) {
+    if (visitedRaceIds.has(currentRace.id)) {
+      return undefined
+    }
+
+    visitedRaceIds.add(currentRace.id)
+
+    if (!currentRace.source) {
+      return currentRace.divisionId
+    }
+
+    currentRace = event.races.find((candidate) => candidate.id === currentRace?.source?.sourceRaceId)
+  }
+
+  return undefined
+}
+
+export function getRaceDivision(event: RaceEvent, race: Race | undefined) {
+  const divisionId = getRaceDivisionId(event, race)
+  return event.divisions.find((division) => division.id === divisionId)
 }
 
 export function getSelectedRace(event: RaceEvent, raceId?: string): Race | undefined {

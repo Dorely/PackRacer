@@ -1,16 +1,18 @@
 /// <reference types="vite/client" />
 
 import type {
+  AddRaceEntriesInput,
   AddRaceEntryInput,
   AddRacerInput,
+  CreateDivisionInput,
   CreateEventInput,
   CreateRaceInput,
   EventSessionSnapshot,
   EventSummary,
   RecordHeatResultsInput,
-  RegisterRacerInput,
   RemovalResolutionStrategy,
   UpdateRaceEntryInput,
+  UpdateDivisionInput,
   UpdateEventInput,
   UpdateRaceLaneAvailabilityInput,
   UpdateRaceInput,
@@ -38,6 +40,9 @@ declare global {
       listEvents: () => Promise<EventSummary[]>
       selectEvent: (eventId: string) => Promise<EventSessionSnapshot>
       updateEvent: (input: UpdateEventInput) => Promise<EventSessionSnapshot>
+      addDivision: (input: CreateDivisionInput) => Promise<EventSessionSnapshot>
+      updateDivision: (divisionId: string, input: UpdateDivisionInput) => Promise<EventSessionSnapshot>
+      deleteDivision: (divisionId: string) => Promise<EventSessionSnapshot>
       deleteEvent: (eventId: string) => Promise<EventSessionSnapshot | null>
       createRace: (input: CreateRaceInput) => Promise<EventSessionSnapshot>
       updateRace: (raceId: string, input: UpdateRaceInput) => Promise<EventSessionSnapshot>
@@ -49,7 +54,7 @@ declare global {
       scratchRacer: (racerId: string) => Promise<EventSessionSnapshot>
       resolveRacerRemoval: (strategy: RemovalResolutionStrategy) => Promise<EventSessionSnapshot>
       addRaceEntry: (raceId: string, input: AddRaceEntryInput) => Promise<EventSessionSnapshot>
-      registerRacerForRace: (raceId: string, input: RegisterRacerInput) => Promise<EventSessionSnapshot>
+      addRaceEntries: (raceId: string, input: AddRaceEntriesInput) => Promise<EventSessionSnapshot>
       updateRaceEntry: (raceId: string, entryId: string, input: UpdateRaceEntryInput) => Promise<EventSessionSnapshot>
       removeRaceEntry: (raceId: string, entryId: string) => Promise<EventSessionSnapshot>
       scratchRaceEntry: (raceId: string, entryId: string) => Promise<EventSessionSnapshot>

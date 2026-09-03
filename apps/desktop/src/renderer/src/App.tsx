@@ -2,16 +2,18 @@ import { CalendarDays, ClipboardList, ExternalLink, Flag, Monitor, Trophy, Users
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import type {
+  AddRaceEntriesInput,
   AddRaceEntryInput,
   AddRacerInput,
+  CreateDivisionInput,
   CreateEventInput,
   CreateRaceInput,
   EventSessionSnapshot,
   RecordHeatResultsInput,
-  RegisterRacerInput,
   RemovalResolutionStrategy,
   UpdateRaceEntryInput,
   UpdateEventInput,
+  UpdateDivisionInput,
   UpdateRaceLaneAvailabilityInput,
   UpdateRaceInput,
   UpdateRacerInput
@@ -193,6 +195,10 @@ export function App() {
       createEvent: (input: CreateEventInput) => runAction(() => getPackRacerApi().createEvent(input)),
       selectEvent: (eventId: string) => runAction(() => getPackRacerApi().selectEvent(eventId)),
       updateEvent: (input: UpdateEventInput) => runAction(() => getPackRacerApi().updateEvent(input)),
+      addDivision: (input: CreateDivisionInput) => runAction(() => getPackRacerApi().addDivision(input)),
+      updateDivision: (divisionId: string, input: UpdateDivisionInput) =>
+        runAction(() => getPackRacerApi().updateDivision(divisionId, input)),
+      deleteDivision: (divisionId: string) => runAction(() => getPackRacerApi().deleteDivision(divisionId)),
       deleteEvent: (eventId: string) => runAction(() => getPackRacerApi().deleteEvent(eventId)),
       createRace: (input: CreateRaceInput) => runAction(() => getPackRacerApi().createRace(input)),
       updateRace: (raceId: string, input: UpdateRaceInput) => runAction(() => getPackRacerApi().updateRace(raceId, input)),
@@ -207,8 +213,8 @@ export function App() {
       resolveRacerRemoval: (strategy: RemovalResolutionStrategy) =>
         runAction(() => getPackRacerApi().resolveRacerRemoval(strategy)),
       addRaceEntry: (raceId: string, input: AddRaceEntryInput) => runAction(() => getPackRacerApi().addRaceEntry(raceId, input)),
-      registerRacerForRace: (raceId: string, input: RegisterRacerInput) =>
-        runAction(() => getPackRacerApi().registerRacerForRace(raceId, input)),
+      addRaceEntries: (raceId: string, input: AddRaceEntriesInput) =>
+        runAction(() => getPackRacerApi().addRaceEntries(raceId, input)),
       updateRaceEntry: (raceId: string, entryId: string, input: UpdateRaceEntryInput) =>
         runAction(() => getPackRacerApi().updateRaceEntry(raceId, entryId, input)),
       removeRaceEntry: (raceId: string, entryId: string) => runAction(() => getPackRacerApi().removeRaceEntry(raceId, entryId)),

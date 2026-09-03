@@ -1,4 +1,4 @@
-export const EVENT_SCHEMA_VERSION = 8
+export const EVENT_SCHEMA_VERSION = 9
 
 export type RaceFormat =
   | 'timed-heats'
@@ -116,6 +116,7 @@ export type RaceEvent = {
   trackName: string
   laneCount: number
   status: EventStatus
+  divisions: Division[]
   racers: Racer[]
   races: Race[]
   currentRaceId?: string
@@ -134,7 +135,7 @@ export type Race = {
   roundsPerRacer: number
   scoringMode: ScoringMode
   advancementRule?: AdvancementRule
-  eligibleRacerIds?: string[]
+  divisionId?: string
   entries: RaceEntry[]
   source?: RaceSource
   schedulingOptions: SchedulingOptions
@@ -159,7 +160,7 @@ export type Racer = {
   id: string
   racerNumber: string
   name: string
-  division: string
+  divisionIds: string[]
   vehicleName: string
   status: RacerStatus
   checkedIn: boolean
@@ -187,6 +188,11 @@ export type Heat = {
   updatedAt: string
 }
 
+export type Division = {
+  id: string
+  name: string
+}
+
 export type LaneAssignment = {
   lane: number
   racerId: string | null
@@ -210,7 +216,6 @@ export type Standing = {
   racerId: string
   racerNumber: string
   racerName: string
-  division: string
   racerStatus: RacerStatus
   completedHeats: number
   score: number | null
@@ -269,13 +274,13 @@ export type CreateRaceInput = {
   roundsPerRacer?: number
   scoringMode?: ScoringMode
   advancementRule?: AdvancementRule
-  eligibleRacerIds?: string[]
+  divisionId?: string
   source?: RaceSource
   schedulingOptions?: Partial<SchedulingOptions>
 }
 
 export type UpdateRaceInput = Partial<
-  Pick<Race, 'name' | 'format' | 'laneCount' | 'roundsPerRacer' | 'scoringMode' | 'advancementRule' | 'eligibleRacerIds' | 'status' | 'source'>
+  Pick<Race, 'name' | 'format' | 'laneCount' | 'roundsPerRacer' | 'scoringMode' | 'advancementRule' | 'divisionId' | 'status' | 'source'>
 > & {
   schedulingOptions?: Partial<SchedulingOptions>
 }
@@ -288,7 +293,7 @@ export type UpdateRaceLaneAvailabilityInput = {
 export type AddRacerInput = {
   racerNumber?: string
   name: string
-  division: string
+  divisionIds: string[]
   vehicleName?: string
   checkedIn?: boolean
   inspectionPassed?: boolean
@@ -300,7 +305,7 @@ export type UpdateRacerInput = Partial<
     Racer,
     | 'racerNumber'
     | 'name'
-    | 'division'
+    | 'divisionIds'
     | 'vehicleName'
     | 'status'
     | 'checkedIn'
@@ -316,9 +321,19 @@ export type AddRaceEntryInput = {
   notes?: string
 }
 
-export type RegisterRacerInput = AddRacerInput & {
+export type AddRaceEntriesInput = {
+  racerIds: string[]
   checkedIn?: boolean
   inspectionPassed?: boolean
+  notes?: string
+}
+
+export type CreateDivisionInput = {
+  name: string
+}
+
+export type UpdateDivisionInput = {
+  name: string
 }
 
 export type UpdateRaceEntryInput = Partial<Pick<RaceEntry, 'status' | 'checkedIn' | 'inspectionPassed' | 'notes'>>

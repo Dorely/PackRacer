@@ -462,6 +462,28 @@ label {
   grid-template-columns: minmax(320px, 0.65fr) minmax(620px, 1.35fr);
 }
 
+.division-management-panel {
+  grid-column: 1 / -1;
+  min-height: auto;
+}
+
+.division-management-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+  gap: 10px;
+}
+
+.division-management-row {
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #d9e2dd;
+  border-radius: 8px;
+  background: #f8fbf9;
+}
+
 .standings-grid {
   grid-template-columns: minmax(0, 2.4fr) minmax(240px, 0.65fr);
 }
@@ -740,6 +762,52 @@ label {
   background: #f8fbf9;
 }
 
+.division-fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid #d9e2dd;
+  border-radius: 8px;
+  background: #f8fbf9;
+}
+
+.division-fieldset legend {
+  padding-inline: 6px;
+  color: #40584f;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.division-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.division-picker .inline-toggle {
+  min-height: 38px;
+  background: #ffffff;
+}
+
+.division-membership-editor summary {
+  min-width: 150px;
+  cursor: pointer;
+  color: #244b40;
+  font-weight: 800;
+}
+
+.division-membership-editor[open] .division-picker {
+  margin-top: 8px;
+}
+
+.context-label {
+  display: inline-block;
+  margin-top: 4px;
+  color: #557168;
+  font-size: 13px;
+  font-weight: 800;
+}
+
 .lane-availability-panel {
   display: grid;
   gap: 10px;
@@ -819,11 +887,11 @@ label {
 }
 
 .registration-table {
-  min-width: 720px;
+  min-width: 940px;
 }
 
-.registration-table th:nth-child(4),
-.registration-table td:nth-child(4) {
+.registration-table th:nth-child(5),
+.registration-table td:nth-child(5) {
   min-width: 190px;
 }
 
@@ -835,6 +903,7 @@ label {
 
 .registration-existing-heading {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
@@ -2741,6 +2810,16 @@ label {
   font-weight: 700;
 }
 
+@media (max-width: 1799px) {
+  .registration-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .registration-grid .form-panel {
+    min-height: auto;
+  }
+}
+
 @media (max-width: 1599px) {
   .app-shell {
     grid-template-columns: 240px minmax(0, 1fr);
@@ -2759,13 +2838,6 @@ label {
     padding: 22px;
   }
 
-  .registration-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .registration-grid .form-panel {
-    min-height: auto;
-  }
 }
 
 @media (max-width: 1399px) {

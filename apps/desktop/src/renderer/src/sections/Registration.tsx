@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { Save, ShieldCheck, UserPlus } from 'lucide-react'
 
-import type { RaceEntry, Racer } from '@packracer/race-engine'
+import type { Division, RaceEntry, Racer } from '@packracer/race-engine'
 
 import { formatStatus } from '../formatters'
 import type { SectionProps } from './types'
@@ -14,18 +14,62 @@ function parseBulkNames(input: string): string[] {
 }
 
 type EntryRowProps = {
+  divisions: Division[]
   entry: RaceEntry
+  raceDivisionId: string
   raceId: string
   racer: Racer
   actions: SectionProps['actions']
   requestConfirmation: SectionProps['requestConfirmation']
 }
 
-function EntryRow({ entry, raceId, racer, actions, requestConfirmation }: EntryRowProps) {
+function DivisionPicker({
+  divisions,
+  selectedDivisionIds,
+  setSelectedDivisionIds,
+  disabledDivisionIds = []
+}: {
+  divisions: Division[]
+  selectedDivisionIds: string[]
+  setSelectedDivisionIds: (divisionIds: string[]) => void
+  disabledDivisionIds?: string[]
+}) {
+  const toggleDivision = (divisionId: string) => {
+    setSelectedDivisionIds(
+      selectedDivisionIds.includes(divisionId)
+        ? selectedDivisionIds.filter((selectedDivisionId) => selectedDivisionId !== divisionId)
+        : [...selectedDivisionIds, divisionId]
+    )
+  }
+
+  return (
+    <div className="division-picker">
+      {divisions.map((division) => (
+        <label className="inline-toggle" key={division.id}>
+          <input
+            checked={selectedDivisionIds.includes(division.id)}
+            disabled={disabledDivisionIds.includes(division.id)}
+            onChange={() => toggleDivision(division.id)}
+            type="checkbox"
+          />
+          <span>{division.name}</span>
+        </label>
+      ))}
+    </div>
+  )
+}
+
+function EntryRow({ divisions, entry, raceDivisionId, raceId, racer, actions, requestConfirmation }: EntryRowProps) {
   const [name, setName] = useState(racer.name)
+  const [divisionIds, setDivisionIds] = useState(racer.divisionIds)
+
+  useEffect(() => {
+    setName(racer.name)
+    setDivisionIds(racer.divisionIds)
+  }, [racer.name, racer.divisionIds])
 
   const saveRacer = () => {
-    void actions.updateRacer(racer.id, { name })
+    void actions.updateRacer(racer.id, { name, divisionIds })
   }
 
   const removeEntry = () => {
@@ -45,6 +89,17 @@ function EntryRow({ entry, raceId, racer, actions, requestConfirmation }: EntryR
       </td>
       <td>
         <input aria-label="Racer name" value={name} onChange={(event) => setName(event.target.value)} />
+      </td>
+      <td>
+        <details className="division-membership-editor">
+          <summary>{divisions.filter((division) => divisionIds.includes(division.id)).map((division) => division.name).join(', ')}</summary>
+          <DivisionPicker
+            disabledDivisionIds={[raceDivisionId]}
+            divisions={divisions}
+            selectedDivisionIds={divisionIds}
+            setSelectedDivisionIds={setDivisionIds}
+          />
+        </details>
       </td>
       <td>{formatStatus(entry.status)}</td>
       <td>
@@ -84,6 +139,7 @@ function EntryRow({ entry, raceId, racer, actions, requestConfirmation }: EntryR
 
 export function Registration({ event, actions, selectedRaceId, setSelectedRaceId, requestConfirmation }: SectionProps) {
   const [name, setName] = useState('')
+  const [selectedDivisionIds, setSelectedDivisionIds] = useState<string[]>([])
   const [bulkAddOpen, setBulkAddOpen] = useState(false)
   const [bulkNames, setBulkNames] = useState('')
   const [selectedExistingRacerIds, setSelectedExistingRacerIds] = useState<string[]>([])
@@ -99,8 +155,14 @@ export function Registration({ event, actions, selectedRaceId, setSelectedRaceId
   const racerById = useMemo(() => new Map(event?.racers.map((racer) => [racer.id, racer]) ?? []), [event])
   const registeredRacerIds = useMemo(() => new Set(registrationRace?.entries?.map((entry) => entry.racerId) ?? []), [registrationRace])
   const availableRacers = useMemo(
-    () => event?.racers.filter((racer) => racer.status === 'active' && !registeredRacerIds.has(racer.id)) ?? [],
-    [event, registeredRacerIds]
+    () =>
+      event?.racers.filter(
+        (racer) =>
+          racer.status === 'active' &&
+          Boolean(registrationRace?.divisionId && racer.divisionIds.includes(registrationRace.divisionId)) &&
+          !registeredRacerIds.has(racer.id)
+      ) ?? [],
+    [event, registeredRacerIds, registrationRace?.divisionId]
   )
   const availableRacerIds = useMemo(() => new Set(availableRacers.map((racer) => racer.id)), [availableRacers])
   const parsedBulkNames = useMemo(() => parseBulkNames(bulkNames), [bulkNames])
@@ -114,7 +176,8 @@ export function Registration({ event, actions, selectedRaceId, setSelectedRaceId
   useEffect(() => {
     setBulkNames('')
     setSelectedExistingRacerIds([])
-  }, [registrationRace?.id])
+    setSelectedDivisionIds(registrationRace?.divisionId ? [registrationRace.divisionId] : [])
+  }, [registrationRace?.id, registrationRace?.divisionId])
 
   useEffect(() => {
     setSelectedExistingRacerIds((previousIds) => previousIds.filter((racerId) => availableRacerIds.has(racerId)))
@@ -123,25 +186,25 @@ export function Registration({ event, actions, selectedRaceId, setSelectedRaceId
   const submitRacer = (formEvent: FormEvent) => {
     formEvent.preventDefault()
 
-    if (!registrationRace || registrationLocked) {
+    if (!registrationRace || selectedDivisionIds.length === 0) {
       return
     }
 
-    void actions.registerRacerForRace(registrationRace.id, { name, division: 'Open', vehicleName: '', checkedIn: true, inspectionPassed: true })
+    void actions.addRacer({ name, divisionIds: selectedDivisionIds, vehicleName: '', checkedIn: true, inspectionPassed: true })
     setName('')
   }
 
   const submitBulkRacers = async (formEvent: FormEvent) => {
     formEvent.preventDefault()
 
-    if (!registrationRace || registrationLocked || parsedBulkNames.length === 0) {
+    if (!registrationRace || parsedBulkNames.length === 0 || selectedDivisionIds.length === 0) {
       return
     }
 
     for (const bulkName of parsedBulkNames) {
-      await actions.registerRacerForRace(registrationRace.id, {
+      await actions.addRacer({
         name: bulkName,
-        division: 'Open',
+        divisionIds: selectedDivisionIds,
         vehicleName: '',
         checkedIn: true,
         inspectionPassed: true
@@ -166,11 +229,25 @@ export function Registration({ event, actions, selectedRaceId, setSelectedRaceId
       return
     }
 
-    for (const racerId of selectedExistingRacerIds) {
-      await actions.addRaceEntry(registrationRace.id, { racerId, checkedIn: true, inspectionPassed: true })
-    }
+    await actions.addRaceEntries(registrationRace.id, {
+      racerIds: selectedExistingRacerIds,
+      checkedIn: true,
+      inspectionPassed: true
+    })
 
     setSelectedExistingRacerIds([])
+  }
+
+  const addAllEligible = () => {
+    if (!registrationRace || availableRacers.length === 0 || registrationLocked) {
+      return
+    }
+
+    void actions.addRaceEntries(registrationRace.id, {
+      racerIds: availableRacers.map((racer) => racer.id),
+      checkedIn: true,
+      inspectionPassed: true
+    })
   }
 
   if (!event) {
@@ -204,23 +281,32 @@ export function Registration({ event, actions, selectedRaceId, setSelectedRaceId
         </label>
 
         {registrationLocked ? (
-          <p className="empty-state">This race format cannot accept new racers after heats are generated.</p>
+          <p className="empty-state">This race format cannot accept more race entries after heats are generated. You can still create racers.</p>
         ) : null}
+
+        <fieldset className="division-fieldset">
+          <legend>Racer divisions</legend>
+          <DivisionPicker
+            divisions={event.divisions}
+            selectedDivisionIds={selectedDivisionIds}
+            setSelectedDivisionIds={setSelectedDivisionIds}
+          />
+        </fieldset>
 
         <form className="form-grid" onSubmit={submitRacer}>
           <label>
             <span>Name</span>
-            <input value={name} onChange={(event) => setName(event.target.value)} disabled={registrationLocked} required />
+            <input value={name} onChange={(event) => setName(event.target.value)} required />
           </label>
 
-          <button className="primary-action" disabled={registrationLocked} type="submit">
+          <button className="primary-action" disabled={selectedDivisionIds.length === 0} type="submit">
             <UserPlus aria-hidden="true" size={18} />
-            <span>Create And Register</span>
+            <span>Create Racer</span>
           </button>
         </form>
 
         <div className="registration-bulk-panel">
-          <button className="secondary-action" disabled={registrationLocked} onClick={() => setBulkAddOpen((isOpen) => !isOpen)} type="button">
+          <button className="secondary-action" onClick={() => setBulkAddOpen((isOpen) => !isOpen)} type="button">
             {bulkAddOpen ? 'Hide Bulk Add' : 'Bulk Add'}
           </button>
 
@@ -229,7 +315,6 @@ export function Registration({ event, actions, selectedRaceId, setSelectedRaceId
               <label>
                 <span>Names</span>
                 <textarea
-                  disabled={registrationLocked}
                   onChange={(event) => setBulkNames(event.target.value)}
                   placeholder="Alex Rivera, Jordan Lee"
                   rows={7}
@@ -237,7 +322,7 @@ export function Registration({ event, actions, selectedRaceId, setSelectedRaceId
                 />
               </label>
 
-              <button className="primary-action" disabled={registrationLocked || parsedBulkNames.length === 0} type="submit">
+              <button className="primary-action" disabled={parsedBulkNames.length === 0 || selectedDivisionIds.length === 0} type="submit">
                 <UserPlus aria-hidden="true" size={18} />
                 <span>
                   {parsedBulkNames.length === 1
@@ -253,8 +338,16 @@ export function Registration({ event, actions, selectedRaceId, setSelectedRaceId
 
         <form className="form-grid" onSubmit={(formEvent) => void submitExisting(formEvent)}>
           <div className="registration-existing-heading">
-            <span>Existing racers</span>
+            <span>Eligible racers not yet added</span>
             <div className="button-row">
+              <button
+                className="mini-action"
+                disabled={registrationLocked || availableRacers.length === 0}
+                onClick={addAllEligible}
+                type="button"
+              >
+                Add All Eligible ({availableRacers.length})
+              </button>
               <button
                 className="mini-action"
                 disabled={registrationLocked || availableRacers.length === 0}
@@ -288,11 +381,11 @@ export function Registration({ event, actions, selectedRaceId, setSelectedRaceId
                 </span>
               </label>
             ))}
-            {availableRacers.length === 0 ? <p className="empty-state">No available existing racers.</p> : null}
+            {availableRacers.length === 0 ? <p className="empty-state">Every eligible racer is already assigned to this race.</p> : null}
           </div>
 
           <button className="secondary-action" disabled={selectedExistingRacerIds.length === 0 || registrationLocked} type="submit">
-            Add Selected
+            Add Selected ({selectedExistingRacerIds.length})
           </button>
         </form>
       </div>
@@ -329,6 +422,7 @@ export function Registration({ event, actions, selectedRaceId, setSelectedRaceId
               <tr>
                 <th>#</th>
                 <th>Racer</th>
+                <th>Divisions</th>
                 <th>Status</th>
                 <th>Ready</th>
                 <th>Actions</th>
@@ -341,8 +435,10 @@ export function Registration({ event, actions, selectedRaceId, setSelectedRaceId
                 return racer ? (
                   <EntryRow
                     actions={actions}
+                    divisions={event.divisions}
                     entry={entry}
                     key={entry.id}
+                    raceDivisionId={registrationRace.divisionId as string}
                     raceId={registrationRace.id}
                     racer={racer}
                     requestConfirmation={requestConfirmation}

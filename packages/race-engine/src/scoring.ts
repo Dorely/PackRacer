@@ -39,18 +39,13 @@ function scorePoints(result: LaneResult, laneCount: number, scoringMode: Scoring
 }
 
 function createDrafts(event: RaceEvent, race: Race): Map<string, StandingDraft> {
-  const eligibleIds = race.eligibleRacerIds ? new Set(race.eligibleRacerIds) : null
   const entries = race.entries ?? []
   const entryByRacerId = new Map(entries.map((entry) => [entry.racerId, entry]))
-  const registeredRacerIds = entries.length > 0 || race.source ? new Set(entries.map((entry) => entry.racerId)) : null
+  const registeredRacerIds = new Set(entries.map((entry) => entry.racerId))
   const drafts = new Map<string, StandingDraft>()
 
   for (const [seedIndex, racer] of sortRacers(event.racers).entries()) {
-    if (registeredRacerIds && !registeredRacerIds.has(racer.id)) {
-      continue
-    }
-
-    if (eligibleIds && !eligibleIds.has(racer.id)) {
+    if (!registeredRacerIds.has(racer.id)) {
       continue
     }
 
@@ -61,7 +56,6 @@ function createDrafts(event: RaceEvent, race: Race): Map<string, StandingDraft> 
       racerId: racer.id,
       racerNumber: racer.racerNumber,
       racerName: racer.name,
-      division: racer.division,
       racerStatus: entry?.status ?? racer.status,
       completedHeats: 0,
       score: null,
@@ -132,7 +126,6 @@ function rankDrafts(drafts: StandingDraft[], scoringMode: ScoringMode): Standing
       racerId: draft.racerId,
       racerNumber: draft.racerNumber,
       racerName: draft.racerName,
-      division: draft.division,
       racerStatus: draft.racerStatus,
       completedHeats: draft.completedHeats,
       score: draft.score,

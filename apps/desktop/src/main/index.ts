@@ -2,29 +2,34 @@ import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { join } from 'node:path'
 
 import {
+  addDivision,
+  addRaceEntries,
   addRaceEntry,
   addRacer,
   addRace,
+  deleteDivision,
   deleteRace,
   deleteRacer,
-  registerRacerForRace,
   removeRaceEntry,
   scratchRaceEntry,
   scratchRacer,
   updateEventSettings,
+  updateDivision,
   updateRace,
   updateRaceLaneAvailability,
   updateRaceEntry,
   updateRacer,
+  type AddRaceEntriesInput,
   type AddRaceEntryInput,
   type AddRacerInput,
+  type CreateDivisionInput,
   type CreateEventInput,
   type CreateRaceInput,
   type EventSessionSnapshot,
   type RecordHeatResultsInput,
-  type RegisterRacerInput,
   type RemovalResolutionStrategy,
   type UpdateEventInput,
+  type UpdateDivisionInput,
   type UpdateRaceLaneAvailabilityInput,
   type UpdateRaceEntryInput,
   type UpdateRaceInput,
@@ -248,6 +253,22 @@ ipcMain.handle('event:update', (_event, input: UpdateEventInput) =>
   withSessionBroadcast(mutateEvent('event:update', (raceEvent) => updateEventSettings(raceEvent, input), input))
 )
 
+ipcMain.handle('division:add', (_event, input: CreateDivisionInput) =>
+  withSessionBroadcast(mutateEvent('division:add', (raceEvent) => addDivision(raceEvent, input), input))
+)
+
+ipcMain.handle('division:update', (_event, divisionId: string, input: UpdateDivisionInput) =>
+  withSessionBroadcast(
+    mutateEvent('division:update', (raceEvent) => updateDivision(raceEvent, divisionId, input), { divisionId, input })
+  )
+)
+
+ipcMain.handle('division:delete', (_event, divisionId: string) =>
+  withSessionBroadcast(
+    mutateEvent('division:delete', (raceEvent) => deleteDivision(raceEvent, divisionId), { divisionId })
+  )
+)
+
 ipcMain.handle('event:delete', (_event, eventId: string) => withSessionBroadcast(deleteEventSession(eventId)))
 
 ipcMain.handle('race:create', (_event, input: CreateRaceInput) =>
@@ -330,9 +351,9 @@ ipcMain.handle('race-entry:add', (_event, raceId: string, input: AddRaceEntryInp
   )
 )
 
-ipcMain.handle('race-entry:register-racer', (_event, raceId: string, input: RegisterRacerInput) =>
+ipcMain.handle('race-entry:add-many', (_event, raceId: string, input: AddRaceEntriesInput) =>
   withSessionBroadcast(
-    mutateEvent('race-entry:register-racer', (raceEvent) => registerRacerForRace(raceEvent, raceId, input), { raceId, input }, raceId)
+    mutateEvent('race-entry:add-many', (raceEvent) => addRaceEntries(raceEvent, raceId, input), { raceId, input }, raceId)
   )
 )
 

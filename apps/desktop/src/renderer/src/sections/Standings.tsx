@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { Award, Trophy } from 'lucide-react'
 
-import { calculateStandings, getAdvancementTieBreakerStatuses, type Standing } from '@packracer/race-engine'
+import { calculateStandings, getAdvancementTieBreakerStatuses, getRaceDivision, type Standing } from '@packracer/race-engine'
 
 import { formatStatus, formatTime } from '../formatters'
 import type { SectionProps } from './types'
@@ -23,6 +23,7 @@ export function Standings({ event, currentRace, selectedRaceId, setSelectedRaceI
     () => standings.filter((standing) => standing.score !== null && standing.racerStatus === 'active'),
     [standings]
   )
+  const raceDivision = useMemo(() => (event && currentRace ? getRaceDivision(event, currentRace) : undefined), [event, currentRace])
   const standingsByRacerId = useMemo(
     () => new Map(standings.map((standing) => [standing.racerId, standing])),
     [standings]
@@ -51,6 +52,7 @@ export function Standings({ event, currentRace, selectedRaceId, setSelectedRaceI
           <div>
             <p className="eyebrow">Standings</p>
             <h3>{currentRace.name}</h3>
+            <span className="context-label">{raceDivision?.name ?? 'Division unavailable'}</span>
           </div>
           <Trophy aria-hidden="true" size={24} />
         </div>
@@ -74,7 +76,6 @@ export function Standings({ event, currentRace, selectedRaceId, setSelectedRaceI
               <tr>
                 <th>Rank</th>
                 <th>Racer</th>
-                <th>Division</th>
                 <th>Score</th>
                 <th>Best</th>
                 <th>Average</th>
@@ -89,7 +90,6 @@ export function Standings({ event, currentRace, selectedRaceId, setSelectedRaceI
                     <strong>#{standing.racerNumber} {standing.racerName}</strong>
                     <small>{formatStatus(standing.racerStatus)}</small>
                   </td>
-                  <td>{standing.division}</td>
                   <td>{standing.scoreLabel}</td>
                   <td>{formatTime(standing.bestTimeMs)}</td>
                   <td>{formatTime(standing.averageTimeMs)}</td>
