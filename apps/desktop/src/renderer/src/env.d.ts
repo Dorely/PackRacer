@@ -7,9 +7,11 @@ import type {
   CreateDivisionInput,
   CreateEventInput,
   CreateRaceInput,
+  DeferHeatRacersInput,
   EventSessionSnapshot,
   EventSummary,
   RecordHeatResultsInput,
+  PostponeHeatInput,
   RemovalResolutionStrategy,
   UpdateRaceEntryInput,
   UpdateDivisionInput,
@@ -66,6 +68,8 @@ declare global {
       clearHeatResults: (raceId: string, heatId: string) => Promise<EventSessionSnapshot>
       setCurrentHeat: (raceId: string, heatId: string) => Promise<EventSessionSnapshot>
       advanceHeat: (raceId: string) => Promise<EventSessionSnapshot>
+      deferHeatRacers: (raceId: string, input: DeferHeatRacersInput) => Promise<EventSessionSnapshot>
+      postponeHeat: (raceId: string, input: PostponeHeatInput) => Promise<EventSessionSnapshot>
       getTimerState: () => Promise<TimerState>
       getTimerProfiles: () => Promise<TimerProfile[]>
       listTimerPorts: () => Promise<TimerPortInfo[]>

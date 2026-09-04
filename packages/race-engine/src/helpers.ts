@@ -40,8 +40,19 @@ export function getRaceRacers(event: RaceEvent, race: Race | undefined): Racer[]
     return []
   }
 
-  const entryRacerIds = new Set(entries.map((entry) => entry.racerId))
-  return sortRacers(event.racers.filter((racer) => racer.status === 'active' && entryRacerIds.has(racer.id)))
+  const entryByRacerId = new Map(entries.map((entry) => [entry.racerId, entry]))
+  return sortRacers(event.racers.filter((racer) => racer.status === 'active' && entryByRacerId.has(racer.id))).sort(
+    (first, second) => {
+      const firstSeed = entryByRacerId.get(first.id)?.seed
+      const secondSeed = entryByRacerId.get(second.id)?.seed
+
+      if (typeof firstSeed === 'number' || typeof secondSeed === 'number') {
+        return (firstSeed ?? Number.POSITIVE_INFINITY) - (secondSeed ?? Number.POSITIVE_INFINITY)
+      }
+
+      return 0
+    }
+  )
 }
 
 export function getEligibleRacers(event: RaceEvent, race?: Race): Racer[] {
@@ -149,4 +160,23 @@ export function eliminationLossLimit(format: RaceFormat): number {
     default:
       return 0
   }
+}
+
+export function recalculateEventStatus(event: RaceEvent): RaceEvent {
+  if (event.races.length === 0) {
+    event.status = 'draft'
+    return event
+  }
+
+  if (event.races.every((race) => race.status === 'complete')) {
+    event.status = 'complete'
+  } else if (event.races.some((race) => race.status === 'running' || race.heats.some((heat) => heat.status === 'complete'))) {
+    event.status = 'running'
+  } else if (event.races.some((race) => race.status === 'ready' || race.heats.length > 0)) {
+    event.status = 'ready'
+  } else {
+    event.status = 'draft'
+  }
+
+  return event
 }

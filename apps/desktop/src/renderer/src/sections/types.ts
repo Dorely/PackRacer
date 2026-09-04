@@ -5,10 +5,12 @@ import type {
   CreateDivisionInput,
   CreateEventInput,
   CreateRaceInput,
+  DeferHeatRacersInput,
   EventSessionSnapshot,
   Race,
   RaceEvent,
   RecordHeatResultsInput,
+  PostponeHeatInput,
   RemovalResolutionStrategy,
   UpdateEventInput,
   UpdateDivisionInput,
@@ -64,6 +66,8 @@ export type AppActions = {
   clearHeatResults: (raceId: string, heatId: string) => Promise<void>
   setCurrentHeat: (raceId: string, heatId: string) => Promise<void>
   advanceHeat: (raceId: string) => Promise<void>
+  deferHeatRacers: (raceId: string, input: DeferHeatRacersInput) => Promise<void>
+  postponeHeat: (raceId: string, input: PostponeHeatInput) => Promise<void>
   saveTimerPreferences: (input: TimerPreferences) => Promise<void>
   connectTimer: (input: ConnectTimerInput) => Promise<void>
   disconnectTimer: () => Promise<void>

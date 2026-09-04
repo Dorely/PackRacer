@@ -5,199 +5,26 @@ import {
   areRaceResultsLockedByStartedDependents,
   calculateStandings,
   getAdvancementTieBreakerStatuses,
-  type Heat,
-  type HeatStatus,
-  type LaneResultStatus,
-  type ScoringMode
+  getHeatDeferralPlan,
+  type LaneResultStatus
 } from '@packracer/race-engine'
 
 import { formatStatus, formatTime, heatLabel, isMakeupHeat, racerLabel } from '../formatters'
+import {
+  canMakeupStatus,
+  compactPlacementDrafts,
+  initialDraft,
+  isUnfinishedHeatStatus,
+  parseFinishPosition,
+  placementOptions,
+  scenarioLabel,
+  supportsMakeupResults,
+  swapPlacementDrafts,
+  usesTimeResults,
+  type ResultDraft
+} from './race-control-results'
 import { TimerPanel } from './TimerPanel'
 import type { SectionProps } from './types'
-
-type ResultDraft = {
-  status: LaneResultStatus
-  timeSeconds: string
-  finishPosition: string
-  rescheduleMakeup: boolean
-}
-
-function usesTimeResults(scoringMode: ScoringMode): boolean {
-  return scoringMode === 'average-time' || scoringMode === 'best-time' || scoringMode === 'total-time'
-}
-
-function scenarioLabel(scenario: string | undefined): string {
-  return (scenario ?? 'timer').split('-').join(' ')
-}
-
-function supportsMakeupResults(format: string | undefined): boolean {
-  return format === 'timed-heats' || format === 'points-heats'
-}
-
-function canMakeupStatus(status: LaneResultStatus): boolean {
-  return status === 'dns' || status === 'dnf'
-}
-
-function isUnfinishedHeatStatus(status: HeatStatus | undefined): boolean {
-  return status === 'pending' || status === 'running' || status === 'invalidated'
-}
-
-function parseFinishPosition(value: string): number | null {
-  const position = Number(value)
-  return Number.isInteger(position) && position > 0 ? position : null
-}
-
-function cloneDrafts(drafts: Record<number, ResultDraft>): Record<number, ResultDraft> {
-  return Object.fromEntries(Object.entries(drafts).map(([lane, draft]) => [Number(lane), { ...draft }]))
-}
-
-function okResultLanes(heat: Heat, drafts: Record<number, ResultDraft>): number[] {
-  return heat.laneAssignments
-    .filter((assignment) => assignment.racerId && drafts[assignment.lane]?.status === 'ok')
-    .map((assignment) => assignment.lane)
-}
-
-function clearUnplacedLanes(heat: Heat, drafts: Record<number, ResultDraft>): void {
-  for (const assignment of heat.laneAssignments) {
-    if (!assignment.racerId || drafts[assignment.lane]?.status !== 'ok') {
-      if (drafts[assignment.lane]) {
-        drafts[assignment.lane].finishPosition = ''
-      }
-    }
-  }
-}
-
-function compactPlacementDrafts(heat: Heat | undefined, drafts: Record<number, ResultDraft>): Record<number, ResultDraft> {
-  if (!heat) {
-    return drafts
-  }
-
-  const next = cloneDrafts(drafts)
-  const lanes = okResultLanes(heat, next)
-  const maxPosition = lanes.length
-  const orderedLanes = lanes
-    .map((lane, index) => {
-      const position = parseFinishPosition(next[lane].finishPosition)
-      return {
-        lane,
-        index,
-        position,
-        valid: position !== null && position <= maxPosition
-      }
-    })
-    .sort((first, second) => {
-      if (first.valid && second.valid && first.position !== second.position) {
-        return (first.position ?? 0) - (second.position ?? 0)
-      }
-
-      if (first.valid && !second.valid) {
-        return -1
-      }
-
-      if (!first.valid && second.valid) {
-        return 1
-      }
-
-      return first.index - second.index
-    })
-
-  orderedLanes.forEach((entry, index) => {
-    next[entry.lane].finishPosition = `${index + 1}`
-  })
-  clearUnplacedLanes(heat, next)
-  return next
-}
-
-function normalizeUniquePlacementDrafts(heat: Heat, drafts: Record<number, ResultDraft>): Record<number, ResultDraft> {
-  const next = cloneDrafts(drafts)
-  const lanes = okResultLanes(heat, next)
-  const maxPosition = lanes.length
-  const usedPositions = new Set<number>()
-  const missingLanes: number[] = []
-
-  for (const lane of lanes) {
-    const position = parseFinishPosition(next[lane].finishPosition)
-
-    if (position && position <= maxPosition && !usedPositions.has(position)) {
-      usedPositions.add(position)
-      continue
-    }
-
-    next[lane].finishPosition = ''
-    missingLanes.push(lane)
-  }
-
-  const availablePositions = Array.from({ length: maxPosition }, (_, index) => index + 1).filter(
-    (position) => !usedPositions.has(position)
-  )
-
-  for (const lane of missingLanes) {
-    next[lane].finishPosition = `${availablePositions.shift() ?? ''}`
-  }
-
-  clearUnplacedLanes(heat, next)
-  return next
-}
-
-function swapPlacementDrafts(
-  heat: Heat,
-  drafts: Record<number, ResultDraft>,
-  lane: number,
-  finishPosition: number
-): Record<number, ResultDraft> {
-  const next = cloneDrafts(drafts)
-  const lanes = okResultLanes(heat, next)
-  const maxPosition = lanes.length
-  const selectedPosition = Math.min(Math.max(1, Math.trunc(finishPosition)), maxPosition)
-  const previousPosition = parseFinishPosition(next[lane]?.finishPosition ?? '')
-  const occupiedLane = lanes.find(
-    (candidateLane) => candidateLane !== lane && parseFinishPosition(next[candidateLane].finishPosition) === selectedPosition
-  )
-
-  if (!next[lane] || next[lane].status !== 'ok') {
-    return normalizeUniquePlacementDrafts(heat, next)
-  }
-
-  next[lane].finishPosition = `${selectedPosition}`
-
-  if (occupiedLane) {
-    const fallbackPosition =
-      previousPosition && previousPosition <= maxPosition && previousPosition !== selectedPosition
-        ? previousPosition
-        : Array.from({ length: maxPosition }, (_, index) => index + 1).find(
-            (position) =>
-              position !== selectedPosition &&
-              lanes.every(
-                (candidateLane) =>
-                  candidateLane === occupiedLane || parseFinishPosition(next[candidateLane].finishPosition) !== position
-              )
-          )
-
-    next[occupiedLane].finishPosition = fallbackPosition ? `${fallbackPosition}` : ''
-  }
-
-  return normalizeUniquePlacementDrafts(heat, next)
-}
-
-function placementOptions(heat: Heat | undefined, drafts: Record<number, ResultDraft>): number[] {
-  return heat ? Array.from({ length: okResultLanes(heat, drafts).length }, (_, index) => index + 1) : []
-}
-
-function initialDraft(heat: Heat | undefined): Record<number, ResultDraft> {
-  const draft: Record<number, ResultDraft> = {}
-
-  for (const assignment of heat?.laneAssignments ?? []) {
-    const result = heat?.results.find((candidate) => candidate.lane === assignment.lane)
-    draft[assignment.lane] = {
-      status: result?.status ?? 'ok',
-      timeSeconds: typeof result?.timeMs === 'number' ? `${result.timeMs / 1000}` : '',
-      finishPosition: typeof result?.finishPosition === 'number' ? `${result.finishPosition}` : assignment.racerId ? `${assignment.lane}` : '',
-      rescheduleMakeup: Boolean(result?.excludedFromScoring)
-    }
-  }
-
-  return compactPlacementDrafts(heat, draft)
-}
 
 export function RaceControl({
   event,
@@ -217,6 +44,7 @@ export function RaceControl({
   const currentHeat = allHeats.find((heat) => heat.id === currentRace?.currentHeatId) ?? pendingHeat
   const [resultDrafts, setResultDrafts] = useState<Record<number, ResultDraft>>(() => initialDraft(currentHeat))
   const [laneAvailabilityOpen, setLaneAvailabilityOpen] = useState(false)
+  const [deferredRacerIds, setDeferredRacerIds] = useState<string[]>([])
   const laneNumbers = useMemo(
     () => Array.from({ length: currentRace?.laneCount ?? 0 }, (_value, index) => index + 1),
     [currentRace?.laneCount]
@@ -228,6 +56,7 @@ export function RaceControl({
 
   useEffect(() => {
     setResultDrafts(initialDraft(currentHeat))
+    setDeferredRacerIds([])
   }, [currentHeat?.id, currentHeat?.updatedAt])
 
   useEffect(() => {
@@ -302,6 +131,31 @@ export function RaceControl({
   )
   const dependentRaceNames = startedDependentRaces.map((race) => race.name).join(', ')
   const dependentRaceVerb = startedDependentRaces.length === 1 ? 'has' : 'have'
+  const canDeferCurrent = Boolean(
+    currentHeat?.status === 'pending' && supportsMakeupResults(currentRace?.format) &&
+    !currentHeat.makeupSource && !currentHeat.tieBreakerSource && !currentHeat.laneAssignments.some((assignment) => assignment.makeupSource)
+  )
+  const resultValidation = useMemo(() => {
+    if (!currentHeat) return ''
+    const occupied = currentHeat.laneAssignments.filter((assignment) => assignment.racerId)
+    const okResultCount = occupied.filter((assignment) => resultDrafts[assignment.lane]?.status === 'ok').length
+    const positions = new Set<number>()
+    for (const assignment of occupied) {
+      const draft = resultDrafts[assignment.lane]
+      if (!draft) return `Lane ${assignment.lane} needs a result.`
+      if (draft.status === 'ok' && showTimeResults) {
+        const seconds = Number(draft.timeSeconds)
+        if (!draft.timeSeconds.trim() || !Number.isFinite(seconds) || seconds < 0) return `Enter a valid time for lane ${assignment.lane}.`
+      }
+      if (draft.status === 'ok' && !showTimeResults) {
+        const position = parseFinishPosition(draft.finishPosition)
+        if (position === null || position > okResultCount) return `Enter a valid place for lane ${assignment.lane}.`
+        if (positions.has(position)) return 'Each OK racer needs a unique place.'
+        positions.add(position)
+      }
+    }
+    return ''
+  }, [currentHeat, resultDrafts, showTimeResults])
 
   const updateDraft = (lane: number, patch: Partial<ResultDraft>) => {
     setResultDrafts((previous) => ({
@@ -449,6 +303,39 @@ export function RaceControl({
     void applyChange()
   }
 
+  const deferSelectedRacers = () => {
+    if (!currentRace || !currentHeat || !event || deferredRacerIds.length === 0) return
+    try {
+      const plan = getHeatDeferralPlan(event, currentRace.id, { heatId: currentHeat.id, racerIds: deferredRacerIds })
+      const summary = plan.moves.map((move) =>
+        `${racerLabel(event.racers, move.racerId)} swaps with ${racerLabel(event.racers, move.replacementRacerId)} from heat ${move.targetHeatNumber}`
+      ).join('; ')
+      requestConfirmation({
+        title: 'Defer selected racers',
+        message: `${summary}. Apply these schedule swaps?`,
+        confirmLabel: 'Defer Racers',
+        onConfirm: () => actions.deferHeatRacers(currentRace.id, { heatId: currentHeat.id, racerIds: deferredRacerIds })
+      })
+    } catch {
+      requestConfirmation({
+        title: 'Racers cannot be deferred',
+        message: 'No compatible future assignments can fill every selected lane. Postpone the whole heat instead?',
+        confirmLabel: 'Postpone Heat',
+        onConfirm: () => actions.postponeHeat(currentRace.id, { heatId: currentHeat.id })
+      })
+    }
+  }
+
+  const postponeCurrentHeat = () => {
+    if (!currentRace || !currentHeat) return
+    requestConfirmation({
+      title: 'Postpone heat',
+      message: `Move heat ${currentHeat.heatNumber} behind the currently scheduled pending heats without changing its matchup?`,
+      confirmLabel: 'Postpone Heat',
+      onConfirm: () => actions.postponeHeat(currentRace.id, { heatId: currentHeat.id })
+    })
+  }
+
   if (!event) {
     return <p className="empty-state full-width-message">Create an event before race control.</p>
   }
@@ -532,7 +419,21 @@ export function RaceControl({
                             ? `Lane ${assignment.lane} makeup`
                             : `Lane ${assignment.lane}`}
                     </span>
-                    <strong>{isDisabledLane ? 'Disabled' : racerLabel(event.racers, assignment.racerId)}</strong>
+                    <div className="result-racer">
+                      <strong>{isDisabledLane ? 'Disabled' : racerLabel(event.racers, assignment.racerId)}</strong>
+                      {assignment.racerId && canDeferCurrent ? (
+                        <label className="defer-racer-toggle">
+                          <input
+                            checked={deferredRacerIds.includes(assignment.racerId)}
+                            onChange={(inputEvent) => setDeferredRacerIds((previous) => inputEvent.target.checked
+                              ? [...previous, assignment.racerId as string]
+                              : previous.filter((racerId) => racerId !== assignment.racerId))}
+                            type="checkbox"
+                          />
+                          <span>Defer</span>
+                        </label>
+                      ) : null}
+                    </div>
                     {assignment.racerId ? (
                       <>
                         {showTimeResults ? (
@@ -608,15 +509,24 @@ export function RaceControl({
             {resultsLockedByDependents ? (
               <p className="empty-state">Locked because {dependentRaceNames} {dependentRaceVerb} generated heats.</p>
             ) : null}
+            {resultValidation ? <p className="inline-error" role="alert">{resultValidation}</p> : null}
 
             <div className="button-row">
+              {canDeferCurrent ? (
+                <button className="secondary-action" disabled={deferredRacerIds.length === 0} onClick={deferSelectedRacers} type="button">
+                  Defer Selected
+                </button>
+              ) : null}
+              {currentHeat.status === 'pending' ? (
+                <button className="secondary-action" onClick={postponeCurrentHeat} type="button">Postpone Heat</button>
+              ) : null}
               {currentHeat.status === 'complete' && !resultsLockedByDependents ? (
                 <button className="secondary-action" onClick={() => runHeatAgain(currentHeat.id)} type="button">
                   <RotateCcw aria-hidden="true" size={18} />
                   <span>Run Again</span>
                 </button>
               ) : null}
-              <button className="primary-action" disabled={currentHeat.status === 'invalidated' || resultsLockedByDependents} type="submit">
+              <button className="primary-action" disabled={Boolean(resultValidation) || currentHeat.status === 'invalidated' || resultsLockedByDependents} type="submit">
                 {currentHeat.status === 'complete' ? (
                   <Save aria-hidden="true" size={18} />
                 ) : (
@@ -667,7 +577,7 @@ export function RaceControl({
               {liveStandings.map((standing) => (
                 <li key={standing.racerId}>
                   <span>
-                    {standing.rank}. #{standing.racerNumber} {standing.racerName}
+                    {standing.rank ?? '—'}. #{standing.racerNumber} {standing.racerName}
                   </span>
                   <strong>{standing.bestTimeMs ? formatTime(standing.bestTimeMs) : standing.scoreLabel}</strong>
                 </li>
@@ -688,7 +598,7 @@ export function RaceControl({
             {liveStandings.map((standing) => (
               <li key={standing.racerId}>
                 <span>
-                  {standing.rank}. #{standing.racerNumber} {standing.racerName}
+                  {standing.rank ?? '—'}. #{standing.racerNumber} {standing.racerName}
                 </span>
                 <strong>{standing.bestTimeMs ? formatTime(standing.bestTimeMs) : standing.scoreLabel}</strong>
               </li>

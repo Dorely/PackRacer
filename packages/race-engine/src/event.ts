@@ -97,6 +97,7 @@ function ensureRaceDefaults(race: Race): void {
   race.disabledLaneNumbers = normalizeLaneNumbers(race.disabledLaneNumbers, race.laneCount)
   race.roundsPerRacer = normalizeRoundsForFormat(race.format, race.laneCount, race.roundsPerRacer)
   race.scoringMode = normalizeScoringMode(race.format, race.scoringMode)
+  race.dropWorstTime = Boolean(race.dropWorstTime) && race.format === 'timed-heats' && race.scoringMode === 'average-time'
 }
 
 function normalizeDivisionName(name: string): string {
@@ -258,6 +259,12 @@ function invalidateRacerHeats(event: RaceEvent, racer: Racer, raceId: string | u
     completedHeatIds,
     invalidatedHeatIds,
     createdAt: nowIso()
+  }
+}
+
+function ensureNoPendingRemoval(event: RaceEvent): void {
+  if (event.activeRemovalImpact) {
+    throw new Error(`Resolve the schedule impact for ${event.activeRemovalImpact.racerName} before removing another racer.`)
   }
 }
 
@@ -507,6 +514,8 @@ export function addRace(event: RaceEvent, input: CreateRaceInput): RaceEvent {
     disabledLaneNumbers: [],
     roundsPerRacer: normalizeRoundsForFormat(input.format, laneCount, input.roundsPerRacer),
     scoringMode: normalizeScoringMode(input.format, input.scoringMode),
+    dropWorstTime:
+      Boolean(input.dropWorstTime) && input.format === 'timed-heats' && normalizeScoringMode(input.format, input.scoringMode) === 'average-time',
     advancementRule: input.advancementRule,
     divisionId: input.source ? undefined : validateDirectRaceDivision(nextEvent, input.divisionId),
     entries: [],
@@ -528,6 +537,21 @@ export function updateRace(event: RaceEvent, raceId: string, input: UpdateRaceIn
   nextEvent.schemaVersion = EVENT_SCHEMA_VERSION
   const race = findRace(nextEvent, raceId)
   const previousSourceRaceId = race.source?.sourceRaceId
+  const structuralBefore = JSON.stringify({
+    format: race.format,
+    laneCount: race.laneCount,
+    roundsPerRacer: race.roundsPerRacer,
+    scoringMode: race.scoringMode,
+    dropWorstTime: race.dropWorstTime,
+    advancementRule: race.advancementRule,
+    divisionId: race.divisionId,
+    source: race.source,
+    schedulingOptions: race.schedulingOptions
+  })
+  const hasGeneratedHeats = race.heats.length > 0
+  const hasOperatorResults = race.heats.some(
+    (heat) => heat.status === 'complete' && !heat.automaticAdvance
+  )
 
   if (typeof input.name === 'string') {
     race.name = input.name.trim() || race.name
@@ -553,6 +577,10 @@ export function updateRace(event: RaceEvent, raceId: string, input: UpdateRaceIn
     race.scoringMode = normalizeScoringMode(race.format, input.scoringMode)
   }
 
+  if (typeof input.dropWorstTime === 'boolean') {
+    race.dropWorstTime = input.dropWorstTime
+  }
+
   if ('advancementRule' in input) {
     race.advancementRule = input.advancementRule
   }
@@ -561,16 +589,18 @@ export function updateRace(event: RaceEvent, raceId: string, input: UpdateRaceIn
     const nextSourceRaceId = input.source?.sourceRaceId
     const sourceChanged = previousSourceRaceId !== nextSourceRaceId
 
-    if (sourceChanged && (race.entries.length > 0 || race.heats.length > 0)) {
-      throw new Error('Clear this race roster and its heats before changing how the race is populated.')
+    if (sourceChanged && (race.entries.length > 0 || race.heats.length > 0) && !input.confirmRegenerateHeats) {
+      throw new Error('Changing how this race is populated will clear and regenerate its unrecorded schedule. Confirm regeneration to continue.')
     }
 
     if (input.source) {
       validateRaceSource(nextEvent, race.id, input.source.sourceRaceId)
       race.source = input.source
       delete race.divisionId
+      if (sourceChanged) race.entries = []
     } else {
       delete race.source
+      if (sourceChanged) race.entries = []
 
       if (previousSourceRaceId) {
         race.divisionId = validateDirectRaceDivision(nextEvent, input.divisionId)
@@ -583,12 +613,18 @@ export function updateRace(event: RaceEvent, raceId: string, input: UpdateRaceIn
       delete race.divisionId
     } else {
       const nextDivisionId = validateDirectRaceDivision(nextEvent, input.divisionId)
+      const divisionChanged = nextDivisionId !== race.divisionId
 
-      if (nextDivisionId !== race.divisionId && (race.entries.length > 0 || race.heats.length > 0)) {
-        throw new Error('Clear this race roster and its heats before changing its division.')
+      if (divisionChanged && (race.entries.length > 0 || race.heats.length > 0) && !input.confirmRegenerateHeats) {
+        throw new Error('Changing this race division will clear and regenerate its unrecorded schedule. Confirm regeneration to continue.')
       }
 
       race.divisionId = nextDivisionId
+      if (divisionChanged) {
+        race.entries = race.entries.filter((entry) =>
+          nextEvent.racers.find((racer) => racer.id === entry.racerId)?.divisionIds.includes(nextDivisionId)
+        )
+      }
     }
   }
 
@@ -601,9 +637,40 @@ export function updateRace(event: RaceEvent, raceId: string, input: UpdateRaceIn
   }
 
   ensureRaceDefaults(race)
+  const structuralAfter = JSON.stringify({
+    format: race.format,
+    laneCount: race.laneCount,
+    roundsPerRacer: race.roundsPerRacer,
+    scoringMode: race.scoringMode,
+    dropWorstTime: race.dropWorstTime,
+    advancementRule: race.advancementRule,
+    divisionId: race.divisionId,
+    source: race.source,
+    schedulingOptions: race.schedulingOptions
+  })
+  const structuralChanged = structuralBefore !== structuralAfter
+
+  if (structuralChanged && hasGeneratedHeats) {
+    if (hasOperatorResults) {
+      throw new Error('Schedule settings are locked after a heat result is recorded. Clear results before changing them.')
+    }
+
+    if (!input.confirmRegenerateHeats) {
+      throw new Error('This change requires regenerating the existing unrecorded schedule. Confirm regeneration to continue.')
+    }
+
+    race.heats = []
+    race.currentHeatId = undefined
+    race.status = 'draft'
+  }
   race.updatedAt = nowIso()
   nextEvent.currentRaceId = race.id
   nextEvent.updatedAt = race.updatedAt
+
+  if (structuralChanged && hasGeneratedHeats && input.confirmRegenerateHeats) {
+    return regenerateRaceHeatsAfterRosterChange(nextEvent, race.id)
+  }
+
   return nextEvent
 }
 
@@ -852,6 +919,7 @@ export function updateRaceEntry(event: RaceEvent, raceId: string, entryId: strin
 }
 
 export function removeRaceEntry(event: RaceEvent, raceId: string, entryId: string): RaceEvent {
+  ensureNoPendingRemoval(event)
   const nextEvent = copyEvent(event)
   const race = findRace(nextEvent, raceId)
   const entry = race.entries.find((candidate) => candidate.id === entryId)
@@ -886,6 +954,7 @@ export function removeRaceEntry(event: RaceEvent, raceId: string, entryId: strin
 }
 
 export function scratchRaceEntry(event: RaceEvent, raceId: string, entryId: string): { event: RaceEvent; impact: RemovalImpact } {
+  ensureNoPendingRemoval(event)
   const nextEvent = copyEvent(event)
   const race = findRace(nextEvent, raceId)
   const entry = race.entries.find((candidate) => candidate.id === entryId)
@@ -906,6 +975,7 @@ export function scratchRaceEntry(event: RaceEvent, raceId: string, entryId: stri
 }
 
 export function scratchRacer(event: RaceEvent, racerId: string): { event: RaceEvent; impact: RemovalImpact } {
+  ensureNoPendingRemoval(event)
   const nextEvent = copyEvent(event)
   const racer = findRacer(nextEvent, racerId)
 

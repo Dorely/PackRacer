@@ -104,11 +104,13 @@ export function EventSetup({ event, currentRace, actions, selectedRaceId, setSel
   const [raceLaneCount, setRaceLaneCount] = useState(3)
   const [raceRounds, setRaceRounds] = useState(3)
   const [raceScoringMode, setRaceScoringMode] = useState<ScoringMode>('average-time')
+  const [raceDropWorstTime, setRaceDropWorstTime] = useState(false)
   const [editRaceName, setEditRaceName] = useState(currentRace?.name ?? '')
   const [editRaceFormat, setEditRaceFormat] = useState<RaceFormat>(currentRace?.format ?? 'timed-heats')
   const [editLaneCount, setEditLaneCount] = useState(currentRace?.laneCount ?? 3)
   const [editRaceRounds, setEditRaceRounds] = useState(currentRace?.roundsPerRacer ?? 3)
   const [editScoringMode, setEditScoringMode] = useState<ScoringMode>(currentRace?.scoringMode ?? 'average-time')
+  const [editDropWorstTime, setEditDropWorstTime] = useState(currentRace?.dropWorstTime ?? false)
   const [avoidSameLane, setAvoidSameLane] = useState(currentRace?.schedulingOptions?.avoidSameLane ?? true)
   const [avoidSameOpponents, setAvoidSameOpponents] = useState(currentRace?.schedulingOptions?.avoidSameOpponents ?? true)
   const [fillPartialHeats, setFillPartialHeats] = useState(currentRace?.schedulingOptions?.fillPartialHeats ?? true)
@@ -133,6 +135,7 @@ export function EventSetup({ event, currentRace, actions, selectedRaceId, setSel
     setEditLaneCount(currentRace.laneCount)
     setEditRaceRounds(currentRace.roundsPerRacer)
     setEditScoringMode(currentRace.scoringMode)
+    setEditDropWorstTime(currentRace.dropWorstTime ?? false)
     setAvoidSameLane(currentRace.schedulingOptions?.avoidSameLane ?? true)
     setAvoidSameOpponents(currentRace.schedulingOptions?.avoidSameOpponents ?? true)
     setFillPartialHeats(currentRace.schedulingOptions?.fillPartialHeats ?? true)
@@ -184,6 +187,7 @@ export function EventSetup({ event, currentRace, actions, selectedRaceId, setSel
       laneCount: raceLaneCount,
       roundsPerRacer: createSupportsRuns ? raceRounds : 1,
       scoringMode: selectedScoringMode(raceFormat, raceScoringMode),
+      dropWorstTime: raceFormat === 'timed-heats' && raceScoringMode === 'average-time' && raceDropWorstTime,
       divisionId: raceDivisionId,
       schedulingOptions: { avoidSameLane: true, avoidSameOpponents: true, fillPartialHeats: true }
     })
@@ -197,16 +201,50 @@ export function EventSetup({ event, currentRace, actions, selectedRaceId, setSel
       return
     }
 
-    void actions.updateRace(currentRace.id, {
+    const input = {
       name: editRaceName,
       format: editRaceFormat,
       laneCount: editLaneCount,
       roundsPerRacer: editSupportsRuns ? editRaceRounds : 1,
       scoringMode: selectedScoringMode(editRaceFormat, editScoringMode),
+      dropWorstTime: editRaceFormat === 'timed-heats' && editScoringMode === 'average-time' && editDropWorstTime,
       schedulingOptions: { avoidSameLane, avoidSameOpponents, fillPartialHeats },
       source: usesSource && sourceRaceId ? { sourceRaceId, topCount: sourceTopCount } : undefined,
       divisionId: usesSource ? undefined : editDivisionId
-    })
+    }
+    const structuralInput = {
+      format: input.format,
+      laneCount: input.laneCount,
+      roundsPerRacer: input.roundsPerRacer,
+      scoringMode: input.scoringMode,
+      dropWorstTime: input.dropWorstTime,
+      schedulingOptions: input.schedulingOptions,
+      source: input.source,
+      divisionId: input.divisionId
+    }
+    const structuralCurrent = {
+      format: currentRace.format,
+      laneCount: currentRace.laneCount,
+      roundsPerRacer: currentRace.roundsPerRacer,
+      scoringMode: currentRace.scoringMode,
+      dropWorstTime: currentRace.dropWorstTime,
+      schedulingOptions: currentRace.schedulingOptions,
+      source: currentRace.source,
+      divisionId: currentRace.divisionId
+    }
+    const structuralChanged = JSON.stringify(structuralInput) !== JSON.stringify(structuralCurrent)
+
+    if (structuralChanged && currentRace.heats.length > 0) {
+      requestConfirmation({
+        title: 'Regenerate race schedule',
+        message: 'Saving these schedule settings will replace every unrecorded heat. Settings are locked if an operator result has already been recorded.',
+        confirmLabel: 'Save and Regenerate',
+        onConfirm: () => actions.updateRace(currentRace.id, { ...input, confirmRegenerateHeats: true })
+      })
+      return
+    }
+
+    void actions.updateRace(currentRace.id, input)
   }
 
   const deleteRace = () => {
@@ -313,6 +351,12 @@ export function EventSetup({ event, currentRace, actions, selectedRaceId, setSel
                     </option>
                   ))}
                 </select>
+              </label>
+            ) : null}
+            {raceFormat === 'timed-heats' && raceScoringMode === 'average-time' ? (
+              <label className="inline-toggle">
+                <input checked={raceDropWorstTime} onChange={(inputEvent) => setRaceDropWorstTime(inputEvent.target.checked)} type="checkbox" />
+                <span>Drop each racer’s slowest successful time</span>
               </label>
             ) : null}
           </div>
@@ -439,6 +483,12 @@ export function EventSetup({ event, currentRace, actions, selectedRaceId, setSel
                     <input type="checkbox" checked={fillPartialHeats} onChange={(inputEvent) => setFillPartialHeats(inputEvent.target.checked)} />
                     <span>Fill partial heats</span>
                   </label>
+                  {editRaceFormat === 'timed-heats' && editScoringMode === 'average-time' ? (
+                    <label className="inline-toggle">
+                      <input checked={editDropWorstTime} onChange={(inputEvent) => setEditDropWorstTime(inputEvent.target.checked)} type="checkbox" />
+                      <span>Drop each racer’s slowest successful time</span>
+                    </label>
+                  ) : null}
                 </>
               ) : null}
               <label className="inline-toggle">

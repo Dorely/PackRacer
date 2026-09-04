@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import { join } from 'node:path'
 
 import {
@@ -25,8 +25,10 @@ import {
   type CreateDivisionInput,
   type CreateEventInput,
   type CreateRaceInput,
+  type DeferHeatRacersInput,
   type EventSessionSnapshot,
   type RecordHeatResultsInput,
+  type PostponeHeatInput,
   type RemovalResolutionStrategy,
   type UpdateEventInput,
   type UpdateDivisionInput,
@@ -38,9 +40,11 @@ import {
 import {
   advanceToNextHeat,
   clearHeatResults,
+  deferHeatRacers,
   generateAdvancementTieBreakerHeats,
   generateRaceHeats,
   recordHeatResults,
+  postponeHeat,
   resolveRacerRemoval,
   setCurrentHeat
 } from '../../../../packages/race-engine/src/scheduling.ts'
@@ -59,6 +63,7 @@ import {
   createEventSession,
   deleteEventSession,
   getCurrentEventSession,
+  initializeEventStore,
   listEventSessions,
   mutateEvent,
   selectEventSession
@@ -453,6 +458,18 @@ ipcMain.handle('heat:advance', (_event, raceId: string) =>
   withSessionBroadcast(mutateEvent('heat:advance', (raceEvent) => advanceToNextHeat(raceEvent, raceId), { raceId }, raceId))
 )
 
+ipcMain.handle('heat:defer-racers', (_event, raceId: string, input: DeferHeatRacersInput) =>
+  withSessionBroadcast(
+    mutateEvent('heat:defer-racers', (raceEvent) => deferHeatRacers(raceEvent, raceId, input), { raceId, ...input }, raceId)
+  )
+)
+
+ipcMain.handle('heat:postpone', (_event, raceId: string, input: PostponeHeatInput) =>
+  withSessionBroadcast(
+    mutateEvent('heat:postpone', (raceEvent) => postponeHeat(raceEvent, raceId, input), { raceId, ...input }, raceId)
+  )
+)
+
 ipcMain.handle('timer:get-state', () => timerService.getState())
 ipcMain.handle('timer:get-profiles', () => timerService.getProfiles())
 ipcMain.handle('timer:list-ports', () => timerService.listPorts())
@@ -503,7 +520,16 @@ ipcMain.handle(
 )
 
 void app.whenReady().then(async () => {
-  await timerService.initialize()
+  try {
+    await initializeEventStore()
+    await timerService.initialize()
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'The local database could not be opened.'
+    console.error('PackRacer startup failed:', error)
+    dialog.showErrorBox('PackRacer could not start', message)
+    app.quit()
+    return
+  }
   createMainWindow()
 
   app.on('activate', () => {

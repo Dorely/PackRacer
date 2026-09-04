@@ -8,8 +8,10 @@ import type {
   CreateDivisionInput,
   CreateEventInput,
   CreateRaceInput,
+  DeferHeatRacersInput,
   EventSessionSnapshot,
   RecordHeatResultsInput,
+  PostponeHeatInput,
   RemovalResolutionStrategy,
   UpdateRaceEntryInput,
   UpdateEventInput,
@@ -252,6 +254,10 @@ export function App() {
       clearHeatResults: (raceId: string, heatId: string) => runAction(() => getPackRacerApi().clearHeatResults(raceId, heatId)),
       setCurrentHeat: (raceId: string, heatId: string) => runAction(() => getPackRacerApi().setCurrentHeat(raceId, heatId)),
       advanceHeat: (raceId: string) => runAction(() => getPackRacerApi().advanceHeat(raceId)),
+      deferHeatRacers: (raceId: string, input: DeferHeatRacersInput) =>
+        runAction(() => getPackRacerApi().deferHeatRacers(raceId, input)),
+      postponeHeat: (raceId: string, input: PostponeHeatInput) =>
+        runAction(() => getPackRacerApi().postponeHeat(raceId, input)),
       saveTimerPreferences: async (input: TimerPreferences) => {
         try {
           setErrorMessage('')
@@ -392,6 +398,8 @@ export function App() {
   const notices = (
     <>
       {errorMessage ? <div className="notice-banner" role="alert">{errorMessage}</div> : null}
+
+      {session?.recoveryNotice ? <div className="notice-banner warning" role="alert">{session.recoveryNotice}</div> : null}
 
       {activeSection === 'race-control' && timerState.simulationMode && !['disconnected', 'error'].includes(timerState.status) ? (
         <div className="notice-banner simulation-banner" role="status">

@@ -573,6 +573,7 @@ export function Registration({ event, actions, selectedRaceId, setSelectedRaceId
 
         {rosterView === 'race' ? (
           <div aria-labelledby="race-roster-tab" id="race-roster-panel" role="tabpanel">
+            <p className="field-help roster-readiness-help">Checked In and Inspected are race-specific operator notes. They do not prevent scheduling or running a heat.</p>
             <div className="data-table-wrap">
               <table className="data-table registration-table race-roster-table">
                 <thead><tr><th>#</th><th>Racer</th><th>Status</th><th>Ready</th><th>Actions</th></tr></thead>

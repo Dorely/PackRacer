@@ -1,4 +1,4 @@
-export const EVENT_SCHEMA_VERSION = 10
+export const EVENT_SCHEMA_VERSION = 11
 
 export type RaceFormat =
   | 'timed-heats'
@@ -134,6 +134,7 @@ export type Race = {
   disabledLaneNumbers?: number[]
   roundsPerRacer: number
   scoringMode: ScoringMode
+  dropWorstTime: boolean
   advancementRule?: AdvancementRule
   divisionId?: string
   entries: RaceEntry[]
@@ -152,6 +153,7 @@ export type RaceEntry = {
   checkedIn: boolean
   inspectionPassed: boolean
   notes: string
+  seed?: number
   createdAt: string
   updatedAt: string
 }
@@ -181,6 +183,7 @@ export type Heat = {
   makeupSource?: MakeupHeatSource
   tieBreakerSource?: AdvancementTieBreakerSource
   invalidReason?: string
+  automaticAdvance?: boolean
   notes?: string
   createdAt: string
   updatedAt: string
@@ -210,7 +213,7 @@ export type LaneResult = {
 }
 
 export type Standing = {
-  rank: number
+  rank: number | null
   racerId: string
   racerNumber: string
   racerName: string
@@ -278,6 +281,7 @@ export type CreateRaceInput = {
   laneCount?: number
   roundsPerRacer?: number
   scoringMode?: ScoringMode
+  dropWorstTime?: boolean
   advancementRule?: AdvancementRule
   divisionId?: string
   source?: RaceSource
@@ -285,9 +289,10 @@ export type CreateRaceInput = {
 }
 
 export type UpdateRaceInput = Partial<
-  Pick<Race, 'name' | 'format' | 'laneCount' | 'roundsPerRacer' | 'scoringMode' | 'advancementRule' | 'divisionId' | 'status' | 'source'>
+  Pick<Race, 'name' | 'format' | 'laneCount' | 'roundsPerRacer' | 'scoringMode' | 'dropWorstTime' | 'advancementRule' | 'divisionId' | 'status' | 'source'>
 > & {
   schedulingOptions?: Partial<SchedulingOptions>
+  confirmRegenerateHeats?: boolean
 }
 
 export type UpdateRaceLaneAvailabilityInput = {
@@ -346,9 +351,31 @@ export type RecordHeatResultsInput = {
   notes?: string
 }
 
+export type DeferHeatRacersInput = {
+  heatId: string
+  racerIds: string[]
+}
+
+export type HeatDeferralMove = {
+  racerId: string
+  replacementRacerId: string
+  targetHeatId: string
+  targetHeatNumber: number
+}
+
+export type HeatDeferralPlan = {
+  heatId: string
+  moves: HeatDeferralMove[]
+}
+
+export type PostponeHeatInput = {
+  heatId: string
+}
+
 export type EventSessionSnapshot = {
   event: RaceEvent
   events: EventSummary[]
   standings: Standing[]
   auditLog: AuditEntry[]
+  recoveryNotice?: string
 }

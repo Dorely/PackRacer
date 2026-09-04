@@ -12,7 +12,12 @@ import {
 
 import {
   calculateStandings,
+  eliminationHeatWinnerId as heatWinnerId,
   eliminationLossLimit,
+  projectSingleEliminationBracket,
+  type EliminationBracketMatch as TournamentMatch,
+  type EliminationBracketParticipant as TournamentParticipant,
+  type EliminationBracketRound as TournamentRound,
   type Heat,
   type Race,
   type RaceEvent,
@@ -36,41 +41,6 @@ type DisplayViewId = 'current' | 'standings' | 'records' | 'schedule' | 'bracket
 type DisplayView = {
   id: DisplayViewId
   label: string
-}
-
-type TournamentParticipant = {
-  racerId: string | null
-  seed?: number
-  placeholder: string
-  sourceMatchNumber?: number
-  sourceLabel?: string
-  lossCount?: number
-}
-
-type TournamentMatch = {
-  id: string
-  heat?: Heat
-  displayCode?: string
-  supportingLabel?: string
-  matchNumber: number
-  roundNumber: number
-  matchIndex: number
-  participants: TournamentParticipant[]
-  sourceMatchNumbers: number[]
-  status: Heat['status'] | 'pending'
-  winnerId?: string
-  resultSummary: string
-  isCurrent: boolean
-  isChampion: boolean
-  isReset?: boolean
-}
-
-type TournamentRound = {
-  id: string
-  roundNumber: number
-  label: string
-  matches: TournamentMatch[]
-  isChampion: boolean
 }
 
 type BracketPage = {
@@ -177,12 +147,6 @@ function resultRankValue(result: Heat['results'][number]): number {
   return Number.POSITIVE_INFINITY
 }
 
-function heatWinnerId(heat: Heat | undefined): string | undefined {
-  return heat?.results
-    .filter((result) => result.status === 'ok' && !result.excludedFromScoring)
-    .sort((first, second) => resultRankValue(first) - resultRankValue(second))[0]?.racerId
-}
-
 function currentHeatLabel(heat: Heat | undefined): string {
   if (!heat) {
     return 'No heat'
@@ -193,53 +157,6 @@ function currentHeatLabel(heat: Heat | undefined): string {
   }
 
   return `Heat ${heat.heatNumber}`
-}
-
-function tournamentRoundLabel(roundIndex: number, roundCount: number): string {
-  if (roundIndex === roundCount - 1) {
-    return 'Finals'
-  }
-
-  if (roundIndex === roundCount - 2) {
-    return 'Semifinals'
-  }
-
-  return `Round ${roundIndex + 1}`
-}
-
-function firstRoundParticipantCount(race: Race): number {
-  const activeEntries = race.entries.filter((entry) => entry.status === 'active').length
-  const firstRoundHeats = race.heats.filter((heat) => heat.roundNumber === 1)
-  const firstRoundAssignments = firstRoundHeats.flatMap((heat) =>
-    heat.laneAssignments.filter((assignment) => assignment.racerId || assignment.seed)
-  )
-  const maxSeed = Math.max(...firstRoundAssignments.map((assignment) => assignment.seed ?? 0), 0)
-
-  return Math.max(activeEntries, firstRoundAssignments.length, maxSeed, 1)
-}
-
-function tournamentRoundMatchCounts(race: Race): number[] {
-  const firstRoundHeats = race.heats.filter((heat) => heat.roundNumber === 1)
-  const actualMaxRoundNumber = Math.max(...race.heats.map((heat) => heat.roundNumber), 0)
-  const counts: number[] = []
-  let matchCount = Math.max(Math.ceil(firstRoundParticipantCount(race) / 2), firstRoundHeats.length, 1)
-  let roundNumber = 1
-
-  while (roundNumber <= actualMaxRoundNumber || matchCount >= 1) {
-    const actualRoundCount = race.heats.filter((heat) => heat.roundNumber === roundNumber).length
-    const resolvedMatchCount = Math.max(matchCount, actualRoundCount, 1)
-
-    counts.push(resolvedMatchCount)
-
-    if (resolvedMatchCount <= 1 && roundNumber >= actualMaxRoundNumber) {
-      break
-    }
-
-    matchCount = Math.ceil(resolvedMatchCount / 2)
-    roundNumber += 1
-  }
-
-  return counts
 }
 
 function heatResultSummary(context: DisplayContext, heat: Heat | undefined): string {
@@ -345,98 +262,15 @@ function heatParticipants(heat: Heat | undefined, sourceMatches: TournamentMatch
 }
 
 function buildTournamentRounds(context: DisplayContext): TournamentRound[] {
-  const matchCounts = tournamentRoundMatchCounts(context.race)
-  const bracketRoundCount = matchCounts.length
-  const heatsByRound = new Map<number, Heat[]>()
-
-  for (const heat of context.race.heats) {
-    const roundHeats = heatsByRound.get(heat.roundNumber) ?? []
-    roundHeats.push(heat)
-    heatsByRound.set(heat.roundNumber, roundHeats)
-  }
-
-  for (const roundHeats of heatsByRound.values()) {
-    roundHeats.sort((first, second) => first.heatNumber - second.heatNumber)
-  }
-
-  const rounds: TournamentRound[] = []
-  let previousMatches: TournamentMatch[] = []
-  let fallbackMatchNumber = 1
-
-  for (let roundIndex = 0; roundIndex < bracketRoundCount; roundIndex += 1) {
-    const roundNumber = roundIndex + 1
-    const matchCount = matchCounts[roundIndex]
-    const roundHeats = heatsByRound.get(roundNumber) ?? []
-    const matches: TournamentMatch[] = []
-
-    for (let matchIndex = 0; matchIndex < matchCount; matchIndex += 1) {
-      const heat = roundHeats[matchIndex]
-      const sourceMatches = previousMatches.slice(matchIndex * 2, matchIndex * 2 + 2)
-      const matchNumber = heat?.heatNumber ?? fallbackMatchNumber
-      const sourceMatchNumbers =
-        heat?.sourceHeatIds
-          ?.map((sourceHeatId) => previousMatches.find((match) => match.heat?.id === sourceHeatId)?.matchNumber)
-          .filter((sourceMatchNumber): sourceMatchNumber is number => typeof sourceMatchNumber === 'number') ??
-        sourceMatches.map((match) => match.matchNumber)
-
-      matches.push({
-        id: heat?.id ?? `round-${roundNumber}-match-${matchIndex + 1}`,
-        heat,
-        matchNumber,
-        roundNumber,
-        matchIndex,
-        participants: heatParticipants(heat, sourceMatches),
-        sourceMatchNumbers,
-        status: heat?.status ?? 'pending',
-        winnerId: heatWinnerId(heat),
-        resultSummary: heatResultSummary(context, heat),
-        isCurrent: Boolean(heat && heat.id === context.currentHeat?.id),
-        isChampion: false
-      })
-
-      fallbackMatchNumber += 1
-    }
-
-    rounds.push({
-      id: `round-${roundNumber}`,
-      roundNumber,
-      label: tournamentRoundLabel(roundIndex, bracketRoundCount),
-      matches,
-      isChampion: false
-    })
-    previousMatches = matches
-  }
-
-  const finalMatch = previousMatches[0]
-  const championId = finalMatch?.winnerId
-  const championMatch: TournamentMatch = {
-    id: 'champion',
-    matchNumber: finalMatch?.matchNumber ?? fallbackMatchNumber,
-    roundNumber: bracketRoundCount + 1,
-    matchIndex: 0,
-    participants: [
-      {
-        racerId: championId ?? null,
-        placeholder: championId ? '' : finalMatch ? `Winner of Match ${finalMatch.matchNumber}` : 'Champion'
-      }
-    ],
-    sourceMatchNumbers: finalMatch ? [finalMatch.matchNumber] : [],
-    status: championId ? 'complete' : 'pending',
-    winnerId: championId,
-    resultSummary: championId ? `${racerLabel(context.event.racers, championId)} wins` : 'Awaiting final winner',
-    isCurrent: false,
-    isChampion: true
-  }
-
-  rounds.push({
-    id: 'champion',
-    roundNumber: bracketRoundCount + 1,
-    label: 'Champion',
-    matches: [championMatch],
-    isChampion: true
-  })
-
-  return rounds
+  return projectSingleEliminationBracket(context.race, context.currentHeat?.id).map((round) => ({
+    ...round,
+    matches: round.matches.map((match) => ({
+      ...match,
+      resultSummary: match.isChampion
+        ? match.winnerId ? `${racerLabel(context.event.racers, match.winnerId)} wins` : 'Awaiting final winner'
+        : heatResultSummary(context, match.heat)
+    }))
+  }))
 }
 
 function matchFromHeat(context: DisplayContext, heat: Heat, matchIndex: number): TournamentMatch {

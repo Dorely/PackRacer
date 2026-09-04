@@ -2,7 +2,7 @@ import type { Heat, LaneResult, Race, RaceEvent, ScoringMode, Standing } from '.
 import { eliminationLossLimit, formatMilliseconds, isEliminationFormat, sortRacers } from './helpers'
 
 type StandingDraft = Omit<Standing, 'rank' | 'scoreLabel'> & {
-  rank: number
+  rank: number | null
   scoreLabel?: string
   resultTimes: number[]
   seedOrder: number
@@ -52,7 +52,7 @@ function createDrafts(event: RaceEvent, race: Race): Map<string, StandingDraft> 
     const entry = entryByRacerId.get(racer.id)
 
     drafts.set(racer.id, {
-      rank: 0,
+      rank: null,
       racerId: racer.id,
       racerNumber: racer.racerNumber,
       racerName: racer.name,
@@ -113,13 +113,13 @@ function rankDrafts(drafts: StandingDraft[], scoringMode: ScoringMode): Standing
     return first.score - second.score
   })
 
-  let previousScore: number | null = null
+  let previousScore: number | null | undefined
   let previousRank = 0
 
   return sortedDrafts.map((draft, index) => {
-    const rank = draft.score === previousScore ? previousRank : index + 1
+    const rank = draft.score === null ? null : draft.score === previousScore ? previousRank : index + 1
     previousScore = draft.score
-    previousRank = rank
+    if (rank !== null) previousRank = rank
 
     return {
       rank,
@@ -271,8 +271,16 @@ export function calculateStandings(event: RaceEvent, raceId?: string): Standing[
         break
       case 'average-time':
       default:
-        draft.score = draft.averageTimeMs ?? null
-        draft.scoreLabel = draft.score === null ? 'No time' : formatMilliseconds(draft.averageTimeMs)
+        if (race.dropWorstTime && draft.resultTimes.length >= 2) {
+          const slowestTime = Math.max(...draft.resultTimes)
+          const scoredTimes = [...draft.resultTimes]
+          scoredTimes.splice(scoredTimes.indexOf(slowestTime), 1)
+          draft.score = scoredTimes.reduce((sum, timeMs) => sum + timeMs, 0) / scoredTimes.length
+          draft.scoreLabel = `${formatMilliseconds(draft.score)} avg (slowest dropped)`
+        } else {
+          draft.score = draft.averageTimeMs ?? null
+          draft.scoreLabel = draft.score === null ? 'No time' : formatMilliseconds(draft.averageTimeMs)
+        }
         break
     }
   }

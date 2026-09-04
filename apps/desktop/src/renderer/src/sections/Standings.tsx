@@ -85,7 +85,7 @@ export function Standings({ event, currentRace, selectedRaceId, setSelectedRaceI
             <tbody>
               {standings.map((standing) => (
                 <tr key={standing.racerId} data-muted={standing.racerStatus !== 'active'}>
-                  <td>{standing.rank}</td>
+                  <td>{standing.rank ?? '—'}</td>
                   <td>
                     <strong>#{standing.racerNumber} {standing.racerName}</strong>
                     <small>{formatStatus(standing.racerStatus)}</small>

@@ -13,7 +13,9 @@
     "debug": "npm run debug --workspace @packracer/desktop",
     "build": "npm run build --workspace @packracer/desktop",
     "typecheck": "npm run typecheck --workspace @packracer/desktop",
-    "preview": "npm run preview --workspace @packracer/desktop"
+    "preview": "npm run preview --workspace @packracer/desktop",
+    "test": "npm run test:race-engine",
+    "test:race-engine": "npm test --workspace @packracer/race-engine"
   },
   "engines": {
     "node": ">=20.0.0",

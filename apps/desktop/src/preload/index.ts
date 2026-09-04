@@ -7,9 +7,11 @@ import type {
   CreateDivisionInput,
   CreateEventInput,
   CreateRaceInput,
+  DeferHeatRacersInput,
   EventSessionSnapshot,
   EventSummary,
   RecordHeatResultsInput,
+  PostponeHeatInput,
   RemovalResolutionStrategy,
   UpdateEventInput,
   UpdateDivisionInput,
@@ -88,6 +90,10 @@ const packRacerApi = {
   setCurrentHeat: (raceId: string, heatId: string): Promise<EventSessionSnapshot> =>
     invoke('heat:set-current', raceId, heatId),
   advanceHeat: (raceId: string): Promise<EventSessionSnapshot> => invoke('heat:advance', raceId),
+  deferHeatRacers: (raceId: string, input: DeferHeatRacersInput): Promise<EventSessionSnapshot> =>
+    invoke('heat:defer-racers', raceId, input),
+  postponeHeat: (raceId: string, input: PostponeHeatInput): Promise<EventSessionSnapshot> =>
+    invoke('heat:postpone', raceId, input),
   getTimerState: (): Promise<TimerState> => invoke('timer:get-state'),
   getTimerProfiles: (): Promise<TimerProfile[]> => invoke('timer:get-profiles'),
   listTimerPorts: (): Promise<TimerPortInfo[]> => invoke('timer:list-ports'),
