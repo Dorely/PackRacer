@@ -9,7 +9,7 @@ The current repo contains the first development scaffold: an npm workspace with 
 - Desktop app shell: present in `apps/desktop`.
 - Race-day MVP workflow: implemented for local event creation, multi-race setup, racer registration, heat generation, result entry, standings, finals advancement, and racer scratching.
 - Race engine: present in `packages/race-engine` as pure TypeScript domain logic.
-- Persistence: one local SQLite app database is owned by the Electron main process, with autosaved event state and an audit log.
+- Persistence: one local SQLite app database is owned by the Electron main process, with serialized atomic autosaves, a last-known-good recovery copy, and an audit log.
 - Hardware timers: optional Windows-first serial input, review-before-save captures, a production-accessible simulator, and raw protocol replay are implemented. Physical protocols await validation with real units.
 - Local API and websocket services: planned, not implemented yet.
 
@@ -35,6 +35,7 @@ npm run debug      # Start the Electron app with VS Code-friendly debug ports
 npm run typecheck  # Run TypeScript checks
 npm run build      # Build the desktop app
 npm run preview    # Preview the built Electron app
+npm test           # Run race-engine regression tests
 ```
 
 ## MVP Race-Day Workflow
@@ -47,12 +48,14 @@ The current app can run a first-pass race day from one laptop:
 4. Configure each directly registered race for one division—or populate a later race from another race's results—then generate timed heats, points heats, round robin, single elimination, double elimination, or triple elimination schedules.
 5. Use Race Control to enter both time and finish order, mark DNS/DNF/DQ, and advance to the next heat within the selected race.
    Optionally connect a serial timer or the built-in simulator; captured values are staged in the same editable result form and never save automatically.
+   If racers are temporarily unavailable, defer selected timed/points assignments into compatible future heats or postpone the whole current heat.
 6. View live standings for the selected race and populate later races from top-ranked racers.
 7. Scratch a racer from Registration and choose whether to keep empty lanes, regenerate pending heats, or leave affected heats flagged across races.
 
 Registration remains operator-controlled: division membership makes a racer eligible for a race but does not add them automatically. Use **Add Selected** for individual control or **Add All Eligible** to assign every unadded racer from the race's division at once. The Registration roster panel has two views: **Race Roster** handles check-in, inspection, and removal from the selected race, while **Full Roster** searches and filters every event racer and manages racer identity, division memberships, and pre-race permanent deletion. Once a racer is involved in generated heats, remove or scratch them through the race roster instead of deleting them.
 
 Every mutation is written immediately to the local SQLite database under Electron's user data folder.
+Average-time races may optionally discard each racer’s single slowest successful run once at least two successful times exist. Single elimination uses a standard automatically sized seeded bracket with every bye in the opening round.
 
 ## VS Code Debugging
 
@@ -76,6 +79,7 @@ PackRacer follows the architecture direction in `VISION.md`:
 ## Development Notes
 
 - Keep race-domain logic out of renderer components.
+- Keep automated tests scoped to `packages/race-engine` until the repository policy is deliberately expanded.
 - Keep Electron main, preload, and renderer code separated.
 - Update `FILEMAP.md` whenever source files are added, removed, renamed, or significantly repurposed.
 - Read `VISION.md` and `FILEMAP.md` before making substantive changes.
@@ -97,4 +101,4 @@ The simulator is a separate virtual serial-device window. It emulates a selected
 7. Review or edit the populated result fields. Select **Discard Capture** to abandon them, or **Accept Capture And Advance** to save them.
 8. Confirm every simulated acceptance. Saved simulator results are deliberately labeled and audited as simulated. An amber **SIMULATION MODE** banner remains visible while Race Control is connected to the virtual port.
 
-The simulator transcript shows commands received from Race Control and raw bytes sent back. Its manual-data control also accepts ASCII with `\\r` and `\\n` escapes. Closing the simulator window removes the virtual port and drops an active virtual connection. The incomplete, duplicate-transmission, and disconnect scenarios are useful for practicing recovery without affecting manual result entry.
+The simulator transcript shows commands received from Race Control and raw bytes sent back. Its manual-data control also accepts ASCII with `\\r` and `\\n` escapes. Closing the simulator window removes the virtual port and drops an active virtual connection. Explicit DNF is available only while emulating NewBold or The Judge; other profiles use **Incomplete Result** followed by **Force Results**. The incomplete, duplicate-transmission, and disconnect scenarios are useful for practicing recovery without affecting manual result entry.

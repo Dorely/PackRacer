@@ -8,7 +8,7 @@ The software replaces fragile spreadsheet-driven workflows with a purpose-built 
 
 The core philosophy is:
 
-> One laptop should be capable of running an entire race day from registration through awards with no internet connection and no external infrastructure.
+> One laptop should be capable of running an entire race day from registration through determining and displaying race winners with no internet connection and no external infrastructure.
 
 PackRace is not designed specifically around Pinewood Derby or Raingutter Regatta rules. Instead, it is built as a generic competition engine capable of supporting many race formats and advancement structures.
 
@@ -106,7 +106,6 @@ Contains:
 * groups/divisions
 * races
 * tracks/lanes
-* awards
 * event configuration
 
 ## Competitor
@@ -185,7 +184,7 @@ A pack should be able to:
 7. Display standings live
 8. Advance competitors automatically
 9. Complete finals
-10. Generate awards and exports
+10. Determine and display race winners
 
 No external infrastructure should be required.
 
@@ -198,13 +197,11 @@ No external infrastructure should be required.
 * Create/edit events
 * Configure lane count
 * Configure divisions/groups
-* Configure awards
 * Save/load events
 
 ## Registration
 
 * Add/edit competitors
-* CSV import
 * Search/filter competitors
 * Check-in status
 * Inspection status
@@ -224,23 +221,22 @@ Configurable:
   * best time
   * average time
   * total time
-  * drop worst time
+  * optional drop-worst time when averaging
 
 ### Points Heats
 
 Configurable:
 
-* points per finish position
+* fixed place points (`lane count - place + 1` for high score, or place for low score)
 * high-score or low-score wins
 
 ### Single Elimination
 
 Configurable:
 
-* bracket size
-* seeding
-* best-of-N matches
-* consolation match
+* automatic next-power-of-two bracket size
+* racer-number or source-standing seeding
+* all byes placed in the opening round
 
 ## Advancement
 
@@ -253,8 +249,8 @@ Configurable:
 
 * automatic scheduling
 * lane balancing
-* printable heat sheets
-* manual adjustment before start
+* controlled racer deferral for timed/points heats
+* whole-heat postponement without changing matchups
 
 ## Race Control
 
@@ -283,18 +279,13 @@ Configurable:
 * standings
 * final rankings
 
-## Awards
+## Winners
 
-* auto-calculated winners
-* manual awards
-* export/print summaries
+* final standings and bracket champions remain visible after race completion
 
-## Import / Export
+## Import / Export (Future, Out of V1 Scope)
 
-* CSV import/export
-* PDF standings
-* PDF heat sheets
-* backup/restore event files
+* portable event transfer through a general import/export workflow
 
 ## Reliability Features
 
@@ -326,15 +317,11 @@ Advancement:
 Format: Single Elimination
 
 * Seeded from qualifying results
-* Best-of-3 matches
+* Standard automatically sized seeded bracket
 
-Awards:
+Outcome:
 
-* Overall champion
-* Top 3 finishers
-* Fastest single run
-* Division winners
-* Design awards
+* Overall champion and final rankings are visible in standings and Display Mode
 
 ---
 
@@ -382,7 +369,7 @@ Optional only.
 
 Potential features:
 
-* cloud backups
+* optional cloud synchronization of user-exported event packages
 * public results pages
 * remote registration
 * historical archives
@@ -484,7 +471,7 @@ Responsibilities:
 * local API hosting
 * websocket synchronization
 * file management
-* import/export
+* future import/export
 * hardware integration
 * local network services
 
@@ -501,8 +488,7 @@ Advantages:
 * local application-owned storage
 * no installation requirements
 * highly reliable
-* simple local backup/restore
-* easy backup/restore
+* straightforward application-owned storage
 
 Possible access layers:
 
@@ -526,8 +512,8 @@ Electron Host Application
 ├── Local API Server
 ├── WebSocket Server
 ├── SQLite Database
-├── Import/Export System
-└── Future Hardware Integrations
+├── Future Import/Export System
+└── Hardware Timer Integration
 ```
 
 ---
@@ -591,7 +577,6 @@ Contains:
 * races
 * settings
 * tracks
-* awards
 
 ## Race
 
@@ -662,7 +647,6 @@ The standings engine should produce:
 * overall rankings
 * division rankings
 * advancement seeding
-* award calculations
 
 ---
 
@@ -798,23 +782,15 @@ Avoid:
 
 ---
 
-# Import / Export System
+# Future Import / Export System
 
-The application should support:
-
-* CSV import/export
-* PDF exports
-* printable heat sheets
-* standings reports
-* event archive backups
-
-The export system should be modular.
+Portable event transfer is intentionally outside the MVP. A later general import/export workflow should replace separate backup concepts and remain isolated from race execution.
 
 ---
 
-# Hardware Integration (Future)
+# Hardware Integration
 
-The architecture should anticipate future timer integration.
+The Windows-first desktop application supports isolated serial timer adapters and a virtual serial-device simulator. Other platforms and real-hardware combinations remain validation work.
 
 Potential integrations:
 
@@ -831,7 +807,7 @@ Timer Adapter Interface
 ├── Manual Entry Adapter
 ├── Serial Timer Adapter
 ├── USB Timer Adapter
-└── Simulated/Test Adapter
+└── Virtual Serial Timer Simulator
 ```
 
 ---

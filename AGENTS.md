@@ -55,7 +55,8 @@
 - Type-check with `npm run typecheck`.
 - Build with `npm run build`.
 - Do not try to Preview the built app with `npm run preview`. Your sandboxed environment makes it fail
-- Do not add test projects or automated tests to this repository yet. Verify changes with `npm run typecheck`, `npm run build`, and a short app launch when UI behavior changes.
+- Keep automated regression tests inside `packages/race-engine`; do not add renderer, Electron, or hardware test projects without an explicit policy change.
+- Run `npm test`, `npm run typecheck`, and `npm run build` for race-logic changes, plus a short app launch when UI behavior changes.
 
 ## Conventions
 - When you need to understand the current wiring, start with `VISION.md`, then `apps/desktop/src/main/index.ts`, then the relevant feature area.

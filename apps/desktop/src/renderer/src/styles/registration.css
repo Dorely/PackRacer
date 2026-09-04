@@ -1,0 +1,396 @@
+.registration-grid {
+  align-items: start;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.registration-controls-panel {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+  min-height: auto;
+}
+
+.registration-controls-panel > .panel-heading {
+  grid-column: 1 / -1;
+}
+
+.registration-controls-panel .registration-workflow-card {
+  align-content: start;
+  max-height: 440px;
+  overflow-y: hidden;
+}
+
+.registration-controls-panel .registration-workflow-card[data-workflow="roster"][data-expanded="true"] {
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+.registration-roster-panel {
+  min-height: 520px;
+}
+
+.registration-roster-panel .data-table-wrap:has(tbody tr) {
+  min-height: 420px;
+  max-height: min(72vh, 820px);
+}
+
+.registration-table input {
+  min-width: 92px;
+  margin: 2px 0;
+}
+
+.race-roster-table {
+  min-width: 760px;
+}
+
+.race-roster-table th:nth-child(4),
+.race-roster-table td:nth-child(4) {
+  min-width: 190px;
+}
+
+.full-roster-table {
+  min-width: 660px;
+  table-layout: fixed;
+}
+
+.full-roster-table th:first-child,
+.full-roster-table td:first-child {
+  width: 38%;
+}
+
+.full-roster-table th:nth-child(2),
+.full-roster-table td:nth-child(2) {
+  width: auto;
+}
+
+.full-roster-table th:last-child,
+.full-roster-table td:last-child {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  width: 168px;
+  padding-inline: 8px;
+  background: #ffffff;
+  box-shadow: -10px 0 14px -16px rgba(23, 33, 29, 0.65);
+}
+
+.full-roster-table th:last-child {
+  z-index: 2;
+  background: #f3f8f5;
+}
+
+.full-roster-table .division-picker .inline-toggle {
+  flex: 0 1 auto;
+  max-width: 100%;
+  min-height: 32px;
+  padding: 5px 8px;
+  font-size: 12px;
+}
+
+.full-roster-table .division-picker {
+  gap: 6px;
+}
+
+.full-roster-table td {
+  vertical-align: top;
+}
+
+.full-roster-table input {
+  min-width: 0;
+}
+
+.racer-number-input {
+  max-width: none;
+}
+
+.full-roster-identity {
+  display: grid;
+  grid-template-columns: minmax(68px, 0.35fr) minmax(120px, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.full-roster-number-field {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.full-roster-number-field > span {
+  flex: 0 0 auto;
+  color: #607269;
+  font-weight: 900;
+}
+
+.full-roster-context {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin-top: 6px;
+  color: #607269;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.full-roster-context span + span::before {
+  margin-right: 8px;
+  content: "•";
+}
+
+.registration-roster-panel [role="tabpanel"],
+.full-roster-view {
+  min-width: 0;
+}
+
+.registration-roster-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 14px 22px;
+}
+
+.registration-roster-heading > .panel-heading {
+  flex: 1 1 240px;
+}
+
+.roster-view-tabs {
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid #cfd9d3;
+  border-radius: 9px;
+  background: #eef3f0;
+}
+
+.roster-view-tabs button {
+  min-height: 36px;
+  padding: 0 13px;
+  border: 0;
+  border-radius: 6px;
+  color: #52675f;
+  background: transparent;
+  cursor: pointer;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.roster-view-tabs button[aria-selected="true"] {
+  color: #ffffff;
+  background: #2f7659;
+  box-shadow: 0 2px 5px rgba(22, 53, 44, 0.14);
+}
+
+.roster-view-tabs button:focus-visible {
+  outline: 3px solid rgba(45, 111, 122, 0.25);
+  outline-offset: 1px;
+}
+
+.full-roster-view {
+  display: grid;
+  gap: 14px;
+}
+
+.roster-filter-bar {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(190px, 0.65fr) auto;
+  align-items: end;
+  gap: 12px;
+}
+
+.filter-result-count {
+  min-height: 40px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: #52675f;
+  background: #eef5f1;
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.full-roster-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+.full-roster-actions > button {
+  gap: 5px;
+  padding-inline: 6px;
+}
+
+.full-roster-actions > .danger-action {
+  min-height: 32px;
+  font-size: 12px;
+}
+
+.full-roster-actions small {
+  flex-basis: 100%;
+  max-width: 170px;
+}
+
+.table-empty-state {
+  height: 120px;
+  color: #607269 !important;
+  text-align: center !important;
+  font-weight: 800;
+}
+
+.registration-workflow-card {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid #d7e1dc;
+  border-left-width: 5px;
+  border-radius: 9px;
+  background: #f8fbf9;
+}
+
+.registration-workflow-card[data-workflow="roster"] {
+  border-left-color: #2d6f7a;
+}
+
+.registration-workflow-card[data-workflow="race"] {
+  gap: 12px;
+  padding: 14px;
+  border-left-color: #b9472d;
+  background: #fffaf7;
+}
+
+.registration-workflow-card[data-workflow="race"] > .form-grid {
+  gap: 10px;
+  min-height: 0;
+}
+
+.registration-workflow-card[data-workflow="race"] .existing-racer-list {
+  max-height: 100px;
+}
+
+.registration-workflow-card[data-workflow="race"]:has(.notice-banner) .existing-racer-list {
+  max-height: 56px;
+}
+
+.registration-workflow-heading {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 10px;
+  color: #40584f;
+}
+
+.registration-workflow-heading h4 {
+  margin: 0;
+  color: #17211d;
+  font-size: 19px;
+  line-height: 1.15;
+}
+
+.registration-workflow-heading small {
+  display: block;
+  margin-top: 4px;
+  color: #607269;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.workflow-step {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  color: #ffffff;
+  background: #2d6f7a;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.registration-workflow-card[data-workflow="race"] .workflow-step {
+  background: #b9472d;
+}
+
+.registration-workflow-card .division-fieldset,
+.registration-workflow-card .existing-racer-list {
+  background: #ffffff;
+}
+
+.registration-workflow-card .primary-action,
+.registration-workflow-card > .form-grid > .secondary-action {
+  width: 100%;
+}
+
+.registration-assign-action {
+  background: #2d6f7a;
+}
+
+.registration-workflow-empty {
+  padding: 14px;
+  border: 1px dashed #cfd9d3;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.registration-bulk-panel,
+.existing-racer-list {
+  display: grid;
+  gap: 10px;
+}
+
+.registration-bulk-panel {
+  padding-top: 14px;
+  border-top: 1px solid #dce5e0;
+}
+
+.registration-bulk-panel > .secondary-action {
+  width: 100%;
+}
+
+.registration-bulk-form {
+  padding-top: 4px;
+}
+
+.registration-existing-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #536860;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.registration-existing-heading > div:first-child {
+  display: grid;
+  gap: 2px;
+  min-width: 180px;
+}
+
+.registration-existing-heading small {
+  color: #607269;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.existing-racer-list {
+  max-height: 220px;
+  overflow: auto;
+  padding: 8px;
+  border: 1px solid #d9e2dd;
+  border-radius: 8px;
+  background: #f8fbf9;
+}
+
+.existing-racer-list .inline-toggle {
+  min-height: 38px;
+  background: #ffffff;
+}
+.roster-readiness-help {
+  margin: 0 0 10px;
+}
+
