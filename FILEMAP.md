@@ -39,8 +39,6 @@
 |------|-------------|
 | `.github/copilot-instructions.md` | Copilot-specific project instructions kept aligned with `AGENTS.md`. |
 | `.github/FUNDING.yml` | GitHub Sponsor-button configuration for the PackRacer Buy Me a Coffee page. |
-| `.github/workflows/release-windows.yml` | Manual and tag-triggered Windows x64 installer build, artifact upload, and GitHub Release publishing. |
-| `.github/workflows/validate.yml` | Windows pull-request and main-branch race-test, type-check, and application-build validation. |
 
 ## VS Code Configuration
 
@@ -64,6 +62,7 @@
 
 | File | Description |
 |------|-------------|
+| `scripts/publish-windows-release.ps1` | Local Windows build, version tag, main/tag push, and GitHub Release upload workflow. |
 | `scripts/release-windows.ps1` | Clean-tree, version, test, installer, and SHA-256 gates for Windows release candidates. |
 
 ## Desktop Main Process

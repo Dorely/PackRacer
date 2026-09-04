@@ -16,6 +16,7 @@
     "pack:win": "npm run pack:win --workspace @packracer/desktop",
     "dist:win": "npm run dist:win --workspace @packracer/desktop",
     "release:win": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/release-windows.ps1",
+    "publish:win": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/publish-windows-release.ps1",
     "typecheck": "npm run typecheck --workspace @packracer/desktop",
     "preview": "npm run preview --workspace @packracer/desktop",
     "test": "npm run test:race-engine",

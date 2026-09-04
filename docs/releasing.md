@@ -34,13 +34,12 @@ Use `npm run pack:win` when you only need an unpacked app for a quick local smok
 ## Version and publish workflow
 
 1. Update the root and desktop versions together and review the lockfile update.
-2. Commit the version change and confirm `npm run release:win` passes from the clean commit.
-3. Create an annotated tag matching the desktop version exactly, such as `v0.1.0`.
-4. Push the commit and tag.
+2. Commit the version change and confirm the working tree is clean.
+3. Run `npm run publish:win` from Windows.
 
-The `.github/workflows/release-windows.yml` workflow runs on Windows for both manual dispatches and `v*` tags. Manual runs retain the installer and checksum as a workflow artifact. A matching version tag also creates a public GitHub Release with generated release notes.
+The publish script reruns all local release checks, creates an annotated tag matching the desktop version, pushes `main` and the tag, and uploads the locally built installer and checksum to a public GitHub Release with generated release notes. Pass `-Tag vX.Y.Z` through the npm command only when an explicit tag is useful; it must still match the desktop package version.
 
-If release creation is denied, confirm that GitHub Actions has permission to write repository contents under **Settings → Actions → General → Workflow permissions**.
+GitHub-hosted Actions are intentionally not used to build PackRacer. Publishing requires an authenticated GitHub CLI session with permission to push the repository and create releases.
 
 ## Signing and reputation
 

@@ -48,11 +48,12 @@ npm run build      # Build the desktop app
 npm run pack:win   # Build an unpacked Windows x64 app for local smoke testing
 npm run dist:win   # Build a Windows x64 NSIS installer
 npm run release:win # Validate, test, package, and checksum a clean Windows release
+npm run publish:win # Build locally, tag, push, and publish a GitHub release
 npm run preview    # Preview the built Electron app
 npm test           # Run race-engine regression tests
 ```
 
-`npm run release:win` intentionally refuses to run from a dirty working tree or when the root and desktop package versions do not match. See [Releasing PackRacer](docs/releasing.md) for the local and GitHub Actions release process.
+`npm run release:win` intentionally refuses to run from a dirty working tree or when the root and desktop package versions do not match. `npm run publish:win` uses that local build and uploads it with the matching version tag; PackRacer does not use GitHub-hosted compute for Windows builds. See [Releasing PackRacer](docs/releasing.md) for the full process.
 
 ## MVP Race-Day Workflow
 
