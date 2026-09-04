@@ -122,9 +122,9 @@ The simulator transcript shows commands received from Race Control and raw bytes
 
 ## Support the project
 
-PackRacer will remain free to use. If it saves your group time and you would like to support continued development, the repository's GitHub **Sponsor** button will link to the maintainer's optional donation page once configured. Donations never unlock features or change the project's license.
+PackRacer will remain free to use. If it saves your group time and you would like to support continued development, you can [buy Dorely a coffee](https://buymeacoffee.com/dorely) or use the repository's GitHub **Sponsor** button. Donations never unlock features or change the project's license.
 
-The remaining account-side steps are documented in [Funding PackRacer](docs/funding.md). No payout or identity information belongs in this repository.
+Funding policy and repository configuration are documented in [Funding PackRacer](docs/funding.md). No payout or identity information belongs in this repository.
 
 ## License
 

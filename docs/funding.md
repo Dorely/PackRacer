@@ -2,15 +2,13 @@
 
 PackRacer is free to use. Optional donations support maintenance and do not unlock features, priority treatment, or commercial rights.
 
-## Enable Buy Me a Coffee
+## Current funding page
 
-1. Create a creator page at [Buy Me a Coffee](https://buymeacoffee.com/) and complete its private payout and identity setup.
-2. Choose a stable public username that you are comfortable associating with the project.
-3. In `.github/FUNDING.yml`, replace `YOUR_USERNAME` with that username and uncomment the `buy_me_a_coffee` line.
-4. Replace the placeholder wording in the README support section with a direct link to the live page.
-5. Push the change to the repository's default branch and verify that GitHub displays the **Sponsor** button.
+The public support page is [buymeacoffee.com/dorely](https://buymeacoffee.com/dorely). The same username is configured in `.github/FUNDING.yml`, which enables GitHub's repository-level **Sponsor** button after the change reaches the default branch.
 
 GitHub supports `buy_me_a_coffee: USERNAME` directly in `FUNDING.yml`. Do not commit payout details, tax information, API keys, or account credentials.
+
+If the public username changes, update `.github/FUNDING.yml` and the README link together.
 
 ## Suggested page copy
 

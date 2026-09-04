@@ -38,7 +38,7 @@
 | File | Description |
 |------|-------------|
 | `.github/copilot-instructions.md` | Copilot-specific project instructions kept aligned with `AGENTS.md`. |
-| `.github/FUNDING.yml` | Sponsor-button scaffold awaiting the maintainer's Buy Me a Coffee username. |
+| `.github/FUNDING.yml` | GitHub Sponsor-button configuration for the PackRacer Buy Me a Coffee page. |
 | `.github/workflows/release-windows.yml` | Manual and tag-triggered Windows x64 installer build, artifact upload, and GitHub Release publishing. |
 | `.github/workflows/validate.yml` | Windows pull-request and main-branch race-test, type-check, and application-build validation. |
 
