@@ -2,6 +2,7 @@
   "name": "packracer",
   "version": "0.1.0",
   "private": true,
+  "license": "PolyForm-Noncommercial-1.0.0",
   "description": "Local-first race event management for volunteer-run competitions.",
   "workspaces": [
     "apps/*",
@@ -12,6 +13,9 @@
     "dev": "npm run dev --workspace @packracer/desktop",
     "debug": "npm run debug --workspace @packracer/desktop",
     "build": "npm run build --workspace @packracer/desktop",
+    "pack:win": "npm run pack:win --workspace @packracer/desktop",
+    "dist:win": "npm run dist:win --workspace @packracer/desktop",
+    "release:win": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/release-windows.ps1",
     "typecheck": "npm run typecheck --workspace @packracer/desktop",
     "preview": "npm run preview --workspace @packracer/desktop",
     "test": "npm run test:race-engine",

@@ -423,9 +423,10 @@ Electron is recommended as the desktop shell because it provides:
 
 Target platforms:
 
-* Windows
-* macOS
-* Linux (optional)
+* Windows x64 (current MVP release target)
+* Windows ARM (future packaging and validation)
+* macOS (future packaging and validation)
+* Linux (future packaging and validation)
 
 ---
 

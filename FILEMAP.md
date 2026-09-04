@@ -12,7 +12,9 @@
 | `.editorconfig` | Shared whitespace and line-ending defaults. |
 | `.gitignore` | Ignore rules for Node, Electron build output, local event data, and editor files. |
 | `AGENTS.md` | Root agent guidance for working in the PackRacer repo. |
+| `CONTRIBUTING.md` | Public development setup, contribution expectations, and platform scope. |
 | `FILEMAP.md` | This file: concise map of every source and configuration file. |
+| `LICENSE` | PolyForm Noncommercial 1.0.0 terms and PackRacer required copyright notice. |
 | `package-lock.json` | Locked npm dependency graph for the workspace. |
 | `package.json` | Root npm workspace definition and top-level scripts. |
 | `README.md` | Developer onboarding, scripts, and architecture summary. |
@@ -24,6 +26,8 @@
 | File | Description |
 |------|-------------|
 | `docs/hardware-timers.md` | Timer operator workflow, virtual-port simulator, protocol index, gate safety, and validation status. |
+| `docs/funding.md` | Buy Me a Coffee and GitHub Sponsor-button setup without storing private account details. |
+| `docs/releasing.md` | Windows release prerequisites, local scripts, tag-driven publishing, signing, and future-platform checks. |
 | `docs/hardware-timers/micro-wizard-fasttrack.md` | Micro Wizard K/Q serial settings, command table, result framing, simulator behavior, sources, and validation gaps. |
 | `docs/hardware-timers/besttrack-champ.md` | Legacy SmartLine and current SRM Champ connection assumptions, commands, result formats, sources, and validation gaps. |
 | `docs/hardware-timers/newbold.md` | NewBold serial settings, reset behavior, ordered result format, detection limits, sources, and validation gaps. |
@@ -34,6 +38,9 @@
 | File | Description |
 |------|-------------|
 | `.github/copilot-instructions.md` | Copilot-specific project instructions kept aligned with `AGENTS.md`. |
+| `.github/FUNDING.yml` | Sponsor-button scaffold awaiting the maintainer's Buy Me a Coffee username. |
+| `.github/workflows/release-windows.yml` | Manual and tag-triggered Windows x64 installer build, artifact upload, and GitHub Release publishing. |
+| `.github/workflows/validate.yml` | Windows pull-request and main-branch race-test, type-check, and application-build validation. |
 
 ## VS Code Configuration
 
@@ -46,10 +53,18 @@
 | File | Description |
 |------|-------------|
 | `apps/desktop/package.json` | Desktop workspace package metadata, dependencies, and scripts. |
+| `apps/desktop/electron-builder.yml` | Windows x64 installer packaging, application identity, artifact naming, and NSIS settings. |
 | `apps/desktop/electron.vite.config.ts` | Electron Vite build configuration for main, preload, and renderer bundles. |
+| `apps/desktop/packaging/icon.svg` | Scalable PackRacer application and installer icon source. |
 | `apps/desktop/tsconfig.json` | TypeScript project references for desktop node and web configs. |
 | `apps/desktop/tsconfig.node.json` | TypeScript settings for Electron main, preload, and build config code. |
 | `apps/desktop/tsconfig.web.json` | TypeScript settings for the React renderer. |
+
+## Release Scripts
+
+| File | Description |
+|------|-------------|
+| `scripts/release-windows.ps1` | Clean-tree, version, test, installer, and SHA-256 gates for Windows release candidates. |
 
 ## Desktop Main Process
 

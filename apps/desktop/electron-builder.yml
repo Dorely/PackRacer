@@ -1,0 +1,40 @@
+appId: com.packracer.desktop
+productName: PackRacer
+copyright: Copyright © 2026 Dorely
+
+directories:
+  output: ../../release
+  buildResources: packaging
+
+files:
+  - out/**/*
+  - package.json
+
+extraFiles:
+  - from: ../../LICENSE
+    to: LICENSE
+
+asar: true
+asarUnpack:
+  - "**/*.node"
+# SerialPort 13 ships N-API binaries for Windows x64. Rebuilding against
+# Electron 42 currently fails in MSVC even though the shipped binary is compatible.
+npmRebuild: false
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: packaging/icon.svg
+  artifactName: ${productName}-Setup-${version}-${arch}.${ext}
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: PackRacer
+  deleteAppDataOnUninstall: false
+
+publish: null

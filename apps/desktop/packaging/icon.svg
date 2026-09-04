@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="PackRacer">
+  <rect width="512" height="512" rx="108" fill="#123c33"/>
+  <path d="M0 372h512v140H0z" fill="#c54a2e"/>
+  <path d="M88 335h336" stroke="#f7f5ef" stroke-width="22" stroke-linecap="round"/>
+  <path d="M121 305c22-73 64-111 126-114h66c35 0 58 18 78 54l31 60H121Z" fill="#f7f5ef"/>
+  <path d="M182 202c18-28 42-43 72-43h44c24 0 43 12 57 36l23 41H161l21-34Z" fill="#e2eee8"/>
+  <circle cx="170" cy="335" r="49" fill="#102c27" stroke="#f7f5ef" stroke-width="17"/>
+  <circle cx="358" cy="335" r="49" fill="#102c27" stroke="#f7f5ef" stroke-width="17"/>
+  <circle cx="170" cy="335" r="14" fill="#d6a947"/>
+  <circle cx="358" cy="335" r="14" fill="#d6a947"/>
+  <path d="M105 119v127" stroke="#f7f5ef" stroke-width="18" stroke-linecap="round"/>
+  <path d="M114 123h117v83H114z" fill="#f7f5ef"/>
+  <path d="M114 123h39v28h-39zm78 0h39v28h-39zm-39 28h39v28h-39zm-39 28h39v27h-39zm78 0h39v27h-39z" fill="#123c33"/>
+</svg>

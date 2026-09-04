@@ -1,8 +1,19 @@
 # PackRacer
 
-PackRacer is a local-first race event management app for volunteer-run competitions. The goal is to replace spreadsheet-driven race days with a dependable desktop workflow that can run from one laptop with no internet connection.
+PackRacer is a free, local-first race event manager for volunteer-run competitions such as Pinewood Derby and Raingutter Regatta. It replaces spreadsheet-driven race days with a dependable desktop workflow that runs from one laptop without accounts, cloud services, or an internet connection.
 
-The current repo contains the first development scaffold: an npm workspace with a working Electron, React, TypeScript, and Vite desktop shell.
+## Download
+
+Windows x64 is the supported MVP platform. Installers are published on the [GitHub Releases page](https://github.com/Dorely/PackRacer/releases). Each installer is accompanied by a SHA-256 checksum.
+
+PackRacer is not yet code-signed, so Windows may show a SmartScreen warning for early test releases. Code signing is tracked as release follow-up work.
+
+| Platform | Status |
+| --- | --- |
+| Windows x64 | Supported MVP build |
+| Windows ARM | Planned and unvalidated |
+| macOS | Planned and unvalidated |
+| Linux | Planned and unvalidated |
 
 ## Current Status
 
@@ -13,12 +24,12 @@ The current repo contains the first development scaffold: an npm workspace with 
 - Hardware timers: optional Windows-first serial input, review-before-save captures, a production-accessible simulator, and raw protocol replay are implemented. Physical protocols await validation with real units.
 - Local API and websocket services: planned, not implemented yet.
 
-## Prerequisites
+## Development prerequisites
 
 - Node.js 20 or newer.
 - npm 10 or newer.
 
-## Quick Start
+## Development quick start
 
 ```sh
 npm install
@@ -34,9 +45,14 @@ npm run dev        # Start the Electron app in development mode
 npm run debug      # Start the Electron app with VS Code-friendly debug ports
 npm run typecheck  # Run TypeScript checks
 npm run build      # Build the desktop app
+npm run pack:win   # Build an unpacked Windows x64 app for local smoke testing
+npm run dist:win   # Build a Windows x64 NSIS installer
+npm run release:win # Validate, test, package, and checksum a clean Windows release
 npm run preview    # Preview the built Electron app
 npm test           # Run race-engine regression tests
 ```
+
+`npm run release:win` intentionally refuses to run from a dirty working tree or when the root and desktop package versions do not match. See [Releasing PackRacer](docs/releasing.md) for the local and GitHub Actions release process.
 
 ## MVP Race-Day Workflow
 
@@ -83,6 +99,7 @@ PackRacer follows the architecture direction in `VISION.md`:
 - Keep Electron main, preload, and renderer code separated.
 - Update `FILEMAP.md` whenever source files are added, removed, renamed, or significantly repurposed.
 - Read `VISION.md` and `FILEMAP.md` before making substantive changes.
+- Read [CONTRIBUTING.md](CONTRIBUTING.md) before proposing a public contribution.
 
 ## Hardware Timers
 
@@ -102,3 +119,15 @@ The simulator is a separate virtual serial-device window. It emulates a selected
 8. Accept or discard the capture exactly as you would with a physical timer. Simulator captures follow the same operator workflow and remain identified as simulated only in the audit history.
 
 The simulator transcript shows commands received from Race Control and raw bytes sent back. Its manual-data control also accepts ASCII with `\\r` and `\\n` escapes. Closing the simulator window removes the virtual port and drops an active virtual connection. Explicit DNF is available only while emulating NewBold or The Judge; other profiles use **Incomplete Result** followed by **Force Results**. The incomplete, duplicate-transmission, and disconnect scenarios are useful for practicing recovery without affecting manual result entry.
+
+## Support the project
+
+PackRacer will remain free to use. If it saves your group time and you would like to support continued development, the repository's GitHub **Sponsor** button will link to the maintainer's optional donation page once configured. Donations never unlock features or change the project's license.
+
+The remaining account-side steps are documented in [Funding PackRacer](docs/funding.md). No payout or identity information belongs in this repository.
+
+## License
+
+PackRacer is source-available under the [PolyForm Noncommercial License 1.0.0](LICENSE). You may use, study, modify, and redistribute it for permitted noncommercial purposes. Commercial use requires separate permission from the licensor.
+
+Because the license restricts commercial use, it is not an OSI-approved open source license. This repository uses “free and source-available” rather than “open source” when that distinction matters.
