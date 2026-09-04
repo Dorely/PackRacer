@@ -48,7 +48,20 @@ try {
   }
 
   $checksumPath = "$installerPath.sha256"
-  $checksum = (Get-FileHash -LiteralPath $installerPath -Algorithm SHA256).Hash.ToLowerInvariant()
+  $installerStream = [System.IO.File]::OpenRead($installerPath)
+  try {
+    $sha256 = [System.Security.Cryptography.SHA256]::Create()
+    try {
+      $checksumBytes = $sha256.ComputeHash($installerStream)
+      $checksum = ([System.BitConverter]::ToString($checksumBytes)).Replace("-", "").ToLowerInvariant()
+    }
+    finally {
+      $sha256.Dispose()
+    }
+  }
+  finally {
+    $installerStream.Dispose()
+  }
   Set-Content -LiteralPath $checksumPath -Value "$checksum *$installerName" -Encoding ascii
 
   Write-Host "Windows release candidate created:"
