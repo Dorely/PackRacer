@@ -196,17 +196,31 @@ export function App() {
 
   }, [event, selectedRaceId])
 
-  const runAction = useCallback(
-    async (action: () => Promise<EventSessionSnapshot | null>): Promise<void> => {
+  const runActionWithResult = useCallback(
+    async (action: () => Promise<EventSessionSnapshot | null>): Promise<EventSessionSnapshot | null> => {
       try {
         setErrorMessage('')
-        applySession(await action())
+        const nextSession = await action()
+        applySession(nextSession)
+        return nextSession
       } catch (error) {
         setErrorMessage(error instanceof Error ? error.message : 'The race operation could not be completed.')
+        return null
       }
     },
     [applySession]
   )
+
+  const runAction = useCallback(
+    async (action: () => Promise<EventSessionSnapshot | null>): Promise<void> => {
+      await runActionWithResult(action)
+    },
+    [runActionWithResult]
+  )
+
+  useEffect(() => {
+    setErrorMessage('')
+  }, [activeSection])
 
   const runTimerAction = useCallback(async (action: () => Promise<TimerState>): Promise<void> => {
     try {
@@ -219,7 +233,7 @@ export function App() {
 
   const actions: AppActions = useMemo(
     () => ({
-      createEvent: (input: CreateEventInput) => runAction(() => getPackRacerApi().createEvent(input)),
+      createEvent: (input: CreateEventInput) => runActionWithResult(() => getPackRacerApi().createEvent(input)),
       selectEvent: (eventId: string) => runAction(() => getPackRacerApi().selectEvent(eventId)),
       updateEvent: (input: UpdateEventInput) => runAction(() => getPackRacerApi().updateEvent(input)),
       addDivision: (input: CreateDivisionInput) => runAction(() => getPackRacerApi().addDivision(input)),
@@ -227,7 +241,7 @@ export function App() {
         runAction(() => getPackRacerApi().updateDivision(divisionId, input)),
       deleteDivision: (divisionId: string) => runAction(() => getPackRacerApi().deleteDivision(divisionId)),
       deleteEvent: (eventId: string) => runAction(() => getPackRacerApi().deleteEvent(eventId)),
-      createRace: (input: CreateRaceInput) => runAction(() => getPackRacerApi().createRace(input)),
+      createRace: (input: CreateRaceInput) => runActionWithResult(() => getPackRacerApi().createRace(input)),
       updateRace: (raceId: string, input: UpdateRaceInput) => runAction(() => getPackRacerApi().updateRace(raceId, input)),
       updateRaceLaneAvailability: (raceId: string, input: UpdateRaceLaneAvailabilityInput) =>
         runAction(() => getPackRacerApi().updateRaceLaneAvailability(raceId, input)),
@@ -304,7 +318,7 @@ export function App() {
         }
       }
     }),
-    [runAction, runTimerAction]
+    [runAction, runActionWithResult, runTimerAction]
   )
 
   const openActiveSectionPopout = useCallback(async () => {
@@ -400,12 +414,6 @@ export function App() {
       {errorMessage ? <div className="notice-banner" role="alert">{errorMessage}</div> : null}
 
       {session?.recoveryNotice ? <div className="notice-banner warning" role="alert">{session.recoveryNotice}</div> : null}
-
-      {activeSection === 'race-control' && timerState.simulationMode && !['disconnected', 'error'].includes(timerState.status) ? (
-        <div className="notice-banner simulation-banner" role="status">
-          SIMULATION MODE — generated results require confirmation before saving.
-        </div>
-      ) : null}
 
       {event?.activeRemovalImpact ? (
         <div className="notice-banner warning" role="status">
@@ -513,7 +521,7 @@ export function App() {
         </div>
       </aside>
 
-      <section className="workspace" aria-labelledby={activeSection === 'display' ? undefined : 'workspace-title'}>
+      <section className="workspace" data-section={activeSection} aria-labelledby={activeSection === 'display' ? undefined : 'workspace-title'}>
         {activeSection !== 'display' ? (
           <header className="topbar">
             <div>

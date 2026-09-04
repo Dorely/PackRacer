@@ -230,7 +230,7 @@ export function TimerPanel({ actions, currentRace, currentHeat, profiles, ports,
 
           {state.capture ? (
             <div className="timer-capture" data-stale={!captureIsCurrent}>
-              <div><strong>{state.capture.simulated ? 'Simulated' : 'Hardware'} capture staged</strong><span>Heat {state.capture.heatNumber} · {state.capture.results.length} lane result(s){state.capture.complete ? '' : ' · incomplete'}</span></div>
+              <div><strong>Timer capture staged</strong><span>Heat {state.capture.heatNumber} · {state.capture.results.length} lane result(s){state.capture.complete ? '' : ' · incomplete'}</span></div>
               {state.capture.warnings.map((warning) => <p key={warning}>{warning}</p>)}
               {!captureIsCurrent ? <p>This capture is stale and cannot populate the selected heat.</p> : null}
               <button className="secondary-action" onClick={() => void actions.discardTimerCapture()} type="button">Discard Capture</button>

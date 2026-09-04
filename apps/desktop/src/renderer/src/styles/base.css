@@ -248,6 +248,26 @@ label {
   overflow-y: auto;
 }
 
+.workspace[data-section="event"] {
+  gap: 16px;
+  padding-block: 18px;
+  overflow-y: hidden;
+}
+
+.workspace[data-section="display"] {
+  gap: 0;
+  padding: 8px;
+  overflow: hidden;
+}
+
+.workspace[data-section="display"] > .display-board {
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: auto;
+}
+
 .popout-shell {
   display: flex;
   flex-direction: column;
@@ -505,29 +525,84 @@ label {
 
 .setup-grid {
   align-items: stretch;
+  grid-template-columns: minmax(320px, 0.9fr) minmax(340px, 1.1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  flex: 1 1 auto;
+  overflow: hidden;
 }
 
 .setup-grid .race-list-scroll {
-  flex: 1 1 190px;
-  min-height: 180px;
-  max-height: 360px;
+  flex: 1 1 120px;
+  min-height: 72px;
   padding-right: 4px;
 }
 
 .setup-grid .race-settings-panel {
-  height: fit-content;
+  height: 100%;
   min-height: 100%;
+  overflow-y: auto;
+}
+
+.setup-grid > .race-list-panel,
+.setup-grid > .race-settings-panel {
+  min-height: 0;
+  padding: 16px;
+  gap: 12px;
+}
+
+.setup-grid .form-grid {
+  gap: 10px;
+}
+
+.setup-grid .form-grid.two-column {
+  column-gap: 10px;
+  row-gap: 8px;
+}
+
+.setup-grid input:not([type="checkbox"]),
+.setup-grid select,
+.setup-grid .inline-toggle {
+  min-height: 36px;
+}
+
+.setup-grid input:not([type="checkbox"]),
+.setup-grid select {
+  padding-block: 6px;
+}
+
+.setup-grid .inline-toggle {
+  padding: 6px 10px;
 }
 
 .division-management-panel {
   grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: auto minmax(240px, 0.75fr) minmax(280px, 1.25fr);
+  align-items: end;
+  gap: 12px;
   min-height: auto;
+  max-height: 126px;
+  padding: 14px 16px;
+  overflow: hidden;
+}
+
+.division-management-panel > .panel-heading {
+  align-self: center;
+  min-width: 126px;
+}
+
+.division-management-panel .division-create-form {
+  grid-template-columns: minmax(130px, 1fr) auto;
+  gap: 8px;
 }
 
 .division-management-list {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
-  gap: 10px;
+  grid-template-columns: 1fr;
+  gap: 6px;
+  max-height: 96px;
+  padding-right: 3px;
+  overflow-y: auto;
 }
 
 .division-management-row {
@@ -535,7 +610,7 @@ label {
   grid-template-columns: minmax(140px, 1fr) auto auto;
   align-items: center;
   gap: 8px;
-  padding: 10px;
+  padding: 6px;
   border: 1px solid #d9e2dd;
   border-radius: 8px;
   background: #f8fbf9;
@@ -741,13 +816,6 @@ label {
   min-width: max-content;
 }
 
-.notice-banner.simulation-banner {
-  border-color: #d39a35;
-  color: #4a3007;
-  background: #ffd77f;
-  letter-spacing: 0.04em;
-}
-
 .lane-row[data-disabled="true"] {
   border-left-color: #8f2f25;
   background: #fff3ef;
@@ -851,6 +919,12 @@ label {
   border-radius: 8px;
   color: #26352f;
   background: #f8fbf9;
+}
+
+.drop-worst-toggle {
+  grid-column: span 2;
+  height: 36px;
+  padding-block: 6px;
 }
 
 .division-fieldset {
@@ -1026,12 +1100,6 @@ label {
   letter-spacing: 0.03em;
 }
 
-.result-source-badge.simulated {
-  border-color: #d39a35;
-  color: #563804;
-  background: #ffedba;
-}
-
 .table-panel {
   min-height: 0;
 }
@@ -1042,12 +1110,6 @@ label {
   scrollbar-gutter: stable;
   border: 1px solid #d9e2dd;
   border-radius: 8px;
-}
-
-.registration-grid .data-table-wrap:has(tbody tr),
-.standings-grid .data-table-wrap:has(tbody tr) {
-  min-height: 280px;
-  max-height: min(65vh, 720px);
 }
 
 .data-table {

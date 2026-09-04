@@ -3,7 +3,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react'
 
 import { getRaceDivision, isEliminationFormat, type Division, type RaceFormat, type ScoringMode } from '@packracer/race-engine'
 
-import { formatStatus, raceSummary } from '../formatters'
+import { formatStatus, raceSummary, suggestedUniqueName } from '../formatters'
 import type { SectionProps } from './types'
 
 const raceFormats: RaceFormat[] = [
@@ -98,13 +98,13 @@ function DivisionRow({
 
 export function EventSetup({ event, currentRace, actions, selectedRaceId, setSelectedRaceId, requestConfirmation }: SectionProps) {
   const [newDivisionName, setNewDivisionName] = useState('')
-  const [raceName, setRaceName] = useState('Main Tournament')
+  const suggestedRaceName = suggestedUniqueName('Main Tournament', event?.races.map((race) => race.name) ?? [])
+  const [raceName, setRaceName] = useState(suggestedRaceName)
   const [raceDivisionId, setRaceDivisionId] = useState(event?.divisions[0]?.id ?? '')
   const [raceFormat, setRaceFormat] = useState<RaceFormat>('timed-heats')
   const [raceLaneCount, setRaceLaneCount] = useState(3)
   const [raceRounds, setRaceRounds] = useState(3)
   const [raceScoringMode, setRaceScoringMode] = useState<ScoringMode>('average-time')
-  const [raceDropWorstTime, setRaceDropWorstTime] = useState(false)
   const [editRaceName, setEditRaceName] = useState(currentRace?.name ?? '')
   const [editRaceFormat, setEditRaceFormat] = useState<RaceFormat>(currentRace?.format ?? 'timed-heats')
   const [editLaneCount, setEditLaneCount] = useState(currentRace?.laneCount ?? 3)
@@ -124,6 +124,10 @@ export function EventSetup({ event, currentRace, actions, selectedRaceId, setSel
       setRaceDivisionId(event.divisions[0].id)
     }
   }, [event?.id, event?.divisions, raceDivisionId])
+
+  useEffect(() => {
+    setRaceName(suggestedRaceName)
+  }, [event?.id, suggestedRaceName])
 
   useEffect(() => {
     if (!currentRace) {
@@ -179,19 +183,24 @@ export function EventSetup({ event, currentRace, actions, selectedRaceId, setSel
     setNewDivisionName('')
   }
 
-  const submitRace = (formEvent: FormEvent) => {
+  const submitRace = async (formEvent: FormEvent) => {
     formEvent.preventDefault()
-    void actions.createRace({
+    const nextSession = await actions.createRace({
       name: raceName,
       format: raceFormat,
       laneCount: raceLaneCount,
       roundsPerRacer: createSupportsRuns ? raceRounds : 1,
       scoringMode: selectedScoringMode(raceFormat, raceScoringMode),
-      dropWorstTime: raceFormat === 'timed-heats' && raceScoringMode === 'average-time' && raceDropWorstTime,
+      dropWorstTime: false,
       divisionId: raceDivisionId,
       schedulingOptions: { avoidSameLane: true, avoidSameOpponents: true, fillPartialHeats: true }
     })
-    setRaceName('Additional Race')
+    const nextEvent = nextSession?.event
+    const createdRace = nextEvent?.races[nextEvent.races.length - 1]
+    if (createdRace && nextEvent) {
+      setSelectedRaceId(createdRace.id)
+      setRaceName(suggestedUniqueName('Main Tournament', nextEvent.races.map((race) => race.name)))
+    }
   }
 
   const submitRaceSettings = (formEvent: FormEvent) => {
@@ -353,12 +362,6 @@ export function EventSetup({ event, currentRace, actions, selectedRaceId, setSel
                 </select>
               </label>
             ) : null}
-            {raceFormat === 'timed-heats' && raceScoringMode === 'average-time' ? (
-              <label className="inline-toggle">
-                <input checked={raceDropWorstTime} onChange={(inputEvent) => setRaceDropWorstTime(inputEvent.target.checked)} type="checkbox" />
-                <span>Drop each racer’s slowest successful time</span>
-              </label>
-            ) : null}
           </div>
           <button className="primary-action" type="submit">
             <ListPlus aria-hidden="true" size={18} />
@@ -484,7 +487,7 @@ export function EventSetup({ event, currentRace, actions, selectedRaceId, setSel
                     <span>Fill partial heats</span>
                   </label>
                   {editRaceFormat === 'timed-heats' && editScoringMode === 'average-time' ? (
-                    <label className="inline-toggle">
+                    <label className="inline-toggle drop-worst-toggle">
                       <input checked={editDropWorstTime} onChange={(inputEvent) => setEditDropWorstTime(inputEvent.target.checked)} type="checkbox" />
                       <span>Drop each racer’s slowest successful time</span>
                     </label>

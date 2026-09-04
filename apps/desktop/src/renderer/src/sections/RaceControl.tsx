@@ -17,7 +17,6 @@ import {
   isUnfinishedHeatStatus,
   parseFinishPosition,
   placementOptions,
-  scenarioLabel,
   supportsMakeupResults,
   swapPlacementDrafts,
   usesTimeResults,
@@ -43,6 +42,7 @@ export function RaceControl({
   const pendingHeat = allHeats.find((heat) => heat.status === 'pending')
   const currentHeat = allHeats.find((heat) => heat.id === currentRace?.currentHeatId) ?? pendingHeat
   const [resultDrafts, setResultDrafts] = useState<Record<number, ResultDraft>>(() => initialDraft(currentHeat))
+  const [resultSubmissionAttempted, setResultSubmissionAttempted] = useState(false)
   const [laneAvailabilityOpen, setLaneAvailabilityOpen] = useState(false)
   const [deferredRacerIds, setDeferredRacerIds] = useState<string[]>([])
   const laneNumbers = useMemo(
@@ -57,6 +57,7 @@ export function RaceControl({
   useEffect(() => {
     setResultDrafts(initialDraft(currentHeat))
     setDeferredRacerIds([])
+    setResultSubmissionAttempted(false)
   }, [currentHeat?.id, currentHeat?.updatedAt])
 
   useEffect(() => {
@@ -206,6 +207,13 @@ export function RaceControl({
       return
     }
 
+    if (resultValidation) {
+      setResultSubmissionAttempted(true)
+      return
+    }
+
+    setResultSubmissionAttempted(false)
+
     const results = currentHeat.laneAssignments
       .filter((assignment) => assignment.racerId)
       .map((assignment) => {
@@ -237,17 +245,7 @@ export function RaceControl({
     }
 
     if (currentTimerCapture) {
-      const accept = () => actions.acceptTimerCapture(currentTimerCapture.id, currentRace.id, input)
-      if (currentTimerCapture.simulated) {
-        requestConfirmation({
-          title: 'Accept simulated results',
-          message: `Save this simulated ${scenarioLabel(currentTimerCapture.simulatorScenario)} capture as the official result for heat ${currentHeat.heatNumber}?`,
-          confirmLabel: 'Accept Simulated Result',
-          onConfirm: accept
-        })
-      } else {
-        void accept()
-      }
+      void actions.acceptTimerCapture(currentTimerCapture.id, currentRace.id, input)
       return
     }
 
@@ -400,8 +398,8 @@ export function RaceControl({
         {currentHeat ? (
           <form className="result-entry" onSubmit={submitResults}>
             {currentTimerCapture ? (
-              <div className={`result-source-badge ${currentTimerCapture.simulated ? 'simulated' : 'hardware'}`}>
-                {currentTimerCapture.simulated ? 'SIMULATED CAPTURE' : 'HARDWARE CAPTURE'} — review or edit every value before saving.
+              <div className="result-source-badge">
+                TIMER CAPTURE — review or edit every value before saving.
               </div>
             ) : null}
             <div className="lane-grid" aria-label="Lane assignments and results">
@@ -509,7 +507,7 @@ export function RaceControl({
             {resultsLockedByDependents ? (
               <p className="empty-state">Locked because {dependentRaceNames} {dependentRaceVerb} generated heats.</p>
             ) : null}
-            {resultValidation ? <p className="inline-error" role="alert">{resultValidation}</p> : null}
+            {resultSubmissionAttempted && resultValidation ? <p className="inline-error" role="alert">{resultValidation}</p> : null}
 
             <div className="button-row">
               {canDeferCurrent ? (
@@ -526,7 +524,7 @@ export function RaceControl({
                   <span>Run Again</span>
                 </button>
               ) : null}
-              <button className="primary-action" disabled={Boolean(resultValidation) || currentHeat.status === 'invalidated' || resultsLockedByDependents} type="submit">
+              <button className="primary-action" disabled={currentHeat.status === 'invalidated' || resultsLockedByDependents} type="submit">
                 {currentHeat.status === 'complete' ? (
                   <Save aria-hidden="true" size={18} />
                 ) : (

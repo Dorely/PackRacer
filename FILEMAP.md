@@ -74,7 +74,7 @@
 | `apps/desktop/src/renderer/timer-simulator.html` | Separate virtual timer-device window HTML entry point. |
 | `apps/desktop/src/renderer/src/App.tsx` | PackRacer operator shell, navigation, app-level Dev Mode gating, event/race session state, and race-day action wiring. |
 | `apps/desktop/src/renderer/src/env.d.ts` | Renderer global and Vite type declarations. |
-| `apps/desktop/src/renderer/src/formatters.ts` | Renderer formatting helpers for race statuses, times, racers, and heats. |
+| `apps/desktop/src/renderer/src/formatters.ts` | Renderer formatting helpers for race statuses, times, racers, heats, and collision-free suggested names. |
 | `apps/desktop/src/renderer/src/main.tsx` | React renderer bootstrap. |
 | `apps/desktop/src/renderer/src/timer-simulator-main.tsx` | Virtual serial timer window, emulated hardware/scenario controls, raw-byte sender, and transport transcript. |
 | `apps/desktop/src/renderer/src/styles.css` | Ordered entry point for renderer style modules. |

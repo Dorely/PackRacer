@@ -29,11 +29,6 @@
   min-height: 520px;
 }
 
-.registration-roster-panel .data-table-wrap:has(tbody tr) {
-  min-height: 420px;
-  max-height: min(72vh, 820px);
-}
-
 .registration-table input {
   min-width: 92px;
   margin: 2px 0;

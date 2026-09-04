@@ -39,14 +39,14 @@ export type ConfirmationRequest = {
 }
 
 export type AppActions = {
-  createEvent: (input: CreateEventInput) => Promise<void>
+  createEvent: (input: CreateEventInput) => Promise<EventSessionSnapshot | null>
   selectEvent: (eventId: string) => Promise<void>
   updateEvent: (input: UpdateEventInput) => Promise<void>
   addDivision: (input: CreateDivisionInput) => Promise<void>
   updateDivision: (divisionId: string, input: UpdateDivisionInput) => Promise<void>
   deleteDivision: (divisionId: string) => Promise<void>
   deleteEvent: (eventId: string) => Promise<void>
-  createRace: (input: CreateRaceInput) => Promise<void>
+  createRace: (input: CreateRaceInput) => Promise<EventSessionSnapshot | null>
   updateRace: (raceId: string, input: UpdateRaceInput) => Promise<void>
   updateRaceLaneAvailability: (raceId: string, input: UpdateRaceLaneAvailabilityInput) => Promise<void>
   deleteRace: (raceId: string) => Promise<void>

@@ -11,6 +11,20 @@ export function formatStatus(value: string): string {
     .join(' ')
 }
 
+export function suggestedUniqueName(baseName: string, existingNames: string[]): string {
+  const usedNames = new Set(existingNames.map((name) => name.trim().toLocaleLowerCase()))
+  if (!usedNames.has(baseName.toLocaleLowerCase())) {
+    return baseName
+  }
+
+  let suffix = 2
+  while (usedNames.has(`${baseName} ${suffix}`.toLocaleLowerCase())) {
+    suffix += 1
+  }
+
+  return `${baseName} ${suffix}`
+}
+
 export function racerLabel(racers: Racer[], racerId: string | null): string {
   if (!racerId) {
     return 'Open lane'

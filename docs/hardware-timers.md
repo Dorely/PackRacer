@@ -79,7 +79,7 @@ Normal use is:
 4. Arm the current heat in Race Control.
 5. For a profile without software gate release, choose **Send Simulated Heat** in the simulator window. For a gate-capable profile, enable software gate control and choose **Release Gate** in Race Control instead.
 6. Observe the raw-byte transcript and staged capture.
-7. Review or edit the result, then confirm every simulated acceptance or discard it.
+7. Review or edit the result, then accept or discard it exactly as you would a physical timer capture.
 
 The simulator also accepts manually entered ASCII with `\\r` and `\\n` escapes. This is useful for exercising malformed, partial, or model-specific messages through the connected adapter.
 
@@ -95,7 +95,7 @@ Scenarios:
 - **Duplicate transmission** — the completed result is emitted twice to exercise deduplication.
 - **Disconnect during heat** — the connection fails between start and result.
 
-Reset and gate-release commands are sent to the virtual device and appear in its transcript. A supported gate-release command automatically starts the simulated run; the operator does not also press **Send Simulated Heat**. Force Results stages only lane values already received. Simulated results may be stored for rehearsal, but every acceptance requires confirmation and is audited as simulated.
+Reset and gate-release commands are sent to the virtual device and appear in its transcript. A supported gate-release command automatically starts the simulated run; the operator does not also press **Send Simulated Heat**. Force Results stages only lane values already received. Simulated captures use the same review, edit, accept, and discard workflow as physical captures; their origin remains available in the audit history.
 
 ## Raw Protocol Replay
 

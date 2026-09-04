@@ -82,6 +82,11 @@
     grid-auto-columns: auto;
   }
 
+  .setup-grid {
+    grid-template-columns: minmax(320px, 0.9fr) minmax(340px, 1.1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
   .timer-setup-grid,
   .advanced-timer-grid,
   .simulator-controls,
@@ -162,10 +167,6 @@
     gap: 16px;
     min-height: 320px;
     padding: 18px;
-  }
-
-  .registration-grid .data-table-wrap:has(tbody tr) {
-    max-height: min(58vh, 590px);
   }
 
   .timer-panel-summary {

@@ -1,16 +1,18 @@
 import { CalendarDays, FolderOpen, Save, Trash2 } from 'lucide-react'
 import { FormEvent, useEffect, useState } from 'react'
 
+import { suggestedUniqueName } from '../formatters'
 import type { SectionProps } from './types'
 
 export function Events({ session, event, actions, requestConfirmation }: SectionProps) {
-  const [eventName, setEventName] = useState(event?.name ?? 'Pack Championship')
+  const suggestedEventName = suggestedUniqueName('Pack Championship', session?.events.map((summary) => summary.name) ?? [])
+  const [eventName, setEventName] = useState(event?.name ?? suggestedEventName)
   const [eventDate, setEventDate] = useState(event?.eventDate ?? new Date().toISOString().slice(0, 10))
 
   useEffect(() => {
-    setEventName(event?.name ?? 'Pack Championship')
+    setEventName(event?.name ?? suggestedEventName)
     setEventDate(event?.eventDate ?? new Date().toISOString().slice(0, 10))
-  }, [event])
+  }, [event, suggestedEventName])
 
   const submitEvent = (formEvent: FormEvent) => {
     formEvent.preventDefault()
@@ -24,7 +26,7 @@ export function Events({ session, event, actions, requestConfirmation }: Section
   }
 
   const createNewEvent = () => {
-    void actions.createEvent({ name: eventName, eventDate })
+    void actions.createEvent({ name: suggestedEventName, eventDate })
   }
 
   const deleteEvent = (eventId: string, name: string) => {
