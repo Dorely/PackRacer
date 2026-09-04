@@ -9,14 +9,13 @@ $releaseDirectory = Join-Path $repositoryRoot "release"
 function Invoke-CheckedCommand {
   param(
     [Parameter(Mandatory = $true)]
-    [string]$Command,
-    [Parameter(ValueFromRemainingArguments = $true)]
-    [string[]]$Arguments
+    [string]$Executable,
+    [string[]]$CommandArguments
   )
 
-  & $Command @Arguments
+  & $Executable @CommandArguments
   if ($LASTEXITCODE -ne 0) {
-    throw "$Command exited with code $LASTEXITCODE."
+    throw "$Executable exited with code $LASTEXITCODE."
   }
 }
 
@@ -45,8 +44,8 @@ try {
     throw "Tag $ExpectedTag does not match desktop version $desktopVersion. Expected v$desktopVersion."
   }
 
-  Invoke-CheckedCommand npm test
-  Invoke-CheckedCommand npm run dist:win
+  Invoke-CheckedCommand -Executable "npm" -CommandArguments @("test")
+  Invoke-CheckedCommand -Executable "npm" -CommandArguments @("run", "dist:win")
 
   $installerName = "PackRacer-Setup-$desktopVersion-x64.exe"
   $installerPath = Join-Path $releaseDirectory $installerName
