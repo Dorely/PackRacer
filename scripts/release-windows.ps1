@@ -6,19 +6,6 @@ $ErrorActionPreference = "Stop"
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $releaseDirectory = Join-Path $repositoryRoot "release"
 
-function Invoke-CheckedCommand {
-  param(
-    [Parameter(Mandatory = $true)]
-    [string]$Executable,
-    [string[]]$CommandArguments
-  )
-
-  & $Executable @CommandArguments
-  if ($LASTEXITCODE -ne 0) {
-    throw "$Executable exited with code $LASTEXITCODE."
-  }
-}
-
 Push-Location $repositoryRoot
 try {
   $workingTreeChanges = @(git status --porcelain)
@@ -44,8 +31,15 @@ try {
     throw "Tag $ExpectedTag does not match desktop version $desktopVersion. Expected v$desktopVersion."
   }
 
-  Invoke-CheckedCommand -Executable "npm" -CommandArguments @("test")
-  Invoke-CheckedCommand -Executable "npm" -CommandArguments @("run", "dist:win")
+  & npm.cmd test
+  if ($LASTEXITCODE -ne 0) {
+    throw "Race-engine tests exited with code $LASTEXITCODE."
+  }
+
+  & npm.cmd run dist:win
+  if ($LASTEXITCODE -ne 0) {
+    throw "Windows installer build exited with code $LASTEXITCODE."
+  }
 
   $installerName = "PackRacer-Setup-$desktopVersion-x64.exe"
   $installerPath = Join-Path $releaseDirectory $installerName
