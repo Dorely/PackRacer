@@ -1,5 +1,5 @@
 import { app } from 'electron'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { closeSync, copyFileSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import initSqlJs, { type BindParams, type Database as SqlDatabase, type SqlValue } from 'sql.js'
@@ -22,9 +22,27 @@ const require = createRequire(import.meta.url)
 let activeDatabase: SqlDatabase | null = null
 let databasePromise: Promise<SqlDatabase> | null = null
 let activeEvent: RaceEvent | null = null
+let sqlModule: Awaited<ReturnType<typeof initSqlJs>> | null = null
+let recoveryNotice: string | undefined
+let writeQueue: Promise<void> = Promise.resolve()
 
 function databasePath(): string {
   return join(app.getPath('userData'), 'packracer.sqlite')
+}
+
+function recoveryPath(): string {
+  return `${databasePath()}.recovery`
+}
+
+function serializeWrite<T>(operation: () => Promise<T>): Promise<T> {
+  const result = writeQueue.then(operation, operation)
+  writeQueue = result.then(() => undefined, () => undefined)
+  return result
+}
+
+function validateDatabase(database: SqlDatabase): void {
+  const value = database.exec('PRAGMA quick_check')[0]?.values[0]?.[0]
+  if (value !== 'ok') throw new Error(`SQLite integrity check failed: ${String(value ?? 'unknown error')}`)
 }
 
 async function openDatabase(): Promise<SqlDatabase> {
@@ -41,7 +59,32 @@ async function initializeDatabase(): Promise<SqlDatabase> {
   const filePath = databasePath()
   mkdirSync(dirname(filePath), { recursive: true })
   const SQL = await initSqlJs({ locateFile: (fileName) => require.resolve(`sql.js/dist/${fileName}`) })
-  const database = existsSync(filePath) ? new SQL.Database(readFileSync(filePath)) : new SQL.Database()
+  sqlModule = SQL
+  let database: SqlDatabase
+
+  if (existsSync(filePath)) {
+    try {
+      database = new SQL.Database(readFileSync(filePath))
+      validateDatabase(database)
+    } catch (primaryError) {
+      const quarantinePath = `${filePath}.corrupt-${new Date().toISOString().replace(/[:.]/g, '-')}`
+      renameSync(filePath, quarantinePath)
+
+      if (!existsSync(recoveryPath())) {
+        throw new Error(`PackRacer could not open its database and no recovery copy exists. Data file: ${filePath}. ${primaryError instanceof Error ? primaryError.message : ''}`)
+      }
+
+      try {
+        database = new SQL.Database(readFileSync(recoveryPath()))
+        validateDatabase(database)
+        recoveryNotice = `The primary database was damaged. PackRacer restored the last known good save and quarantined the damaged file at ${quarantinePath}.`
+      } catch (recoveryError) {
+        throw new Error(`PackRacer could not open either its database or recovery copy. Data file: ${filePath}. ${recoveryError instanceof Error ? recoveryError.message : ''}`)
+      }
+    }
+  } else {
+    database = new SQL.Database()
+  }
 
   database.exec(`
     CREATE TABLE IF NOT EXISTS metadata (
@@ -73,7 +116,22 @@ async function initializeDatabase(): Promise<SqlDatabase> {
 }
 
 function persistDatabase(database: SqlDatabase): void {
-  writeFileSync(databasePath(), Buffer.from(database.export()))
+  const filePath = databasePath()
+  const tempPath = `${filePath}.tmp`
+  writeFileSync(tempPath, Buffer.from(database.export()))
+  const descriptor = openSync(tempPath, 'r+')
+  try {
+    fsyncSync(descriptor)
+  } finally {
+    closeSync(descriptor)
+  }
+  if (existsSync(filePath)) copyFileSync(filePath, recoveryPath())
+  renameSync(tempPath, filePath)
+}
+
+function cloneDatabase(database: SqlDatabase): SqlDatabase {
+  if (!sqlModule) throw new Error('The database runtime is not initialized.')
+  return new sqlModule.Database(database.export())
 }
 
 function queryAll<T>(database: SqlDatabase, sql: string, params: BindParams = []): T[] {
@@ -185,25 +243,22 @@ function snapshot(database: SqlDatabase): EventSessionSnapshot {
     event: activeEvent,
     events: eventSummaries(database),
     standings: selectedStandings(activeEvent),
-    auditLog: auditRows(activeEvent.id, database)
+    auditLog: auditRows(activeEvent.id, database),
+    recoveryNotice
   }
 }
 
-async function writeActiveEvent(action: string, details: unknown, raceId?: string): Promise<EventSessionSnapshot> {
+async function writeActiveEvent(event: RaceEvent, action: string, details: unknown, raceId?: string): Promise<EventSessionSnapshot> {
   const database = await openDatabase()
-
-  if (!activeEvent) {
-    throw new Error('No event is active.')
-  }
-
+  const candidateDatabase = cloneDatabase(database)
   const createdAt = new Date().toISOString()
   const detailsText = typeof details === 'string' ? details : JSON.stringify(details)
-  const event = activeEvent
+  let transactionCommitted = false
 
-  database.run('BEGIN TRANSACTION')
+  candidateDatabase.run('BEGIN TRANSACTION')
 
   try {
-    database.run(
+    candidateDatabase.run(
       `INSERT INTO event_state (id, name, event_date, status, data, updated_at)
        VALUES (?, ?, ?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET
@@ -214,7 +269,7 @@ async function writeActiveEvent(action: string, details: unknown, raceId?: strin
          updated_at = excluded.updated_at`,
       [event.id, event.name, event.eventDate, event.status, JSON.stringify(event), createdAt]
     )
-    database.run('INSERT INTO audit_log (id, event_id, race_id, created_at, action, details) VALUES (?, ?, ?, ?, ?, ?)', [
+    candidateDatabase.run('INSERT INTO audit_log (id, event_id, race_id, created_at, action, details) VALUES (?, ?, ?, ?, ?, ?)', [
       createId('audit'),
       event.id,
       raceId ?? null,
@@ -222,61 +277,80 @@ async function writeActiveEvent(action: string, details: unknown, raceId?: strin
       action,
       detailsText
     ] as SqlValue[])
-    setActiveEventId(database, event.id)
-    database.run('COMMIT')
-    persistDatabase(database)
+    setActiveEventId(candidateDatabase, event.id)
+    candidateDatabase.run('COMMIT')
+    transactionCommitted = true
+    persistDatabase(candidateDatabase)
   } catch (error) {
-    database.run('ROLLBACK')
+    if (!transactionCommitted) {
+      try { candidateDatabase.run('ROLLBACK') } catch { /* preserve the original transaction error */ }
+    }
+    candidateDatabase.close()
     throw error
   }
 
-  return snapshot(database)
+  activeDatabase = candidateDatabase
+  database.close()
+  activeEvent = event
+  return snapshot(candidateDatabase)
 }
 
 export async function createEventSession(input: CreateEventInput): Promise<EventSessionSnapshot> {
-  activeEvent = createRaceEvent(input)
-  return writeActiveEvent('event:create', { name: activeEvent.name, laneCount: activeEvent.laneCount })
+  return serializeWrite(async () => {
+    const event = createRaceEvent(input)
+    return writeActiveEvent(event, 'event:create', { name: event.name, laneCount: event.laneCount })
+  })
 }
 
 export async function selectEventSession(eventId: string): Promise<EventSessionSnapshot> {
-  const database = await openDatabase()
-  const event = loadEvent(eventId, database)
+  return serializeWrite(async () => {
+    const database = await openDatabase()
+    const event = loadEvent(eventId, database)
 
-  if (!event) {
-    throw new Error('Event was not found.')
-  }
+    if (!event) {
+      throw new Error('Event was not found.')
+    }
 
-  activeEvent = event
-  setActiveEventId(database, event.id)
-  persistDatabase(database)
-  return snapshot(database)
+    const candidateDatabase = cloneDatabase(database)
+    setActiveEventId(candidateDatabase, event.id)
+    persistDatabase(candidateDatabase)
+    activeDatabase = candidateDatabase
+    database.close()
+    activeEvent = event
+    return snapshot(candidateDatabase)
+  })
 }
 
 export async function getCurrentEventSession(): Promise<EventSessionSnapshot | null> {
-  const database = await openDatabase()
+  return serializeWrite(async () => {
+    const database = await openDatabase()
 
-  if (activeEvent) {
-    return snapshot(database)
-  }
+    if (activeEvent) {
+      return snapshot(database)
+    }
 
-  const preferredEventId = activeEventId(database)
-  const latestEventId = eventSummaries(database)[0]?.id
-  const eventId = preferredEventId ?? latestEventId
+    const preferredEventId = activeEventId(database)
+    const latestEventId = eventSummaries(database)[0]?.id
+    const eventId = preferredEventId ?? latestEventId
 
-  if (!eventId) {
-    return null
-  }
+    if (!eventId) {
+      return null
+    }
 
-  const event = loadEvent(eventId, database)
+    const event = loadEvent(eventId, database)
 
-  if (!event) {
-    return null
-  }
+    if (!event) {
+      return null
+    }
 
-  activeEvent = event
-  setActiveEventId(database, event.id)
-  persistDatabase(database)
-  return snapshot(database)
+    const candidateDatabase = cloneDatabase(database)
+    setActiveEventId(candidateDatabase, event.id)
+    persistDatabase(candidateDatabase)
+    activeDatabase = candidateDatabase
+    database.close()
+    activeEvent = event
+    return snapshot(candidateDatabase)
+  })
 }
 
 export async function listEventSessions(): Promise<EventSummary[]> {
@@ -289,12 +363,14 @@ export async function mutateEvent(
   details: unknown = {},
   raceId?: string
 ): Promise<EventSessionSnapshot> {
-  if (!activeEvent) {
-    throw new Error('Create or select an event first.')
-  }
+  return serializeWrite(async () => {
+    if (!activeEvent) {
+      throw new Error('Create or select an event first.')
+    }
 
-  activeEvent = mutator(activeEvent)
-  return writeActiveEvent(action, details, raceId)
+    const candidateEvent = mutator(activeEvent)
+    return writeActiveEvent(candidateEvent, action, details, raceId)
+  })
 }
 
 export function closeEventStore(): void {
@@ -302,48 +378,55 @@ export function closeEventStore(): void {
   activeDatabase = null
   databasePromise = null
   activeEvent = null
+  writeQueue = Promise.resolve()
+}
+
+export async function initializeEventStore(): Promise<void> {
+  await openDatabase()
 }
 
 export async function deleteEventSession(eventId: string): Promise<EventSessionSnapshot | null> {
-  const database = await openDatabase()
+  return serializeWrite(async () => {
+    const database = await openDatabase()
+    const candidateDatabase = cloneDatabase(database)
+    const deletingActiveEvent = activeEvent?.id === eventId || activeEventId(candidateDatabase) === eventId
+    let nextActiveEvent = activeEvent
+    let transactionCommitted = false
 
-  database.run('BEGIN TRANSACTION')
+    candidateDatabase.run('BEGIN TRANSACTION')
 
-  try {
-    database.run('DELETE FROM event_state WHERE id = ?', [eventId])
-    database.run('DELETE FROM audit_log WHERE event_id = ?', [eventId])
+    try {
+      candidateDatabase.run('DELETE FROM event_state WHERE id = ?', [eventId])
+      candidateDatabase.run('DELETE FROM audit_log WHERE event_id = ?', [eventId])
 
-    if (activeEvent?.id === eventId || activeEventId(database) === eventId) {
-      activeEvent = null
-      clearActiveEventId(database)
+      if (deletingActiveEvent) {
+        const nextEventId = eventSummaries(candidateDatabase)[0]?.id
+        nextActiveEvent = nextEventId ? loadEvent(nextEventId, candidateDatabase) : null
+        if (nextActiveEvent) setActiveEventId(candidateDatabase, nextActiveEvent.id)
+        else clearActiveEventId(candidateDatabase)
+      }
+
+      candidateDatabase.run('COMMIT')
+      transactionCommitted = true
+      persistDatabase(candidateDatabase)
+    } catch (error) {
+      if (!transactionCommitted) {
+        try { candidateDatabase.run('ROLLBACK') } catch { /* preserve the original transaction error */ }
+      }
+      candidateDatabase.close()
+      throw error
     }
 
-    database.run('COMMIT')
-    persistDatabase(database)
-  } catch (error) {
-    database.run('ROLLBACK')
-    throw error
-  }
+    activeDatabase = candidateDatabase
+    database.close()
+    activeEvent = nextActiveEvent
 
-  if (!activeEvent) {
-    const nextEventId = eventSummaries(database)[0]?.id
-
-    if (!nextEventId) {
+    if (!activeEvent) {
       return null
     }
 
-    const nextEvent = loadEvent(nextEventId, database)
-
-    if (!nextEvent) {
-      return null
-    }
-
-    activeEvent = nextEvent
-    setActiveEventId(database, nextEvent.id)
-    persistDatabase(database)
-  }
-
-  return snapshot(database)
+    return snapshot(candidateDatabase)
+  })
 }
 
 export async function getAppSetting<T>(key: string, fallback: T): Promise<T> {
@@ -362,30 +445,40 @@ export async function getAppSetting<T>(key: string, fallback: T): Promise<T> {
 }
 
 export async function setAppSetting<T>(key: string, value: T): Promise<void> {
-  const database = await openDatabase()
-  database.run('INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)', [key, JSON.stringify(value)])
-  persistDatabase(database)
+  return serializeWrite(async () => {
+    const database = await openDatabase()
+    const candidateDatabase = cloneDatabase(database)
+    candidateDatabase.run('INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)', [key, JSON.stringify(value)])
+    persistDatabase(candidateDatabase)
+    activeDatabase = candidateDatabase
+    database.close()
+  })
 }
 
 export async function appendAuditAction(action: string, details: unknown, raceId?: string): Promise<EventSessionSnapshot | null> {
-  const database = await openDatabase()
+  return serializeWrite(async () => {
+    const database = await openDatabase()
 
-  if (!activeEvent) {
-    return null
-  }
+    if (!activeEvent) {
+      return null
+    }
 
-  const createdAt = new Date().toISOString()
-  database.run(
-    'INSERT INTO audit_log (id, event_id, race_id, created_at, action, details) VALUES (?, ?, ?, ?, ?, ?)',
-    [
-      createId('audit'),
-      activeEvent.id,
-      raceId ?? null,
-      createdAt,
-      action,
-      typeof details === 'string' ? details : JSON.stringify(details)
-    ] as SqlValue[]
-  )
-  persistDatabase(database)
-  return snapshot(database)
+    const candidateDatabase = cloneDatabase(database)
+    const createdAt = new Date().toISOString()
+    candidateDatabase.run(
+      'INSERT INTO audit_log (id, event_id, race_id, created_at, action, details) VALUES (?, ?, ?, ?, ?, ?)',
+      [
+        createId('audit'),
+        activeEvent.id,
+        raceId ?? null,
+        createdAt,
+        action,
+        typeof details === 'string' ? details : JSON.stringify(details)
+      ] as SqlValue[]
+    )
+    persistDatabase(candidateDatabase)
+    activeDatabase = candidateDatabase
+    database.close()
+    return snapshot(candidateDatabase)
+  })
 }

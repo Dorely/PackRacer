@@ -40,6 +40,8 @@ Hardware-specific findings, exact implemented commands, public-source support, u
 
 Advanced mode is declarative. It supports serial parameters, line endings, numeric or letter lanes, seconds or milliseconds, three fixed record layouts, a literal completion marker, and optional static probe/setup/reset/force/release commands. It does not execute scripts and does not accept unrestricted regular expressions.
 
+A configured probe command must have a configured literal expected response, and vice versa. When both are blank, PackRacer requires confirmation on every connection and labels the open port **Unverified**; opening the selected operating-system port must still succeed. Built-in profiles never use this bypass.
+
 An advanced release command is subject to the same saved safety acknowledgement and one-release-per-arm protection as built-in hardware profiles.
 
 ## Lane Mapping and Capture Rules
@@ -88,7 +90,7 @@ Scenarios:
 - **Normal finish** — all occupied lanes receive unique times and places.
 - **Close finish** — valid times differ by only a few milliseconds.
 - **Exact tie** — two lanes share a time; profiles that transmit authoritative order retain that order.
-- **Explicit DNF** — one occupied lane uses the profile's documented DNF/timeout representation; profiles without one leave that lane missing.
+- **Explicit DNF** — available only for NewBold and The Judge, which have documented DNF/timeout representations. For other profiles, use **Incomplete Result** and then **Force Results**.
 - **Incomplete result** — one occupied lane never reports. A profile with an end marker stages an incomplete capture; other profiles remain armed until **Force Results** or operator recovery.
 - **Duplicate transmission** — the completed result is emitted twice to exercise deduplication.
 - **Disconnect during heat** — the connection fails between start and result.

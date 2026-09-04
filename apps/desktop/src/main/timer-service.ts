@@ -31,6 +31,7 @@ import {
 } from '@packracer/timer-adapters'
 
 import { appendAuditAction, getAppSetting, getCurrentEventSession, setAppSetting } from './event-store.ts'
+import { normalizeTimerCapture } from './timer-capture.ts'
 
 const preferencesKey = 'hardwareTimerPreferences'
 const transcriptLimit = 160
@@ -214,6 +215,11 @@ export class TimerService {
     if (input.profileId && this.virtualPortConnected && input.profileId !== this.simulatorState.profileId) {
       throw new Error('Disconnect PackRacer from the virtual timer port before changing the emulated hardware.')
     }
+    const profileId = input.profileId ?? this.simulatorState.profileId
+    const scenario = input.scenario ?? this.simulatorState.scenario
+    if (scenario === 'explicit-dnf' && profileId !== 'newbold' && profileId !== 'the-judge') {
+      throw new Error('This protocol has no documented DNF record. Use Incomplete Result and Force Results for this profile.')
+    }
     if (input.profileId) this.simulatorState.profileId = input.profileId
     if (input.scenario) this.simulatorState.scenario = input.scenario
     if (input.variation !== undefined) this.simulatorState.variation = input.variation
@@ -357,10 +363,11 @@ export class TimerService {
     this.timers.add(timer)
   }
 
-  private async verifyAdapter(adapter: TimerAdapter): Promise<void> {
+  private async verifyAdapter(adapter: TimerAdapter, allowUnverifiedAdvanced = false): Promise<'verified' | 'unverified'> {
     const probes = adapter.probeCommands()
     if (probes.length === 0) {
-      if (this.virtualPortConnected && adapter.profile.id === this.simulatorState.profileId) return
+      if (this.virtualPortConnected && adapter.profile.id === this.simulatorState.profileId) return 'verified'
+      if (adapter.profile.id === 'advanced' && allowUnverifiedAdvanced) return 'unverified'
       if (adapter.profile.id === 'newbold') {
         this.connectionResponse = ''
         await this.writeCommands(adapter.setupCommands())
@@ -371,7 +378,7 @@ export class TimerService {
           : `${this.connectionResponse}\r\n`
         const identified = adapter.ingest(response).some((event) => event.type === 'lane-result') || /NewBold|DT[128]000/i.test(response)
         adapter.beginHeat()
-        if (identified) return
+        if (identified) return 'verified'
         throw new Error('No NewBold timer data was received. Connect the timer before power-up, then power-cycle it while connecting so its startup or result text can be observed.')
       }
       throw new Error(`${adapter.profile.name} cannot be verified because no probe command and response are configured.`)
@@ -383,6 +390,7 @@ export class TimerService {
     if (!adapter.matchesProbeResponse(this.connectionResponse)) {
       throw new Error(`${adapter.profile.name} did not identify itself on the selected port.`)
     }
+    return 'verified'
   }
 
   private async detectProfile(portPath: string): Promise<PhysicalTimerProfileId> {
@@ -426,7 +434,8 @@ export class TimerService {
       capture: undefined,
       armedHeat: undefined,
       simulationMode: input.portPath === timerSimulatorPortPath,
-      gateReleased: false
+      gateReleased: false,
+      connectionVerification: undefined
     }
     this.log('system', `Connecting to ${input.profileId}.`)
     this.emit()
@@ -437,9 +446,20 @@ export class TimerService {
 
     try {
       const profileId = input.profileId === 'auto-detect' ? await this.detectProfile(input.portPath) : input.profileId
-      this.adapter = createTimerAdapter(profileId, input.advancedProfile ?? this.preferences.advancedProfile)
+      const advancedProfile = input.advancedProfile ?? this.preferences.advancedProfile
+      if (profileId === 'advanced') {
+        const hasProbeCommand = Boolean(advancedProfile.probeCommand.trim())
+        const hasProbeResponse = Boolean(advancedProfile.probeResponseText.trim())
+        if (hasProbeCommand !== hasProbeResponse) {
+          throw new Error('Advanced timer verification requires both a probe command and expected response, or neither.')
+        }
+        if (!hasProbeCommand && !input.confirmUnverified) {
+          throw new Error('Confirm an unverified Advanced connection before opening a profile without a handshake.')
+        }
+      }
+      this.adapter = createTimerAdapter(profileId, advancedProfile)
       await this.openTransport(input.portPath, this.adapter.profile)
-      await this.verifyAdapter(this.adapter)
+      const connectionVerification = await this.verifyAdapter(this.adapter, profileId === 'advanced' && Boolean(input.confirmUnverified))
       this.adapter.beginHeat()
       await this.writeCommands(this.adapter.setupCommands())
       this.state = {
@@ -449,6 +469,7 @@ export class TimerService {
         profileName: this.adapter.profile.name,
         capabilities: this.adapter.profile.capabilities,
         simulationMode: input.portPath === timerSimulatorPortPath,
+        connectionVerification,
         error: undefined
       }
       if (input.portPath !== timerSimulatorPortPath) void this.rememberPhysicalConnection(profileId, input.portPath)
@@ -495,7 +516,8 @@ export class TimerService {
       portPath: undefined,
       error: undefined,
       simulationMode: false,
-      gateReleased: false
+      gateReleased: false,
+      connectionVerification: undefined
     }
     if (emit) {
       this.log('system', 'Timer disconnected.')
@@ -507,6 +529,7 @@ export class TimerService {
   private fail(message: string): TimerState {
     this.state.status = 'error'
     this.state.error = message
+    this.state.connectionVerification = undefined
     this.state.armedHeat = undefined
     this.state.gateReleased = false
     this.log('system', message)
@@ -788,26 +811,7 @@ export class TimerService {
   private finalizeCapture(frameComplete: boolean): void {
     const heat = this.state.armedHeat
     if (!heat || this.state.capture) return
-    const results = [...this.received.values()].sort((a, b) => a.lane - b.lane)
-    const missing = [...this.expectedPhysicalLanes].filter((lane) => !this.received.has(lane))
-    const warnings = [...this.warnings]
-    if (missing.length > 0) {
-      warnings.push(`Incomplete result: missing physical lane${missing.length === 1 ? '' : 's'} ${missing.join(', ')}.`)
-    }
-
-    const timed = results.filter((result) => result.status === 'ok' && result.timeMs !== undefined)
-    const tiedTimes = new Set<number>()
-    timed.forEach((result, index) => {
-      if (timed.some((candidate, candidateIndex) => candidateIndex !== index && candidate.timeMs === result.timeMs)) {
-        tiedTimes.add(result.timeMs!)
-      }
-    })
-    if (tiedTimes.size > 0) {
-      warnings.push('One or more exact ties have no authoritative place; resolve placement before saving when required.')
-    }
-    if (tiedTimes.size === 0 && timed.every((result) => result.finishPosition === undefined)) {
-      [...timed].sort((a, b) => a.timeMs! - b.timeMs!).forEach((result, index) => { result.finishPosition = index + 1 })
-    }
+    const { results, missing, warnings } = normalizeTimerCapture(this.received, this.expectedPhysicalLanes, this.warnings)
 
     this.state.capture = {
       id: captureId(),

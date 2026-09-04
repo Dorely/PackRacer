@@ -153,6 +153,7 @@ export type TimerState = {
   error?: string
   simulationMode: boolean
   gateReleased: boolean
+  connectionVerification?: 'verified' | 'unverified'
 }
 
 export type TimerConnectionState = TimerState
@@ -161,6 +162,7 @@ export type ConnectTimerInput = {
   profileId: TimerProfileId
   portPath?: string
   advancedProfile?: AdvancedTimerProfile
+  confirmUnverified?: boolean
 }
 
 export type ArmTimerInput = {

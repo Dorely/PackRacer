@@ -16,7 +16,7 @@ const scenarioLabels: Record<SimulatorScenario, string> = {
   'normal-finish': 'Normal finish',
   'close-finish': 'Close finish',
   'exact-tie': 'Exact tie',
-  'explicit-dnf': 'Explicit DNF / missing lane when unsupported',
+  'explicit-dnf': 'Explicit DNF',
   'incomplete-result': 'Incomplete result',
   'duplicate-transmission': 'Duplicate transmission',
   'disconnect-during-heat': 'Disconnect during heat'
@@ -136,11 +136,12 @@ function TimerSimulatorApp() {
           <span>Variation {state.variation}</span>
         </div>
         <div className="timer-simulator-controls">
-          <label><span>Scenario</span><select value={state.scenario} onChange={(event) => void configure({ scenario: event.target.value as SimulatorScenario })}>{Object.entries(scenarioLabels).map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select></label>
+          <label><span>Scenario</span><select value={state.scenario} onChange={(event) => void configure({ scenario: event.target.value as SimulatorScenario })}>{Object.entries(scenarioLabels).map(([id, label]) => <option disabled={id === 'explicit-dnf' && state.profileId !== 'newbold' && state.profileId !== 'the-judge'} key={id} value={id}>{label}</option>)}</select></label>
           <button className="secondary-action" onClick={() => void configure({ variation: state.variation + 1 })} type="button">New variation</button>
           <button className="primary-action" disabled={!canSendHeat} onClick={() => void sendHeat()} type="button">Send Simulated Heat</button>
         </div>
         {selectedProfile?.capabilities.gateRelease ? <p className="field-help">When Race Control releases the emulated gate, the simulator automatically chooses a fresh randomized variation and sends this scenario after a short race delay.</p> : null}
+        {state.profileId !== 'newbold' && state.profileId !== 'the-judge' ? <p className="field-help">This protocol has no documented DNF record. Use Incomplete Result, then Force Results in Race Control.</p> : null}
         {!canSendHeat && !awaitingAutomaticGateResult ? <p className="field-help">Connect the matching profile to PACKRACER-SIM and arm a heat before sending results.</p> : null}
       </section>
 

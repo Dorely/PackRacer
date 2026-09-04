@@ -87,11 +87,19 @@ export function TimerPanel({ actions, currentRace, currentHeat, profiles, ports,
   }
 
   const connect = async () => {
+    const advancedHasNoHandshake = selectedProfileId === 'advanced' &&
+      !draftPreferences.advancedProfile.probeCommand.trim() &&
+      !draftPreferences.advancedProfile.probeResponseText.trim()
+    const confirmUnverified = advancedHasNoHandshake
+      ? window.confirm('This Advanced profile has no identification handshake. PackRacer can open the selected port, but cannot verify the attached hardware. Connect as Unverified?')
+      : false
+    if (advancedHasNoHandshake && !confirmUnverified) return
     await saveSettings()
     await actions.connectTimer({
       profileId: selectedProfileId,
       portPath: selectedPortPath,
-      advancedProfile: draftPreferences.advancedProfile
+      advancedProfile: draftPreferences.advancedProfile,
+      confirmUnverified
     })
   }
 
@@ -183,6 +191,7 @@ export function TimerPanel({ actions, currentRace, currentHeat, profiles, ports,
             {connected ? <button className="secondary-action" onClick={() => void actions.disconnectTimer()} type="button"><Unplug aria-hidden="true" size={18} />Disconnect</button> : null}
             {developerMode ? <button className="secondary-action" onClick={() => void actions.openTimerSimulator()} type="button">Open Timer Simulator</button> : null}
             <span className={`timer-status status-${state.status}`}>{state.status}</span>
+            {state.connectionVerification === 'unverified' ? <span className="timer-status status-unverified">UNVERIFIED</span> : null}
             {state.error ? <span className="timer-error">{state.error}</span> : null}
           </div>
 
