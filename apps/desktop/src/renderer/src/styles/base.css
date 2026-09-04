@@ -564,6 +564,10 @@ label {
   gap: 10px;
 }
 
+.division-create-form .primary-action {
+  min-height: 38px;
+}
+
 .division-management-list {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
