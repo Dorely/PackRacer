@@ -345,20 +345,6 @@ export function App() {
     ]
   }, [event, currentRace])
 
-  const workflowStats = useMemo(() => {
-    const activeRacers = currentRace?.entries?.filter((entry) => entry.status === 'active').length ?? 0
-    const totalRacers = currentRace?.entries?.length ?? event?.racers.length ?? 0
-    const heatCount = currentRace?.heats.length ?? 0
-    const completeHeats = currentRace?.heats.filter((heat) => heat.status === 'complete').length ?? 0
-
-    return [
-      { label: 'Race Entries', value: `${activeRacers}`, detail: `${totalRacers} registered` },
-      { label: 'Races', value: `${event?.races.length ?? 0}`, detail: currentRace?.name ?? 'Not configured' },
-      { label: 'Heats', value: `${completeHeats}/${heatCount}`, detail: heatCount > 0 ? 'Recorded / scheduled' : 'Not scheduled' },
-      { label: 'Lanes', value: `${currentRace?.laneCount ?? event?.laneCount ?? 4}`, detail: event?.trackName ?? 'Default track' }
-    ]
-  }, [event, currentRace])
-
   const activeNavigationItem = useMemo(
     () => navigationItems.find((item) => item.id === activeSection) ?? navigationItems[0],
     [activeSection, navigationItems]
@@ -538,18 +524,6 @@ export function App() {
         ) : null}
 
         {notices}
-
-        {activeSection !== 'display' && activeSection !== 'event' ? (
-          <div className="status-strip" aria-label="Event readiness">
-            {workflowStats.map((stat) => (
-              <article className="stat-card" key={stat.label}>
-                <span>{stat.label}</span>
-                <strong>{stat.value}</strong>
-                <small>{stat.detail}</small>
-              </article>
-            ))}
-          </div>
-        ) : null}
 
         {renderedSection}
         {confirmationDialog}

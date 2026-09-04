@@ -1,23 +1,22 @@
 .registration-grid {
   align-items: start;
   grid-template-columns: minmax(0, 1fr);
+  flex: 1 0 auto;
 }
 
 .registration-controls-panel {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: stretch;
+  gap: 18px;
   min-height: auto;
-}
-
-.registration-controls-panel > .panel-heading {
-  grid-column: 1 / -1;
 }
 
 .registration-controls-panel .registration-workflow-card {
   align-content: start;
-  max-height: 440px;
+  max-height: 360px;
   overflow-y: hidden;
+  box-shadow: 0 12px 24px rgba(22, 53, 44, 0.06);
 }
 
 .registration-controls-panel .registration-workflow-card[data-workflow="roster"][data-expanded="true"] {
@@ -27,6 +26,13 @@
 
 .registration-roster-panel {
   min-height: 520px;
+  gap: 14px;
+  padding: 18px;
+}
+
+.registration-roster-panel .data-table-wrap {
+  overflow-x: auto;
+  overflow-y: visible;
 }
 
 .registration-table input {
@@ -236,9 +242,9 @@
 
 .registration-workflow-card {
   display: grid;
-  gap: 16px;
+  gap: 12px;
   min-width: 0;
-  padding: 16px;
+  padding: 14px;
   border: 1px solid #d7e1dc;
   border-left-width: 5px;
   border-radius: 9px;
@@ -263,6 +269,11 @@
 
 .registration-workflow-card[data-workflow="race"] .existing-racer-list {
   max-height: 100px;
+}
+
+.registration-workflow-card[data-workflow="race"] .existing-racer-list:has(.empty-state) {
+  max-height: none;
+  overflow: visible;
 }
 
 .registration-workflow-card[data-workflow="race"]:has(.notice-banner) .existing-racer-list {
@@ -316,6 +327,16 @@
 
 .registration-workflow-card .primary-action,
 .registration-workflow-card > .form-grid > .secondary-action {
+  width: 100%;
+}
+
+.registration-entry-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(110px, 0.45fr);
+  gap: 10px;
+}
+
+.registration-entry-actions > button {
   width: 100%;
 }
 
@@ -387,5 +408,34 @@
 }
 .roster-readiness-help {
   margin: 0 0 10px;
+}
+
+@media (max-width: 1199px) {
+  .registration-controls-panel {
+    gap: 12px;
+  }
+
+  .registration-controls-panel .registration-workflow-card {
+    max-height: 390px;
+  }
+
+  .registration-workflow-card[data-workflow="race"] .existing-racer-list {
+    max-height: 74px;
+  }
+
+  .roster-filter-bar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .filter-result-count {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+}
+
+@media (max-height: 800px) and (min-width: 1200px) {
+  .registration-controls-panel .registration-workflow-card {
+    max-height: 330px;
+  }
 }
 

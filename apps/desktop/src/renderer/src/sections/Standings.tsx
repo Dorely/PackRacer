@@ -47,17 +47,13 @@ export function Standings({ event, currentRace, selectedRaceId, setSelectedRaceI
 
   return (
     <section className="section-grid standings-grid">
-      <div className="race-panel table-panel">
-        <div className="panel-heading">
+      <div className="race-panel table-panel standings-leaderboard-panel">
+        <div className="standings-toolbar">
           <div>
             <p className="eyebrow">Standings</p>
             <h3>{currentRace.name}</h3>
-            <span className="context-label">{raceDivision?.name ?? 'Division unavailable'}</span>
+            <span className="context-label">{raceDivision?.name ?? 'Division unavailable'} · {formatStatus(currentRace.scoringMode ?? currentRace.format)}</span>
           </div>
-          <Trophy aria-hidden="true" size={24} />
-        </div>
-
-        <div className="toolbar-row">
           <label>
             <span>Race</span>
             <select value={selectedRaceId} onChange={(inputEvent) => setSelectedRaceId(inputEvent.target.value)}>
@@ -68,6 +64,7 @@ export function Standings({ event, currentRace, selectedRaceId, setSelectedRaceI
               ))}
             </select>
           </label>
+          <Trophy aria-hidden="true" size={24} />
         </div>
 
         <div className="data-table-wrap">
@@ -83,8 +80,14 @@ export function Standings({ event, currentRace, selectedRaceId, setSelectedRaceI
               </tr>
             </thead>
             <tbody>
-              {standings.map((standing) => (
-                <tr key={standing.racerId} data-muted={standing.racerStatus !== 'active'}>
+              {standings.map((standing, index) => (
+                <tr
+                  className={standing.rank === null && (index === 0 || standings[index - 1]?.rank !== null) ? 'unscored-start' : undefined}
+                  data-muted={standing.racerStatus !== 'active'}
+                  data-rank={standing.rank ?? undefined}
+                  data-scored={standing.rank !== null}
+                  key={standing.racerId}
+                >
                   <td>{standing.rank ?? '—'}</td>
                   <td>
                     <strong>#{standing.racerNumber} {standing.racerName}</strong>

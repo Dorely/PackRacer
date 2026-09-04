@@ -464,38 +464,11 @@ label {
   white-space: normal;
 }
 
-.status-strip {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(150px, 1fr));
-  gap: 14px;
-}
-
-.stat-card,
 .race-panel {
   border: 1px solid #d5ded8;
   border-radius: 8px;
   background: #ffffff;
   box-shadow: 0 16px 28px rgba(22, 53, 44, 0.08);
-}
-
-.stat-card {
-  display: grid;
-  gap: 6px;
-  min-height: 122px;
-  padding: 18px;
-}
-
-.stat-card span,
-.stat-card small {
-  color: #607269;
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.stat-card strong {
-  color: #17211d;
-  font-size: 38px;
-  line-height: 1;
 }
 
 .control-surface {
@@ -785,11 +758,6 @@ label {
 .setup-grid .drop-worst-toggle {
   grid-column: auto;
   height: auto;
-}
-
-.standings-grid {
-  align-items: start;
-  grid-template-columns: minmax(0, 2.4fr) minmax(300px, 0.75fr);
 }
 
 .form-panel {
@@ -1215,22 +1183,6 @@ label {
 .stage-form {
   border-top: 1px solid #e0e8e3;
   padding-top: 18px;
-}
-
-.race-control-layout {
-  align-items: start;
-  grid-template-columns: minmax(620px, 1.45fr) minmax(280px, 0.75fr);
-}
-
-.race-control-layout .current-state,
-.race-control-layout .next-actions {
-  height: fit-content;
-}
-
-.race-control-layout .heat-list:has(.heat-list-item) {
-  min-height: 280px;
-  max-height: min(60vh, 680px);
-  padding-right: 4px;
 }
 
 @media (max-width: 720px) {

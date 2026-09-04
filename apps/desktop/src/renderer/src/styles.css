@@ -1,5 +1,8 @@
 @import './styles/base.css';
+@import './styles/events.css';
 @import './styles/registration.css';
+@import './styles/race-control.css';
+@import './styles/standings.css';
 @import './styles/timer.css';
 @import './styles/display.css';
 @import './styles/responsive.css';

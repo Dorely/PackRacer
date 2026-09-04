@@ -389,15 +389,7 @@ export function Registration({ event, actions, selectedRaceId, setSelectedRaceId
 
   return (
     <section className="section-grid registration-grid">
-      <div className="race-panel form-panel registration-controls-panel">
-        <div className="panel-heading">
-          <div>
-            <p className="eyebrow">Registration</p>
-            <h3>Build rosters</h3>
-          </div>
-          <Users aria-hidden="true" size={24} />
-        </div>
-
+      <div className="registration-controls-panel">
         <section
           aria-labelledby="create-roster-heading"
           className="registration-workflow-card"
@@ -447,24 +439,21 @@ export function Registration({ event, actions, selectedRaceId, setSelectedRaceId
               </form>
             </div>
           ) : (
-            <>
-              <form className="form-grid" onSubmit={submitRacer}>
-                <label>
-                  <span>Racer name</span>
-                  <input value={name} onChange={(inputEvent) => setName(inputEvent.target.value)} required />
-                </label>
+            <form className="form-grid" onSubmit={submitRacer}>
+              <label>
+                <span>Racer name</span>
+                <input value={name} onChange={(inputEvent) => setName(inputEvent.target.value)} required />
+              </label>
+              <div className="registration-entry-actions">
                 <button className="primary-action" disabled={selectedDivisionIds.length === 0} type="submit">
                   <UserPlus aria-hidden="true" size={18} />
-                  <span>Add Racer to Event Roster</span>
+                  <span>Add Racer</span>
                 </button>
-              </form>
-
-              <div className="registration-bulk-panel">
                 <button className="secondary-action" onClick={() => setBulkAddOpen(true)} type="button">
-                  Bulk Add Racers to Event Roster
+                  Bulk Add
                 </button>
               </div>
-            </>
+            </form>
           )}
         </section>
 

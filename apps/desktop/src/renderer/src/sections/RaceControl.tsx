@@ -344,16 +344,6 @@ export function RaceControl({
 
   return (
     <section className="control-surface race-control-layout">
-      <TimerPanel
-        actions={actions}
-        currentHeat={currentHeat}
-        currentRace={currentRace}
-        ports={timerPorts}
-        preferences={timerPreferences}
-        profiles={timerProfiles}
-        state={timerState}
-        developerMode={developerMode}
-      />
       <div className="race-panel current-state">
         <div className="panel-heading">
           <div>
@@ -696,6 +686,17 @@ export function RaceControl({
           {allHeats.length === 0 ? <p className="empty-state">No heats scheduled yet.</p> : null}
         </div>
       </div>
+
+      <TimerPanel
+        actions={actions}
+        currentHeat={currentHeat}
+        currentRace={currentRace}
+        ports={timerPorts}
+        preferences={timerPreferences}
+        profiles={timerProfiles}
+        state={timerState}
+        developerMode={developerMode}
+      />
     </section>
   )
 }

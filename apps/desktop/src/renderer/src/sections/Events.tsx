@@ -1,7 +1,7 @@
 import { CalendarDays, FolderOpen, Save, Trash2 } from 'lucide-react'
 import { FormEvent, useEffect, useState } from 'react'
 
-import { suggestedUniqueName } from '../formatters'
+import { formatStatus, suggestedUniqueName } from '../formatters'
 import type { SectionProps } from './types'
 
 export function Events({ session, event, actions, requestConfirmation }: SectionProps) {
@@ -41,7 +41,7 @@ export function Events({ session, event, actions, requestConfirmation }: Section
 
   return (
     <section className="section-grid events-grid">
-      <form className="race-panel form-panel" onSubmit={submitEvent}>
+      <form className="race-panel form-panel event-editor-panel" onSubmit={submitEvent}>
         <div className="panel-heading">
           <div>
             <p className="eyebrow">Event</p>
@@ -49,6 +49,10 @@ export function Events({ session, event, actions, requestConfirmation }: Section
           </div>
           <CalendarDays aria-hidden="true" size={24} />
         </div>
+
+        <p className="panel-description">
+          {event ? 'Update the event currently open on this race desk.' : 'Create an event to begin registration and race setup.'}
+        </p>
 
         <div className="form-grid">
           <label>
@@ -75,7 +79,7 @@ export function Events({ session, event, actions, requestConfirmation }: Section
         </div>
       </form>
 
-      <div className="race-panel table-panel">
+      <div className="race-panel table-panel event-library-panel">
         <div className="panel-heading">
           <div>
             <p className="eyebrow">Saved events</p>
@@ -84,14 +88,28 @@ export function Events({ session, event, actions, requestConfirmation }: Section
           <FolderOpen aria-hidden="true" size={24} />
         </div>
 
-        <div className="stack-list">
+        <div className="event-list-columns" aria-hidden="true">
+          <span>Event</span>
+          <span>Date</span>
+          <span>Racers</span>
+          <span>Races</span>
+          <span>Status</span>
+          <span>Actions</span>
+        </div>
+
+        <div className="stack-list event-list">
           {session?.events.map((eventSummary) => (
-            <article className="list-card" data-active={eventSummary.id === event?.id} key={eventSummary.id}>
-              <button className="bare-select" onClick={() => void actions.selectEvent(eventSummary.id)} type="button">
-                <strong>{eventSummary.name}</strong>
-                <span>
-                  {eventSummary.eventDate} - {eventSummary.racerCount} racers - {eventSummary.raceCount} races
+            <article className="list-card event-list-row" data-active={eventSummary.id === event?.id} key={eventSummary.id}>
+              <button className="bare-select event-select" onClick={() => void actions.selectEvent(eventSummary.id)} type="button">
+                <span className="event-list-identity">
+                  <strong>{eventSummary.name}</strong>
+                  <small>{eventSummary.id === event?.id ? 'Currently open' : 'Open this event'}</small>
                 </span>
+                <time dateTime={eventSummary.eventDate}>{eventSummary.eventDate}</time>
+                <span>{eventSummary.racerCount}</span>
+                <span>{eventSummary.raceCount}</span>
+                <span className="event-status" data-status={eventSummary.status}>{formatStatus(eventSummary.status)}</span>
+                <span className="event-open-label"><FolderOpen aria-hidden="true" size={15} /> Open</span>
               </button>
               <button
                 className="danger-action"

@@ -1,0 +1,116 @@
+.standings-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(290px, 0.34fr);
+  align-items: start;
+  flex: 1 0 auto;
+}
+
+.standings-leaderboard-panel {
+  gap: 14px;
+  padding: 18px;
+}
+
+.standings-toolbar {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(220px, 300px) auto;
+  align-items: end;
+  gap: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #e0e8e3;
+}
+
+.standings-toolbar label {
+  min-width: 0;
+}
+
+.standings-toolbar > svg {
+  align-self: center;
+  color: #40584f;
+}
+
+.standings-leaderboard-panel .data-table-wrap {
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
+.standings-leaderboard-panel .standings-table {
+  min-width: 680px;
+}
+
+.standings-table tbody tr[data-rank="1"],
+.standings-table tbody tr[data-rank="2"],
+.standings-table tbody tr[data-rank="3"] {
+  background: #fffaf0;
+}
+
+.standings-table tbody tr[data-rank="1"] td:first-child,
+.standings-table tbody tr[data-rank="2"] td:first-child,
+.standings-table tbody tr[data-rank="3"] td:first-child {
+  color: #9a6415;
+  font-size: 17px;
+  font-weight: 900;
+}
+
+.standings-table tbody tr[data-scored="false"] {
+  background: #fafbf9;
+}
+
+.standings-table tbody tr.unscored-start td {
+  border-top: 3px solid #9bbdb1;
+}
+
+.advancement-panel {
+  gap: 14px;
+  min-height: 0;
+  padding: 18px;
+}
+
+.advancement-summary-list,
+.advancement-summary {
+  display: grid;
+  gap: 10px;
+}
+
+.advancement-summary {
+  padding: 12px;
+  border: 1px solid #d9e2dd;
+  border-radius: 8px;
+  background: #f8fbf9;
+}
+
+.advancement-summary span {
+  color: #607269;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.advancement-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.advancement-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: #26352f;
+  font-size: 13px;
+}
+
+.advancement-list span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 1199px) {
+  .standings-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .standings-grid .advancement-panel {
+    min-height: auto;
+  }
+}

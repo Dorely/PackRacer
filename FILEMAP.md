@@ -80,8 +80,11 @@
 | `apps/desktop/src/renderer/src/styles.css` | Ordered entry point for renderer style modules. |
 | `apps/desktop/src/renderer/src/styles/base.css` | Shared foundations, shell, forms, panels, tables, and race-control primitives. |
 | `apps/desktop/src/renderer/src/styles/display.css` | Public display board, standings, schedule, and elimination-bracket styling. |
+| `apps/desktop/src/renderer/src/styles/events.css` | Dense event editor and saved-event browser layout across operator breakpoints. |
+| `apps/desktop/src/renderer/src/styles/race-control.css` | Heat-first Race Control layout, result-entry density, heat queue, and live-stat styling. |
 | `apps/desktop/src/renderer/src/styles/registration.css` | Registration workflow, roster table, filters, and roster-management styling. |
 | `apps/desktop/src/renderer/src/styles/responsive.css` | Laptop and monitor breakpoint overrides shared across operator views. |
+| `apps/desktop/src/renderer/src/styles/standings.css` | Leaderboard-first standings, unscored separation, and advancement-panel styling. |
 | `apps/desktop/src/renderer/src/styles/timer.css` | Hardware Timer panel and separate simulator-window styling. |
 
 ## Desktop Renderer Sections
