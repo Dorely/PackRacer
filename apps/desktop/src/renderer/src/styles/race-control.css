@@ -76,7 +76,7 @@
 }
 
 .live-standings-panel .leader-list {
-  max-height: 220px;
+  max-height: 132px;
   overflow: auto;
   padding-right: 4px;
 }
@@ -95,5 +95,36 @@
   .race-control-layout .heat-list:has(.heat-list-item) {
     min-height: 0;
     max-height: 360px;
+  }
+
+  .live-standings-panel .leader-list {
+    max-height: 220px;
+  }
+}
+
+@media (max-height: 800px) and (min-width: 1200px) {
+  .race-control-layout .current-state {
+    gap: 12px;
+    padding: 16px;
+  }
+
+  .race-control-layout .current-state > .toolbar-row {
+    padding-bottom: 10px;
+  }
+
+  .race-control-layout .result-row {
+    min-height: 58px;
+  }
+
+  .live-standings-panel {
+    padding-block: 10px;
+  }
+
+  .live-standings-panel .leader-list {
+    max-height: 84px;
+  }
+
+  .live-standings-panel .leader-list li {
+    padding-block: 8px;
   }
 }
