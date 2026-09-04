@@ -39,8 +39,12 @@ try {
     throw "GitHub CLI authentication is required to publish a release."
   }
 
+  $previousErrorActionPreference = $ErrorActionPreference
+  $ErrorActionPreference = "SilentlyContinue"
   & gh.exe release view $Tag --json url 2>$null | Out-Null
-  if ($LASTEXITCODE -eq 0) {
+  $releaseExists = $LASTEXITCODE -eq 0
+  $ErrorActionPreference = $previousErrorActionPreference
+  if ($releaseExists) {
     throw "GitHub release $Tag already exists."
   }
 
