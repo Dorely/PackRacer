@@ -90,7 +90,7 @@
 |------|-------------|
 | `apps/desktop/src/renderer/src/sections/DisplayMode.tsx` | In-app display board with selectable race-specific heat, standings, schedule, record, and bracket layouts. |
 | `apps/desktop/src/renderer/src/sections/Events.tsx` | Event create, select, edit, and delete screen shown at app startup. |
-| `apps/desktop/src/renderer/src/sections/EventSetup.tsx` | Event division management, race creation, format-specific setup, source-race configuration, and scheduling options. |
+| `apps/desktop/src/renderer/src/sections/EventSetup.tsx` | Event division management, compact race selection, and a focused create/edit workspace for formats, sources, and scheduling options. |
 | `apps/desktop/src/renderer/src/sections/RaceControl.tsx` | Race-scoped heat selection, lane availability controls, result entry, rerun control, status marking, and heat cycling workflow. |
 | `apps/desktop/src/renderer/src/sections/race-control-results.ts` | Race Control result-draft initialization, status handling, and placement normalization utilities. |
 | `apps/desktop/src/renderer/src/sections/Registration.tsx` | Division-aware racer creation, explicit race assignment, race readiness controls, and searchable event-wide identity/division/deletion management. |
