@@ -32,6 +32,7 @@
 | `docs/hardware-timers/besttrack-champ.md` | Legacy SmartLine and current SRM Champ connection assumptions, commands, result formats, sources, and validation gaps. |
 | `docs/hardware-timers/newbold.md` | NewBold serial settings, reset behavior, ordered result format, detection limits, sources, and validation gaps. |
 | `docs/hardware-timers/the-judge.md` | The Judge serial settings, status/result framing, command assumptions, sources, and validation gaps. |
+| `docs/hardware-timers/dfgtec-pdt.md` | Pack timer photo identification, PDT protocol, connection workflow, and physical validation requirements. |
 
 ## GitHub Configuration
 

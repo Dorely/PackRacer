@@ -35,6 +35,7 @@ Hardware-specific findings, exact implemented commands, public-source support, u
 | BestTrack / SmartLine Champ and Champ SRM | [BestTrack Champ protocols](hardware-timers/besttrack-champ.md) |
 | NewBold DT / TURBO / DerbyStick | [NewBold protocol](hardware-timers/newbold.md) |
 | The Judge | [The Judge protocol](hardware-timers/the-judge.md) |
+| dfgtec Pinewood Derby Timer (PDT) | [PDT identification, connection, and protocol](hardware-timers/dfgtec-pdt.md) |
 
 ### Advanced Serial Timer
 
@@ -63,7 +64,7 @@ Software gate control is off by default and stored as a computer/track preferenc
 
 A release is allowed only when the connected profile declares support, the current heat is armed, the acknowledgement is enabled, and no release has been sent for that arm operation. Exactly one command is sent. Disconnection, disarming, changing heat, receiving a result, or an error disables release. A release failure does not affect manual entry.
 
-The initial built-in physical release implementation is limited to documented Micro Wizard K/Q automatic-gate hardware. Advanced profiles may define a static release command. No generic or inferred physical gate release exists.
+Built-in physical release supports documented Micro Wizard K/Q and PDT optional solenoid hardware. Advanced profiles may define a static release command. Confirm the actual gate hardware before enabling control.
 
 ## Simulator
 
@@ -90,7 +91,7 @@ Scenarios:
 - **Normal finish** — all occupied lanes receive unique times and places.
 - **Close finish** — valid times differ by only a few milliseconds.
 - **Exact tie** — two lanes share a time; profiles that transmit authoritative order retain that order.
-- **Explicit DNF** — available only for NewBold and The Judge, which have documented DNF/timeout representations. For other profiles, use **Incomplete Result** and then **Force Results**.
+- **Explicit DNF** — available for NewBold, The Judge, and PDT, which have documented DNF/timeout representations. For other profiles, use **Incomplete Result** and then **Force Results**.
 - **Incomplete result** — one occupied lane never reports. A profile with an end marker stages an incomplete capture; other profiles remain armed until **Force Results** or operator recovery.
 - **Duplicate transmission** — the completed result is emitted twice to exercise deduplication.
 - **Disconnect during heat** — the connection fails between start and result.

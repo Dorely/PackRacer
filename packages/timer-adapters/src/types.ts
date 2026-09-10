@@ -5,6 +5,7 @@ export type TimerProfileId =
   | 'besttrack-champ-srm'
   | 'newbold'
   | 'the-judge'
+  | 'dfgtec-pdt'
   | 'advanced'
 
 export type PhysicalTimerProfileId = Exclude<TimerProfileId, 'auto-detect'>

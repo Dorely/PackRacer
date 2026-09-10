@@ -217,7 +217,7 @@ export class TimerService {
     }
     const profileId = input.profileId ?? this.simulatorState.profileId
     const scenario = input.scenario ?? this.simulatorState.scenario
-    if (scenario === 'explicit-dnf' && profileId !== 'newbold' && profileId !== 'the-judge') {
+    if (scenario === 'explicit-dnf' && profileId !== 'newbold' && profileId !== 'the-judge' && profileId !== 'dfgtec-pdt') {
       throw new Error('This protocol has no documented DNF record. Use Incomplete Result and Force Results for this profile.')
     }
     if (input.profileId) this.simulatorState.profileId = input.profileId
@@ -272,6 +272,10 @@ export class TimerService {
       const payload = command === ' ' ? command : `${command}\r`
       this.log('sent', command === ' ' ? '<space>' : command)
       await this.writeTransport(payload)
+      if (this.adapter?.profile.id === 'dfgtec-pdt') {
+        // PDT pauses for 100 ms while consuming a mask lane or resetting.
+        await new Promise((resolve) => setTimeout(resolve, 150))
+      }
     }
   }
 
@@ -295,6 +299,10 @@ export class TimerService {
         void this.handleMalfunction('The timer connection closed unexpectedly.')
       }
     })
+    if (profile.id === 'dfgtec-pdt') {
+      // Opening an Uno USB serial port can reset it into its bootloader.
+      await new Promise((resolve) => setTimeout(resolve, 2500))
+    }
   }
 
   private async closeTransport(): Promise<void> {

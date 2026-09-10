@@ -16,6 +16,43 @@ import { TextTimerAdapter, type ProfileDefinition } from './text-timer-adapter'
 const hardwareProfiles: ProfileDefinition[] = [
   {
     profile: {
+      id: 'dfgtec-pdt',
+      name: 'dfgtec Pinewood Derby Timer (PDT)',
+      description: 'Arduino PDT; close the start gate before arming. Hardware validation pending.',
+      category: 'hardware',
+      serial: { baudRate: 9600, dataBits: 8, stopBits: 1, parity: 'none' },
+      capabilities: { autoDetect: false, reset: true, laneMask: true, forceResults: true, gateRelease: true },
+      hardwareValidation: 'protocol-implemented'
+    },
+    lineEnding: 'any',
+    probe: ['V'],
+    probePattern: /(?:^|[\r\n])vert=\d+\.\d+(?:[\r\n]|$)/,
+    setup: [],
+    prepare: (activeLanes) => {
+      if (activeLanes.some((lane) => !Number.isInteger(lane) || lane < 1 || lane > 6)) {
+        throw new Error('PDT supports physical lanes 1 through 6.')
+      }
+      return ['U', ...Array.from({ length: 6 }, (_, index) => index + 1)
+        .filter((lane) => !activeLanes.includes(lane)).map((lane) => `M${lane}`), 'R']
+    },
+    reset: ['R'],
+    forceResults: ['F'],
+    releaseGate: ['S'],
+    parseLine: (line) => {
+      if (line === 'B') return [{ type: 'race-started' }]
+      if (line === 'O') return [{ type: 'warning', message: 'PDT start gate is open. Close the gate and reset/re-arm before racing.' }]
+      const match = line.match(/^([1-6])\s+-\s+(\d+\.\d{4})$/)
+      if (!match) return /^\d+\s*-/.test(line)
+        ? [{ type: 'warning', message: `Ignored malformed PDT result “${line}”.` }] : []
+      // AVR float serialization of NULL_TIME (99.999) is 99.9990.
+      const dnf = match[2] === '99.9990'
+      return [{ type: 'lane-result', physicalLane: Number(match[1]),
+        timeMs: dnf ? undefined : Math.round(Number(match[2]) * 10000) / 10,
+        status: dnf ? 'dnf' : 'ok' }]
+    }
+  },
+  {
+    profile: {
       id: 'micro-wizard-fasttrack',
       name: 'Micro Wizard FastTrack K/Q',
       description: 'FastTrack K- and Q-series timers; documented protocol, hardware validation pending.',

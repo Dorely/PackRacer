@@ -44,6 +44,21 @@ describe('single elimination brackets', () => {
 })
 
 describe('heat result validation', () => {
+  it('preserves tenth-millisecond timer differences through result storage and standings', () => {
+    const fixture = eventWithRace('timed-heats', 2, { laneCount: 2, roundsPerRacer: 1 })
+    const event = generateRaceHeats(fixture.event, fixture.raceId)
+    const heat = event.races[0].heats[0]
+    const assignments = heat.laneAssignments.filter((assignment) => assignment.racerId)
+    const saved = recordHeatResults(event, fixture.raceId, {
+      heatId: heat.id,
+      results: assignments.map((assignment, index) => ({ lane: assignment.lane,
+        racerId: assignment.racerId!, status: 'ok', timeMs: index === 0 ? 3012.4 : 3012.3 }))
+    })
+    const restored = JSON.parse(JSON.stringify(saved)) as RaceEvent
+    expect(restored.races[0].heats[0].results.map((result) => result.timeMs)).toEqual([3012.4, 3012.3])
+    expect(calculateStandings(restored, fixture.raceId)[0].racerId).toBe(assignments[1].racerId)
+  })
+
   it('rejects partial, duplicate, mismatched, and blank OK timed results', () => {
     const fixture = eventWithRace('timed-heats', 4)
     const event = generateRaceHeats(fixture.event, fixture.raceId)

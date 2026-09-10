@@ -1423,7 +1423,7 @@ export function recordHeatResults(event: RaceEvent, raceId: string, input: Recor
           : undefined,
       timeMs:
         typeof result.timeMs === 'number' && Number.isFinite(result.timeMs) && result.timeMs >= 0
-          ? Math.round(result.timeMs)
+          ? Math.round(result.timeMs * 10) / 10
           : undefined,
       notes: result.notes,
       excludedFromScoring: heat.tieBreakerSource ? true : undefined,

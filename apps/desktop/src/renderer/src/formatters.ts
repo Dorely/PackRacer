@@ -1,7 +1,7 @@
 import type { Heat, Race, Racer } from '@packracer/race-engine'
 
 export function formatTime(timeMs: number | undefined): string {
-  return typeof timeMs === 'number' ? `${(timeMs / 1000).toFixed(3)}s` : 'No time'
+  return typeof timeMs === 'number' ? `${(timeMs / 1000).toFixed(4)}s` : 'No time'
 }
 
 export function formatStatus(value: string): string {

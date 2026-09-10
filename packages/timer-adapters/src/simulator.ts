@@ -72,6 +72,7 @@ function fragmentFrame(frame: string): string[] {
 
 export function simulatorProbeResponse(profileId: BuiltInTimerProfileId, command: string): string | undefined {
   const normalized = command.replace(/[\r\n]/g, '')
+  if (profileId === 'dfgtec-pdt' && normalized === 'V') return 'vert=3.10\r\n'
   if (profileId === 'micro-wizard-fasttrack' && normalized === 'RV') {
     return 'Micro Wizard Fast Track Model: Q - Simulator\r\n'
   }
@@ -95,6 +96,7 @@ export function encodeSimulatedTimerTransmission(
   const laneEvents = events.filter((event): event is Extract<TimerAdapterEvent, { type: 'lane-result' }> => event.type === 'lane-result')
 
   if (events.some((event) => event.type === 'race-started')) {
+    if (profileId === 'dfgtec-pdt') frames.push('B\r\n')
     if (profileId === 'micro-wizard-fasttrack') frames.push('RG0\r\n')
     if (profileId === 'besttrack-champ' || profileId === 'besttrack-champ-srm') frames.push('S\r')
     if (profileId === 'the-judge') frames.push('Go!\r')
@@ -107,7 +109,7 @@ export function encodeSimulatedTimerTransmission(
     if (records.length > 0) frames.push(`${records.join(' ')}\r\n`)
   } else {
     for (const event of laneEvents) {
-      if (event.status === 'dnf' && profileId !== 'the-judge') continue
+      if (event.status === 'dnf' && profileId !== 'the-judge' && profileId !== 'dfgtec-pdt') continue
       if (profileId === 'micro-wizard-fasttrack' || profileId === 'besttrack-champ') {
         const lane = String.fromCharCode(64 + event.physicalLane)
         const place = event.finishPosition ? (placeCharacters[event.finishPosition] ?? '') : ''
@@ -115,6 +117,8 @@ export function encodeSimulatedTimerTransmission(
       } else if (profileId === 'besttrack-champ-srm') {
         const place = event.finishPosition ? (placeCharacters[event.finishPosition] ?? '') : ''
         frames.push(`${event.physicalLane}=${seconds(event.timeMs)}${place}\r`)
+      } else if (profileId === 'dfgtec-pdt') {
+        frames.push(`${event.physicalLane} - ${event.status === 'dnf' ? '99.9990' : seconds(event.timeMs)}\r\n`)
       } else if (profileId === 'the-judge') {
         frames.push(`Lane ${event.physicalLane} ${seconds(event.timeMs)}${event.status === 'dnf' ? ' DNF' : ''}\r`)
       }

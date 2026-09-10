@@ -129,7 +129,7 @@ export function formatMilliseconds(timeMs: number | undefined): string {
     return 'No time'
   }
 
-  return `${(timeMs / 1000).toFixed(3)}s`
+  return `${(timeMs / 1000).toFixed(4)}s`
 }
 
 export function nextPowerOfTwo(value: number): number {
