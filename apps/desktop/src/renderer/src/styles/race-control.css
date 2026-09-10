@@ -141,6 +141,12 @@
 .result-measurements > label + label { width: 62px; }
 .result-measurements label > span { font-size: 10px; font-weight: 700; white-space: nowrap; }
 .result-measurements input, .result-measurements select { padding-inline: 7px; }
+.race-control-layout .result-row > select,
+.race-control-layout .result-row > .danger-action {
+  align-self: end;
+  height: 40px;
+  min-height: 40px;
+}
 .live-stats { flex: 1 0 220px; grid-template-rows: auto minmax(0, 1fr); }
 .live-stats .leader-list { height: 100%; min-height: 160px; }
 .live-stats .leader-list,
