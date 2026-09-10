@@ -144,7 +144,7 @@ export function RaceControl({
     for (const assignment of occupied) {
       const draft = resultDrafts[assignment.lane]
       if (!draft) return `Lane ${assignment.lane} needs a result.`
-      if (draft.status === 'ok' && showTimeResults) {
+      if ((draft.status === 'ok' && showTimeResults) || draft.timeSeconds.trim()) {
         const seconds = Number(draft.timeSeconds)
         if (!draft.timeSeconds.trim() || !Number.isFinite(seconds) || seconds < 0) return `Enter a valid time for lane ${assignment.lane}.`
       }
@@ -218,7 +218,7 @@ export function RaceControl({
       .filter((assignment) => assignment.racerId)
       .map((assignment) => {
         const draft = resultDrafts[assignment.lane]
-        const timeMs = showTimeResults && draft.timeSeconds ? Number(draft.timeSeconds) * 1000 : undefined
+        const timeMs = draft.timeSeconds.trim() ? Number(draft.timeSeconds) * 1000 : undefined
         const finishPosition = !showTimeResults && draft.status === 'ok' && draft.finishPosition ? Number(draft.finishPosition) : undefined
 
         return {
@@ -385,6 +385,17 @@ export function RaceControl({
           ) : null}
         </div>
 
+        <TimerPanel
+          actions={actions}
+          currentHeat={resultsLockedByDependents ? undefined : currentHeat}
+          currentRace={currentRace}
+          ports={timerPorts}
+          preferences={timerPreferences}
+          profiles={timerProfiles}
+          state={timerState}
+          developerMode={developerMode}
+        />
+
         {currentHeat ? (
           <form className="result-entry" onSubmit={submitResults}>
             {currentTimerCapture ? (
@@ -424,35 +435,42 @@ export function RaceControl({
                     </div>
                     {assignment.racerId ? (
                       <>
-                        {showTimeResults ? (
-                          <input
-                            aria-label={`Lane ${assignment.lane} time`}
-                            disabled={resultsLockedByDependents}
-                            inputMode="decimal"
-                            placeholder="0.000s"
-                            value={resultDrafts[assignment.lane]?.timeSeconds ?? ''}
-                            onChange={(inputEvent) => updateDraft(assignment.lane, { timeSeconds: inputEvent.target.value })}
-                          />
-                        ) : (
-                          <select
-                            aria-label={`Lane ${assignment.lane} finish position`}
-                            disabled={resultsLockedByDependents || (resultDrafts[assignment.lane]?.status ?? 'ok') !== 'ok'}
-                            data-muted={(resultDrafts[assignment.lane]?.status ?? 'ok') !== 'ok'}
-                            value={resultDrafts[assignment.lane]?.finishPosition ?? ''}
-                            onChange={(inputEvent) => updateFinishPosition(assignment.lane, inputEvent.target.value)}
-                          >
-                            <option value="">
-                              {(resultDrafts[assignment.lane]?.status ?? 'ok') === 'ok' ? 'Place' : 'Not placed'}
-                            </option>
-                            {(resultDrafts[assignment.lane]?.status ?? 'ok') === 'ok'
-                              ? finishPositionOptions.map((position) => (
-                                  <option key={position} value={position}>
-                                    {position}
-                                  </option>
-                                ))
-                              : null}
-                          </select>
-                        )}
+                        <div className="result-measurements">
+                          <label>
+                            <span>{showTimeResults ? 'Time (s)' : 'Time (s, optional)'}</span>
+                            <input
+                              aria-label={`Lane ${assignment.lane} time`}
+                              disabled={resultsLockedByDependents}
+                              inputMode="decimal"
+                              placeholder="0.0000"
+                              value={resultDrafts[assignment.lane]?.timeSeconds ?? ''}
+                              onChange={(inputEvent) => updateDraft(assignment.lane, { timeSeconds: inputEvent.target.value })}
+                            />
+                          </label>
+                          {!showTimeResults ? (
+                            <label>
+                              <span>Place</span>
+                              <select
+                                aria-label={`Lane ${assignment.lane} finish position`}
+                                disabled={resultsLockedByDependents || (resultDrafts[assignment.lane]?.status ?? 'ok') !== 'ok'}
+                                data-muted={(resultDrafts[assignment.lane]?.status ?? 'ok') !== 'ok'}
+                                value={resultDrafts[assignment.lane]?.finishPosition ?? ''}
+                                onChange={(inputEvent) => updateFinishPosition(assignment.lane, inputEvent.target.value)}
+                              >
+                                <option value="">
+                                  {(resultDrafts[assignment.lane]?.status ?? 'ok') === 'ok' ? 'Place' : 'Not placed'}
+                                </option>
+                                {(resultDrafts[assignment.lane]?.status ?? 'ok') === 'ok'
+                                  ? finishPositionOptions.map((position) => (
+                                      <option key={position} value={position}>
+                                        {position}
+                                      </option>
+                                    ))
+                                  : null}
+                              </select>
+                            </label>
+                          ) : null}
+                        </div>
                         <select
                           aria-label={`Lane ${assignment.lane} status`}
                           disabled={resultsLockedByDependents}
@@ -567,7 +585,7 @@ export function RaceControl({
                   <span>
                     {standing.rank ?? '—'}. #{standing.racerNumber} {standing.racerName}
                   </span>
-                  <strong>{standing.bestTimeMs ? formatTime(standing.bestTimeMs) : standing.scoreLabel}</strong>
+                  <strong>{standing.scoreLabel}{!showTimeResults && standing.bestTimeMs !== undefined ? <small>Best {formatTime(standing.bestTimeMs)}</small> : null}</strong>
                 </li>
               ))}
             </ol>
@@ -580,7 +598,7 @@ export function RaceControl({
           </p>
         )}
 
-        <div className="live-standings-panel">
+        {hasUnfinishedHeats ? <div className="live-standings-panel live-stats">
           <strong>Live stats</strong>
           <ol className="leader-list compact">
             {liveStandings.map((standing) => (
@@ -588,12 +606,12 @@ export function RaceControl({
                 <span>
                   {standing.rank ?? '—'}. #{standing.racerNumber} {standing.racerName}
                 </span>
-                <strong>{standing.bestTimeMs ? formatTime(standing.bestTimeMs) : standing.scoreLabel}</strong>
+                <strong>{standing.scoreLabel}{!showTimeResults && standing.bestTimeMs !== undefined ? <small>Best {formatTime(standing.bestTimeMs)}</small> : null}</strong>
               </li>
             ))}
           </ol>
-          {liveStandings.length === 0 ? <p className="empty-state">{raceFinished ? 'No final results available.' : 'Record a heat to start live stats.'}</p> : null}
-        </div>
+          {liveStandings.length === 0 ? <p className="empty-state">Record a heat to start live stats.</p> : null}
+        </div> : null}
       </div>
 
       <div className="race-panel next-actions">
@@ -687,16 +705,6 @@ export function RaceControl({
         </div>
       </div>
 
-      <TimerPanel
-        actions={actions}
-        currentHeat={currentHeat}
-        currentRace={currentRace}
-        ports={timerPorts}
-        preferences={timerPreferences}
-        profiles={timerProfiles}
-        state={timerState}
-        developerMode={developerMode}
-      />
     </section>
   )
 }

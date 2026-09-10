@@ -438,7 +438,7 @@ ipcMain.handle('race-entry:scratch', (_event, raceId: string, entryId: string) =
 
 ipcMain.handle('heat:record-results', (_event, raceId: string, input: RecordHeatResultsInput) =>
   withSessionBroadcast(
-    mutateEvent('heat:record-results', (raceEvent) => recordHeatResults(raceEvent, raceId, input), { raceId, heatId: input.heatId }, raceId)
+    mutateEvent('heat:record-results', (raceEvent) => recordHeatResults(raceEvent, raceId, input), { raceId, heatId: input.heatId, results: input.results }, raceId)
   )
 )
 
@@ -505,7 +505,10 @@ ipcMain.handle(
             profileId: capture.profileId,
             simulated: capture.simulated,
             simulatorScenario: capture.simulatorScenario,
-            warnings: capture.warnings
+            warnings: capture.warnings,
+            capturedResults: capture.results,
+            submittedResults: input.results,
+            rawFrames: capture.rawFrames
           },
           raceId
         )

@@ -1,17 +1,20 @@
 .race-control-layout {
   grid-template-columns: minmax(620px, 1fr) minmax(270px, 0.36fr);
   align-items: start;
-  flex: 0 0 auto;
+  flex: 1 0 auto;
+  min-height: calc(100dvh - 102px);
 }
 
-.race-control-layout .current-state,
 .race-control-layout .next-actions {
   height: fit-content;
 }
 
 .race-control-layout .current-state {
-  gap: 16px;
-  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  gap: 12px;
+  padding: 16px;
 }
 
 .race-control-layout .current-state > .toolbar-row {
@@ -76,7 +79,7 @@
 }
 
 .live-standings-panel .leader-list {
-  max-height: 132px;
+  max-height: none;
   overflow: auto;
   padding-right: 4px;
 }
@@ -98,7 +101,7 @@
   }
 
   .live-standings-panel .leader-list {
-    max-height: 220px;
+    max-height: none;
   }
 }
 
@@ -121,10 +124,31 @@
   }
 
   .live-standings-panel .leader-list {
-    max-height: 84px;
+    max-height: none;
   }
 
   .live-standings-panel .leader-list li {
     padding-block: 8px;
   }
+}
+
+.race-control-layout .result-row {
+  grid-template-columns: 56px minmax(110px, 1fr) minmax(112px, auto) 70px 65px;
+  gap: 8px;
+}
+.result-measurements { display: flex; gap: 6px; align-items: end; }
+.result-measurements > label { display: grid; gap: 3px; min-width: 0; width: 110px; }
+.result-measurements > label + label { width: 62px; }
+.result-measurements label > span { font-size: 10px; font-weight: 700; white-space: nowrap; }
+.result-measurements input, .result-measurements select { padding-inline: 7px; }
+.live-stats { flex: 1 0 220px; grid-template-rows: auto minmax(0, 1fr); }
+.live-stats .leader-list { height: 100%; min-height: 160px; }
+.live-stats .leader-list,
+.race-control-layout .heat-list { align-content: start; }
+.live-standings-panel .leader-list strong { text-align: right; }
+.live-standings-panel .leader-list strong small { display: block; margin-top: 3px; color: #607269; font-size: 12px; }
+.popout-content:has(> .race-control-layout) { flex: 1 0 auto; }
+.popout-content .race-control-layout { min-height: calc(100dvh - 126px); }
+@media (max-width: 1199px) {
+  .race-control-layout .current-state { min-height: calc(100dvh - 102px); }
 }

@@ -34,7 +34,7 @@ PackRacer sends `RV` followed by carriage return and requires a response contain
 | `RG` | Return start-switch state (`1` closed, `0` open) | Parser accepts `RG0`/`0` as race start |
 | `LO` | Turn off laser/gate-release bit | Not used |
 | `LN` | Turn on laser bit and open motor gate | Not used |
-| `LG` | Pulse laser bit for solenoid gate release | Software gate release, behind acknowledgement and arm safety |
+| `LG` | Pulse laser bit for solenoid gate release | Software gate release, available only for an armed heat |
 | `RX` | Simulate closing the start switch; ends a race when Force Print is available | Not used |
 | `LX...` | Model-dependent automatic reset or display-cycle setting | Not used |
 

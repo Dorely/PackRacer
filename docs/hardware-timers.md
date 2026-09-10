@@ -1,6 +1,6 @@
 # Hardware Timers
 
-PackRacer can use a serial hardware timer or its built-in simulator as an optional Race Control input. Manual result entry remains available in every timer state. A timer capture is always staged in the normal result form for review; it never saves a result or advances a heat automatically.
+PackRacer can use a serial hardware timer or its built-in simulator as an optional Race Control input. Manual result entry remains available in every timer state. Times are required for time-scored OK results and optional for placement-based races. Optional times remain visible, editable, and stored without affecting places, points, or advancement. Result audit entries retain submitted values; timer acceptance also retains captured values and raw frames. A timer capture is always staged in the normal result form for review; it never saves a result or advances a heat automatically.
 
 ## Platform Support
 
@@ -15,7 +15,7 @@ Serial access uses [`serialport@13`](https://serialport.io/docs/next/guide-platf
 
 ## Operator Workflow
 
-1. Open **Race Control → Hardware Timer**.
+1. Open **Race Control → Timer Settings**.
 2. Select a profile and COM port, then choose **Connect**. PackRacer never auto-connects at startup.
 3. Confirm the physical-to-PackRacer lane mapping.
 4. Select the current heat and choose **Arm Current Heat**.
@@ -43,7 +43,7 @@ Advanced mode is declarative. It supports serial parameters, line endings, numer
 
 A configured probe command must have a configured literal expected response, and vice versa. When both are blank, PackRacer requires confirmation on every connection and labels the open port **Unverified**; opening the selected operating-system port must still succeed. Built-in profiles never use this bypass.
 
-An advanced release command is subject to the same saved safety acknowledgement and one-release-per-arm protection as built-in hardware profiles.
+An advanced release command is subject to the same one-release-per-arm protection as built-in hardware profiles.
 
 ## Lane Mapping and Capture Rules
 
@@ -60,9 +60,9 @@ The rolling diagnostic transcript contains sent commands, escaped received chunk
 
 ## Gate Release Safety
 
-Software gate control is off by default and stored as a computer/track preference rather than event data. The operator must save the acknowledgement before the control is enabled.
+Connected timer controls appear above the lane results. Connection, lane mapping, and diagnostics are available in the Timer Settings dialog. Release Gate is available for a supported, armed timer without a separate acknowledgement checkbox.
 
-A release is allowed only when the connected profile declares support, the current heat is armed, the acknowledgement is enabled, and no release has been sent for that arm operation. Exactly one command is sent. Disconnection, disarming, changing heat, receiving a result, or an error disables release. A release failure does not affect manual entry.
+A release is allowed only when the connected profile declares support, the current heat is armed, and no release has been sent for that arm operation. Exactly one command is sent. Disconnection, disarming, changing heat, receiving a result, or an error disables release. A release failure does not affect manual entry.
 
 Built-in physical release supports documented Micro Wizard K/Q and PDT optional solenoid hardware. Advanced profiles may define a static release command. Confirm the actual gate hardware before enabling control.
 
@@ -78,7 +78,7 @@ Normal use is:
 2. Scan ports in Race Control.
 3. Select the matching hardware profile and `PACKRACER-SIM`, then connect.
 4. Arm the current heat in Race Control.
-5. For a profile without software gate release, choose **Send Simulated Heat** in the simulator window. For a gate-capable profile, enable software gate control and choose **Release Gate** in Race Control instead.
+5. For a profile without software gate release, choose **Send Simulated Heat** in the simulator window. For a gate-capable profile, choose **Release Gate** in Race Control instead.
 6. Observe the raw-byte transcript and staged capture.
 7. Review or edit the result, then accept or discard it exactly as you would a physical timer capture.
 
@@ -110,7 +110,6 @@ The following app-local values are stored in SQLite metadata and are not added t
 - Last COM-port hint and stable USB identity when the driver exposes one.
 - Physical lane mapping.
 - Advanced declarative profile.
-- Software gate-control acknowledgement.
 
 Simulator model, scenario, variation, and transcript are session-only. PackRacer never auto-connects.
 
@@ -123,6 +122,6 @@ Before removing the validation-pending label for a unit, verify on Windows x64:
 - Probe/detection behavior where supported.
 - Whole, fragmented, noisy, duplicate, partial, and malformed transmissions.
 - Lane masks, reset, and force-result behavior where supported.
-- Remembered profile, port hint, mapping, advanced settings, and gate acknowledgement after restart.
-- Gate release is unavailable when unsupported, disconnected, unarmed, stale, already released, or disabled.
+- Remembered profile, port hint, mapping, and advanced settings after restart.
+- Gate release is unavailable when unsupported, disconnected, unarmed, stale, or already released.
 - Manual entry remains usable during every timer and simulator state.

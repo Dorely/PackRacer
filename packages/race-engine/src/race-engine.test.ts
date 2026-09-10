@@ -44,6 +44,35 @@ describe('single elimination brackets', () => {
 })
 
 describe('heat result validation', () => {
+  it.each(['points-heats', 'round-robin', 'single-elimination'] as const)(
+    'retains optional times without changing placement scoring for %s', (format) => {
+      const fixture = eventWithRace(format, 2, { laneCount: 2, roundsPerRacer: 1 })
+      const event = generateRaceHeats(fixture.event, fixture.raceId)
+      const heat = event.races[0].heats.find((candidate) => candidate.status === 'pending')!
+      const results = heat.laneAssignments.filter((assignment) => assignment.racerId).map((assignment, index) => ({
+        lane: assignment.lane, racerId: assignment.racerId!, status: 'ok' as const,
+        finishPosition: index + 1, timeMs: index === 0 ? 3200.4 : 3000.1
+      }))
+      const saved = recordHeatResults(event, fixture.raceId, { heatId: heat.id, results })
+      const restored = JSON.parse(JSON.stringify(saved)) as RaceEvent
+      expect(restored.races[0].heats.find((candidate) => candidate.id === heat.id)!.results.map((result) => result.timeMs))
+        .toEqual([3200.4, 3000.1])
+      const standings = calculateStandings(restored, fixture.raceId)
+      expect(standings[0].racerId).toBe(results[0].racerId)
+      expect(standings[0].bestTimeMs).toBe(3200.4)
+      const withoutTimes = recordHeatResults(event, fixture.raceId, {
+        heatId: heat.id, results: results.map(({ timeMs: _time, ...result }) => result)
+      })
+      expect(calculateStandings(withoutTimes, fixture.raceId).map(({ racerId, score }) => ({ racerId, score })))
+        .toEqual(standings.map(({ racerId, score }) => ({ racerId, score })))
+      for (const invalid of [-1, NaN, Infinity]) {
+        expect(() => recordHeatResults(event, fixture.raceId, {
+          heatId: heat.id, results: [{ ...results[0], timeMs: invalid }, results[1]]
+        })).toThrow(/valid non-negative time/)
+      }
+    }
+  )
+
   it('preserves tenth-millisecond timer differences through result storage and standings', () => {
     const fixture = eventWithRace('timed-heats', 2, { laneCount: 2, roundsPerRacer: 1 })
     const event = generateRaceHeats(fixture.event, fixture.raceId)

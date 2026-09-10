@@ -1,5 +1,5 @@
-import { ChevronDown, ChevronUp, Plug, RefreshCw, Unplug, Usb } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { Plug, RefreshCw, Settings, Unplug, Usb, X } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import type { Heat, Race } from '@packracer/race-engine'
 import type {
@@ -31,6 +31,11 @@ function diagnosticTime(value: string): string {
 
 export function TimerPanel({ actions, currentRace, currentHeat, profiles, ports, preferences, state, developerMode }: TimerPanelProps) {
   const [open, setOpen] = useState(false)
+  const dialogRef = useRef<HTMLDialogElement>(null)
+  useEffect(() => {
+    if (open) dialogRef.current?.showModal()
+    else dialogRef.current?.close()
+  }, [open])
   const [selectedProfileId, setSelectedProfileId] = useState<TimerProfileId>(preferences.profileId)
   const [selectedPortPath, setSelectedPortPath] = useState(preferences.portPath)
   const [profileDirty, setProfileDirty] = useState(false)
@@ -57,7 +62,8 @@ export function TimerPanel({ actions, currentRace, currentHeat, profiles, ports,
     () => Array.from({ length: currentRace.laneCount }, (_value, index) => index + 1),
     [currentRace.laneCount]
   )
-  const connected = state.status !== 'disconnected' && state.status !== 'error'
+  const connected = Boolean(state.connectedProfileId) && state.status !== 'error'
+  const connectionBusy = connected || state.status === 'connecting'
   const selectedProfile = profiles.find((profile) => profile.id === selectedProfileId)
   const hardwareReplayProfiles = profiles.filter(
     (profile): profile is TimerProfile & { id: PhysicalTimerProfileId } => profile.category === 'hardware' || profile.id === 'advanced'
@@ -112,8 +118,7 @@ export function TimerPanel({ actions, currentRace, currentHeat, profiles, ports,
 
   const arm = async () => {
     if (!currentHeat) return
-    await saveSettings()
-    await actions.armTimer(currentRace.id, currentHeat.id, draftPreferences.laneMapping)
+    await actions.armTimer(currentRace.id, currentHeat.id, preferences.laneMapping)
   }
 
   const runReplay = async () => {
@@ -122,23 +127,39 @@ export function TimerPanel({ actions, currentRace, currentHeat, profiles, ports,
 
   return (
     <section className="timer-panel">
-      <button className="timer-panel-summary" aria-expanded={open} onClick={() => setOpen((value) => !value)} type="button">
-        <span className="timer-summary-title">
-          <Usb aria-hidden="true" size={20} />
-          <span>
-            <strong>Hardware Timer</strong>
-            <small>{state.profileName ?? 'Manual entry available — no timer connected'} · {state.status}</small>
-          </span>
-        </span>
-        {open ? <ChevronUp aria-hidden="true" size={19} /> : <ChevronDown aria-hidden="true" size={19} />}
-      </button>
-
-      {open ? (
+      <div className="timer-operations">
+        <div className="timer-operation-heading">
+          <span className="timer-summary-title"><Usb aria-hidden="true" size={18} /><strong>{state.profileName ?? 'Hardware timer'}</strong></span>
+          <span className={`timer-status status-${state.status}`}>{state.status}</span>
+          {state.connectionVerification === 'unverified' ? <span className="timer-status status-unverified">UNVERIFIED</span> : null}
+          <button className="secondary-action" onClick={() => setOpen(true)} type="button"><Settings aria-hidden="true" size={16} />Timer Settings</button>
+        </div>
+        {state.error ? <p className="timer-error" role="alert">{state.error}</p> : null}
+        {connected ? <div className="button-row timer-race-actions">
+          {state.armedHeat ? <button className="secondary-action" onClick={() => void actions.disarmTimer()} type="button">Disarm</button> : <button className="primary-action" disabled={!currentHeat || !['ready', 'result'].includes(state.status)} onClick={() => void arm()} type="button">Arm Current Heat</button>}
+          {state.status === 'armed' && state.capabilities.gateRelease ? <button className="primary-action" onClick={() => void actions.releaseTimerGate()} type="button">Release Gate</button> : null}
+          {state.capabilities.reset ? <button className="secondary-action" onClick={() => void actions.resetTimer()} type="button">Reset</button> : null}
+          {state.capabilities.forceResults && state.armedHeat ? <button className="secondary-action" onClick={() => void actions.forceTimerResults()} type="button">Force Results</button> : null}
+        </div> : null}
+        {state.capture ? (
+          <div className="timer-capture" data-stale={!captureIsCurrent}>
+            <div><strong>Timer capture staged</strong><span>Heat {state.capture.heatNumber} · {state.capture.results.length} lane result(s){state.capture.complete ? '' : ' · incomplete'}</span></div>
+            {state.capture.warnings.map((warning) => <p key={warning}>{warning}</p>)}
+            {!captureIsCurrent ? <p>This capture is stale and cannot populate the selected heat.</p> : null}
+            <button className="secondary-action" onClick={() => void actions.discardTimerCapture()} type="button">Discard Capture</button>
+          </div>
+        ) : null}
+      </div>
+      <dialog ref={dialogRef} className="timer-settings-dialog" aria-labelledby="timer-settings-title" onCancel={() => setOpen(false)} onClose={() => setOpen(false)}>
+        <div className="panel-heading timer-dialog-heading">
+          <h3 id="timer-settings-title">Timer Settings</h3>
+          <button className="icon-action" aria-label="Close timer settings" onClick={() => setOpen(false)} type="button"><X aria-hidden="true" size={22} /></button>
+        </div>
         <div className="timer-panel-body">
           <div className="timer-setup-grid">
             <label>
               <span>Timer profile</span>
-              <select disabled={connected} value={selectedProfileId} onChange={(event) => { setProfileDirty(true); setSelectedProfileId(event.target.value as TimerProfileId) }}>
+              <select disabled={connectionBusy} value={selectedProfileId} onChange={(event) => { setProfileDirty(true); setSelectedProfileId(event.target.value as TimerProfileId) }}>
                 {(['automatic', 'hardware', 'advanced'] as const).map((category) => {
                   const categoryProfiles = profiles.filter((profile) => profile.category === category)
                   return categoryProfiles.length ? (
@@ -153,11 +174,11 @@ export function TimerPanel({ actions, currentRace, currentHeat, profiles, ports,
             <label>
               <span>Available port</span>
               <div className="inline-field-actions">
-                <select disabled={connected} value={selectedPortPath} onChange={(event) => { setPortDirty(true); setSelectedPortPath(event.target.value) }}>
+                <select disabled={connectionBusy} value={selectedPortPath} onChange={(event) => { setPortDirty(true); setSelectedPortPath(event.target.value) }}>
                   <option value="">Select a scanned port</option>
                   {ports.map((port) => <option key={port.path} value={port.path}>{port.path}{port.manufacturer ? ` — ${port.manufacturer}` : ''}{port.simulated ? ' (virtual)' : ''}</option>)}
                 </select>
-                <button className="secondary-action timer-scan-action" disabled={connected} onClick={() => void actions.scanTimerPorts()} title="Scan for connected serial timers" type="button">
+                <button className="secondary-action timer-scan-action" disabled={connectionBusy} onClick={() => void actions.scanTimerPorts()} title="Scan for connected serial timers" type="button">
                   <RefreshCw aria-hidden="true" size={18} />
                   <span>Scan</span>
                 </button>
@@ -187,9 +208,10 @@ export function TimerPanel({ actions, currentRace, currentHeat, profiles, ports,
           ) : null}
 
           <div className="button-row timer-connect-actions">
-            {!connected ? <button className="primary-action" disabled={!selectedPortPath} onClick={() => void connect()} type="button"><Plug aria-hidden="true" size={18} />Connect</button> : null}
+            {!connected ? <button className="primary-action" disabled={!selectedPortPath || connectionBusy} onClick={() => void connect()} type="button"><Plug aria-hidden="true" size={18} />Connect</button> : null}
             {connected ? <button className="secondary-action" onClick={() => void actions.disconnectTimer()} type="button"><Unplug aria-hidden="true" size={18} />Disconnect</button> : null}
             {developerMode ? <button className="secondary-action" onClick={() => void actions.openTimerSimulator()} type="button">Open Timer Simulator</button> : null}
+            <button className="secondary-action" onClick={() => void saveSettings()} type="button">Save Settings</button>
             <span className={`timer-status status-${state.status}`}>{state.status}</span>
             {state.connectionVerification === 'unverified' ? <span className="timer-status status-unverified">UNVERIFIED</span> : null}
             {state.error ? <span className="timer-error">{state.error}</span> : null}
@@ -211,30 +233,7 @@ export function TimerPanel({ actions, currentRace, currentHeat, profiles, ports,
                 </div>
               </div>
 
-              {state.capabilities.gateRelease ? (
-                <label className="gate-acknowledgement">
-                  <input checked={draftPreferences.gateControlEnabled} onChange={(event) => setDraftPreferences((previous) => ({ ...previous, gateControlEnabled: event.target.checked }))} type="checkbox" />
-                  <span>I understand software gate release can start a physical race; enable it on this computer.</span>
-                  <button className="secondary-action" onClick={() => void saveSettings()} type="button">Save setting</button>
-                </label>
-              ) : null}
-
-              <div className="button-row">
-                {state.armedHeat ? <button className="secondary-action" onClick={() => void actions.disarmTimer()} type="button">Disarm</button> : <button className="primary-action" disabled={!currentHeat} onClick={() => void arm()} type="button">Arm Current Heat</button>}
-                {state.status === 'armed' && state.capabilities.gateRelease && draftPreferences.gateControlEnabled ? <button className="danger-action" onClick={() => void actions.releaseTimerGate()} type="button">Release Gate</button> : null}
-                {state.capabilities.reset ? <button className="secondary-action" onClick={() => void actions.resetTimer()} type="button">Reset</button> : null}
-                {state.capabilities.forceResults && state.armedHeat ? <button className="secondary-action" onClick={() => void actions.forceTimerResults()} type="button">Force Results</button> : null}
-              </div>
             </>
-          ) : null}
-
-          {state.capture ? (
-            <div className="timer-capture" data-stale={!captureIsCurrent}>
-              <div><strong>Timer capture staged</strong><span>Heat {state.capture.heatNumber} · {state.capture.results.length} lane result(s){state.capture.complete ? '' : ' · incomplete'}</span></div>
-              {state.capture.warnings.map((warning) => <p key={warning}>{warning}</p>)}
-              {!captureIsCurrent ? <p>This capture is stale and cannot populate the selected heat.</p> : null}
-              <button className="secondary-action" onClick={() => void actions.discardTimerCapture()} type="button">Discard Capture</button>
-            </div>
           ) : null}
 
           <details className="timer-details">
@@ -250,7 +249,7 @@ export function TimerPanel({ actions, currentRace, currentHeat, profiles, ports,
             </div>
           </details>
         </div>
-      ) : null}
+      </dialog>
     </section>
   )
 }

@@ -39,6 +39,10 @@ export function validateSubmittedResults(race: Race, heat: Heat, results: LaneRe
       throw new Error('Every result must match the racer assigned to that lane.')
     }
     if (!validStatuses.has(result.status)) throw new Error('A result contains an unsupported status.')
+    if (result.timeMs !== undefined &&
+      (typeof result.timeMs !== 'number' || !Number.isFinite(result.timeMs) || result.timeMs < 0)) {
+      throw new Error('Enter a valid non-negative time or leave the optional time blank.')
+    }
     if (result.status === 'ok' && usesTimeResults(race) &&
       (typeof result.timeMs !== 'number' || !Number.isFinite(result.timeMs) || result.timeMs < 0)) {
       throw new Error('Enter a valid non-negative time for every OK result.')

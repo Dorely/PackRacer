@@ -138,7 +138,10 @@ export class TimerService {
     const stored = await getAppSetting<TimerPreferences>(preferencesKey, defaultTimerPreferences)
     this.preferences = {
       ...structuredClone(defaultTimerPreferences),
-      ...stored,
+      profileId: stored.profileId ?? defaultTimerPreferences.profileId,
+      portPath: stored.portPath ?? defaultTimerPreferences.portPath,
+      portIdentity: stored.portIdentity,
+      laneMapping: stored.laneMapping ?? {},
       advancedProfile: {
         ...defaultTimerPreferences.advancedProfile,
         ...stored.advancedProfile,
@@ -680,20 +683,19 @@ export class TimerService {
     if (!this.state.armedHeat || this.state.status !== 'armed' || this.state.gateReleased || !this.state.capabilities.gateRelease) {
       throw new Error('Gate release is unavailable until a supported timer is connected and the current heat is armed.')
     }
-    if (!this.preferences.gateControlEnabled) {
-      throw new Error('Enable software gate control in timer preferences before releasing the gate.')
-    }
+    const armedHeat = this.state.armedHeat
+    this.state.gateReleased = true
+    this.state.status = 'running'
+    this.emit()
     if (this.adapter) {
       await this.writeCommands(this.adapter.releaseGateCommands())
     }
-    this.state.gateReleased = true
-    this.state.status = 'running'
-    this.log('system', `Gate release sent for heat ${this.state.armedHeat.heatNumber}.`)
+    this.log('system', `Gate release sent for heat ${armedHeat.heatNumber}.`)
     this.emit()
     await appendAuditAction(
       this.state.simulationMode ? 'timer:simulated-gate-release' : 'timer:gate-release',
-      { heatId: this.state.armedHeat.heatId, profileId: this.state.connectedProfileId },
-      this.state.armedHeat.raceId
+      { heatId: armedHeat.heatId, profileId: this.state.connectedProfileId },
+      armedHeat.raceId
     )
     return this.getState()
   }

@@ -14,14 +14,9 @@
 
 .registration-controls-panel .registration-workflow-card {
   align-content: start;
-  max-height: 360px;
-  overflow-y: hidden;
+  min-height: 410px;
+  overflow: visible;
   box-shadow: 0 12px 24px rgba(22, 53, 44, 0.06);
-}
-
-.registration-controls-panel .registration-workflow-card[data-workflow="roster"][data-expanded="true"] {
-  overflow-y: auto;
-  scrollbar-gutter: stable;
 }
 
 .registration-roster-panel {
@@ -268,16 +263,13 @@
 }
 
 .registration-workflow-card[data-workflow="race"] .existing-racer-list {
-  max-height: 100px;
+  min-height: 160px;
+  max-height: 260px;
 }
 
 .registration-workflow-card[data-workflow="race"] .existing-racer-list:has(.empty-state) {
   max-height: none;
   overflow: visible;
-}
-
-.registration-workflow-card[data-workflow="race"]:has(.notice-banner) .existing-racer-list {
-  max-height: 56px;
 }
 
 .registration-workflow-heading {
@@ -416,11 +408,11 @@
   }
 
   .registration-controls-panel .registration-workflow-card {
-    max-height: 390px;
+    min-height: 410px;
   }
 
   .registration-workflow-card[data-workflow="race"] .existing-racer-list {
-    max-height: 74px;
+    max-height: 260px;
   }
 
   .roster-filter-bar {
@@ -430,12 +422,6 @@
   .filter-result-count {
     grid-column: 1 / -1;
     justify-self: start;
-  }
-}
-
-@media (max-height: 800px) and (min-width: 1200px) {
-  .registration-controls-panel .registration-workflow-card {
-    max-height: 330px;
   }
 }
 

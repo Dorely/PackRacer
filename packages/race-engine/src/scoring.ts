@@ -199,6 +199,10 @@ export function calculateStandings(event: RaceEvent, raceId?: string): Standing[
 
         draft.completedHeats += 1
 
+        if (typeof result.timeMs === 'number' && result.status === 'ok') {
+          draft.resultTimes.push(result.timeMs)
+        }
+
         if (winner && winner.racerId === result.racerId) {
           draft.wins = (draft.wins ?? 0) + 1
         } else {

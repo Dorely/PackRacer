@@ -441,7 +441,7 @@ export function App() {
       <main className="popout-shell" data-section={activeSection}>
         {showPopoutHeader ? (
           <header className="popout-header">
-            <div>
+            <div className="page-heading">
               <p className="eyebrow">{activeNavigationItem.meta}</p>
               <h1>{activeNavigationItem.label}</h1>
             </div>
@@ -510,7 +510,7 @@ export function App() {
       <section className="workspace" data-section={activeSection} aria-labelledby={activeSection === 'display' ? undefined : 'workspace-title'}>
         {activeSection !== 'display' ? (
           <header className="topbar">
-            <div>
+            <div className="page-heading">
               <p className="eyebrow">{activeNavigationItem.meta}</p>
               <h2 id="workspace-title">{activeNavigationItem.label}</h2>
             </div>

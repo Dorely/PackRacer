@@ -8,11 +8,11 @@ Sources: [PDT project](https://www.dfgtec.com/pdt), [construction photographs](h
 
 ## Connecting the pack's timer
 
-Use the Uno's USB-B socket with a USB data cable and retain the existing external power supply for the displays. Select **dfgtec Pinewood Derby Timer (PDT)** and its COM port in Hardware Timer. Set up a three-lane race and verify physical lane mapping 1–3.
+Use the Uno's USB-B socket with a USB data cable and retain the existing external power supply for the displays. Select **dfgtec Pinewood Derby Timer (PDT)** and its COM port in Timer Settings. Set up a three-lane race and verify physical lane mapping 1–3.
 
 Connect while the timer is idle. PackRacer waits 2.5 seconds for the Uno's possible USB-open reset, then verifies the version response. Select PDT explicitly: generic auto-detection sends other manufacturers' commands which overlap PDT reset commands.
 
-Close the start gate before **Arm Current Heat**. Arming clears lane masks, masks unoccupied lanes, and resets the timer for the next run. If diagnostics report an open gate, close it, reset, and arm again. Start manually unless this particular track has the optional solenoid circuit installed and tested. Software release is disabled by default.
+Close the start gate before **Arm Current Heat**. Arming clears lane masks, masks unoccupied lanes, and resets the timer for the next run. If diagnostics report an open gate, close it, reset, and arm again. Start manually unless this particular track has the optional solenoid circuit installed and tested. Release Gate is available only after arming a supported timer.
 
 ## Implemented protocol
 

@@ -113,7 +113,7 @@
 | `apps/desktop/src/renderer/src/sections/race-control-results.ts` | Race Control result-draft initialization, status handling, and placement normalization utilities. |
 | `apps/desktop/src/renderer/src/sections/Registration.tsx` | Division-aware racer creation, explicit race assignment, race readiness controls, and searchable event-wide identity/division/deletion management. |
 | `apps/desktop/src/renderer/src/sections/Standings.tsx` | Race-scoped live standings table and compact source/dependent advancement summaries. |
-| `apps/desktop/src/renderer/src/sections/TimerPanel.tsx` | Race Control hardware setup, simulator scenarios, lane mapping, gate controls, diagnostics, and protocol replay UI. |
+| `apps/desktop/src/renderer/src/sections/TimerPanel.tsx` | Inline race-day timer controls and capture warnings, with connection, mapping, and diagnostics in a settings dialog. |
 | `apps/desktop/src/renderer/src/sections/types.ts` | Shared renderer section prop and action types. |
 
 ## Timer Adapter Package

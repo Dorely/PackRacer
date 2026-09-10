@@ -71,7 +71,6 @@ export type TimerPreferences = {
   portPath: string
   portIdentity?: string
   laneMapping: Record<number, number>
-  gateControlEnabled: boolean
   advancedProfile: AdvancedTimerProfile
 }
 
@@ -250,6 +249,5 @@ export const defaultTimerPreferences: TimerPreferences = {
   profileId: 'micro-wizard-fasttrack',
   portPath: '',
   laneMapping: {},
-  gateControlEnabled: false,
   advancedProfile: defaultAdvancedTimerProfile
 }
